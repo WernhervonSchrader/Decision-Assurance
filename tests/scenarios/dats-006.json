@@ -1,0 +1,33 @@
+{
+  "id": "DATS-006",
+  "title": "Mandatory evidence is missing",
+  "objective": "Ensure mandatory evidence gaps cannot silently pass.",
+  "input": {
+    "claim": "Approve supplier onboarding.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      }
+    ],
+    "mandatory_evidence_missing": true,
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "MANDATORY_EVIDENCE_MISSING"
+    ],
+    "human_review": true
+  }
+}

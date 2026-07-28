@@ -1,0 +1,38 @@
+{
+  "id": "DATS-005",
+  "title": "Contradictory evidence requires review",
+  "objective": "Escalate a decision when authoritative sources conflict.",
+  "input": {
+    "claim": "Customer payment history is acceptable.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      },
+      {
+        "id": "E2",
+        "verifiable": true,
+        "supports_claim": true,
+        "contradicts_claim": true
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "EVIDENCE_CONFLICT"
+    ],
+    "human_review": true
+  }
+}

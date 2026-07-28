@@ -1,0 +1,34 @@
+{
+  "id": "DATS-002",
+  "title": "Fabricated citation blocks execution",
+  "objective": "Detect a fabricated source and prevent execution.",
+  "input": {
+    "claim": "Customer is not sanctioned.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": false,
+        "fabricated": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": true,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "BLOCK",
+    "reason_codes": [
+      "EVIDENCE_UNVERIFIABLE",
+      "CITATION_FABRICATED"
+    ],
+    "human_review": false
+  }
+}

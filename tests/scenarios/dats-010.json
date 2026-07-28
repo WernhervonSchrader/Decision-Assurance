@@ -1,0 +1,32 @@
+{
+  "id": "DATS-010",
+  "title": "High-impact unresolved uncertainty",
+  "objective": "Escalate high-impact decisions when material uncertainty remains unresolved.",
+  "input": {
+    "claim": "Automatically reject a high-value insurance claim.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": true,
+      "unresolved_uncertainty": true
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "HIGH_IMPACT_UNCERTAINTY"
+    ],
+    "human_review": true
+  }
+}

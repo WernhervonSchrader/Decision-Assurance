@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/constraint-contract/0.1.0",
+  "title": "Constraint Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["constraint_id", "policy_version", "severity", "condition", "reason_code"],
+  "properties": {
+    "constraint_id": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "severity": {"enum": ["MANDATORY", "REVIEW_REQUIRED", "ADVISORY"]},
+    "condition": {"type": "string", "minLength": 1},
+    "reason_code": {"type": "string", "minLength": 1},
+    "authority_ref": {"type": "string"},
+    "effective_from": {"type": "string", "format": "date-time"},
+    "effective_until": {"type": ["string", "null"], "format": "date-time"},
+    "exception_policy_ref": {"type": ["string", "null"]}
+  }
+}

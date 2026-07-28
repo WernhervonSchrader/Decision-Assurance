@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "decision-assurance-engine"
+version = "0.1.0"
+description = "Deterministic reference engine for the Decision Assurance Specification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = ["jsonschema>=4.20,<5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+decision-assurance = "decision_assurance.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/decision_assurance"]
+
+[tool.hatch.build]
+include = ["src/decision_assurance/**/*.py", "src/decision_assurance/schemas/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+

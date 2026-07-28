@@ -1,0 +1,43 @@
+{
+  "id": "DATS-008",
+  "title": "Policy threshold routes to human approval",
+  "objective": "Require human approval when a commercial threshold is exceeded.",
+  "input": {
+    "claim": "Approve a 24 percent discount.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [
+      {
+        "id": "MARGIN",
+        "hard": false,
+        "satisfied": true
+      }
+    ],
+    "policies": [
+      {
+        "id": "DISCOUNT-APPROVAL",
+        "requires_review": true
+      }
+    ],
+    "actors": {
+      "generator": "sales-agent",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "POLICY_REQUIRES_REVIEW"
+    ],
+    "human_review": true
+  }
+}

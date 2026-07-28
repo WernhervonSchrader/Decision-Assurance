@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/policy-contract/0.1.0",
+  "title": "Policy Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy_id", "version", "constraint_refs", "effective_from"],
+  "properties": {
+    "policy_id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "authority_ref": {"type": "string"},
+    "jurisdiction": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "constraint_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "effective_from": {"type": "string", "format": "date-time"},
+    "effective_until": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

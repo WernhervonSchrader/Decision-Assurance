@@ -1,0 +1,38 @@
+{
+  "id": "DATS-007",
+  "title": "Hard constraint violation blocks decision",
+  "objective": "Verify that a deterministic hard constraint overrides model confidence.",
+  "input": {
+    "claim": "Approve shipment despite prohibited destination.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [
+      {
+        "id": "EXPORT-001",
+        "hard": true,
+        "satisfied": false
+      }
+    ],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": true,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "BLOCK",
+    "reason_codes": [
+      "HARD_CONSTRAINT_VIOLATION"
+    ],
+    "human_review": false
+  }
+}

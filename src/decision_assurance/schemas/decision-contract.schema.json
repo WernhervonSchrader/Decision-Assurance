@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/decision-contract/0.1.0",
+  "title": "Decision Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "decision_type", "requested_action", "created_at"],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 1},
+    "decision_type": {"type": "string", "minLength": 1},
+    "requested_action": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "materiality": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "jurisdiction": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "actor_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "input_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "policy_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}

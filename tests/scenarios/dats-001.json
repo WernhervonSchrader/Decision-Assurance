@@ -1,0 +1,39 @@
+{
+  "id": "DATS-001",
+  "title": "Supported decision with current evidence",
+  "objective": "Confirm that a well-supported low-risk decision passes.",
+  "input": {
+    "claim": "Approve standard domestic quote.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "outdated": false,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [
+      {
+        "id": "C1",
+        "hard": true,
+        "satisfied": true
+      }
+    ],
+    "policies": [],
+    "actors": {
+      "generator": "sales-agent",
+      "approver": "rules-engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "PASS",
+    "reason_codes": [
+      "ALL_REQUIRED_CHECKS_SATISFIED"
+    ],
+    "human_review": false
+  }
+}

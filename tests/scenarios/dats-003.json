@@ -1,0 +1,33 @@
+{
+  "id": "DATS-003",
+  "title": "Outdated evidence requires review",
+  "objective": "Prevent stale information from being treated as current fact.",
+  "input": {
+    "claim": "Supplier certification remains valid.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "outdated": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "EVIDENCE_OUTDATED"
+    ],
+    "human_review": true
+  }
+}

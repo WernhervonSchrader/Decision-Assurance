@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/audit-event/0.1.0",
+  "title": "Audit Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "decision_id", "event_type", "occurred_at", "actor_ref", "payload_hash"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "actor_ref": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string"},
+    "payload_hash": {"type": "string", "minLength": 1},
+    "previous_event_hash": {"type": ["string", "null"]},
+    "version_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}

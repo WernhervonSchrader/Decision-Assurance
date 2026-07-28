@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/review-contract/0.1.0",
+  "title": "Review Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["review_id", "decision_id", "reason_codes", "status", "requested_at"],
+  "properties": {
+    "review_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "reason_codes": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "required_role": {"type": "string"},
+    "status": {"enum": ["PENDING", "APPROVED", "REJECTED", "MORE_INFORMATION", "EXPIRED"]},
+    "requested_at": {"type": "string", "format": "date-time"},
+    "due_at": {"type": ["string", "null"], "format": "date-time"},
+    "reviewer_ref": {"type": ["string", "null"]},
+    "resolution_reason": {"type": ["string", "null"]},
+    "resolved_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

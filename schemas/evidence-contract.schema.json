@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/evidence-contract/0.1.0",
+  "title": "Evidence Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "source_ref", "observed_at", "status"],
+  "properties": {
+    "evidence_id": {"type": "string", "minLength": 1},
+    "source_ref": {"type": "string", "minLength": 1},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["VERIFIED", "UNVERIFIED", "OUTDATED", "CONFLICTING", "UNAVAILABLE"]},
+    "claim_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "provenance": {"type": "array", "items": {"type": "string"}},
+    "content_hash": {"type": "string"},
+    "valid_until": {"type": "string", "format": "date-time"}
+  }
+}

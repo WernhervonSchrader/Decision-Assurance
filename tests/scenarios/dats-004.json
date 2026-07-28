@@ -1,0 +1,33 @@
+{
+  "id": "DATS-004",
+  "title": "Source and claim domain mismatch",
+  "objective": "Detect evidence that is genuine but does not support the claim.",
+  "input": {
+    "claim": "The product complies with EU export rules.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "outdated": false,
+        "supports_claim": false
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "engine"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "REVIEW",
+    "reason_codes": [
+      "SOURCE_CLAIM_MISMATCH"
+    ],
+    "human_review": true
+  }
+}

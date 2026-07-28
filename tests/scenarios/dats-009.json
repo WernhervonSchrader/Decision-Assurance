@@ -1,0 +1,32 @@
+{
+  "id": "DATS-009",
+  "title": "Self-approval violates separation of duties",
+  "objective": "Block a decision when the generating actor also approves it.",
+  "input": {
+    "claim": "Agent approves its own pricing exception.",
+    "evidence": [
+      {
+        "id": "E1",
+        "verifiable": true,
+        "supports_claim": true
+      }
+    ],
+    "constraints": [],
+    "policies": [],
+    "actors": {
+      "generator": "agent-a",
+      "approver": "agent-a"
+    },
+    "risk": {
+      "high_impact": false,
+      "unresolved_uncertainty": false
+    }
+  },
+  "expected": {
+    "outcome": "BLOCK",
+    "reason_codes": [
+      "SEPARATION_OF_DUTIES_VIOLATION"
+    ],
+    "human_review": false
+  }
+}

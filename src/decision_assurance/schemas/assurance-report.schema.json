@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/assurance-report/0.1.0",
+  "title": "Assurance Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["report_id", "decision_id", "outcome", "reason_codes", "created_at", "versions"],
+  "properties": {
+    "report_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "outcome": {"enum": ["PASS", "REVIEW", "BLOCK"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "finding_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "review_ref": {"type": ["string", "null"]},
+    "audit_ref": {"type": ["string", "null"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "versions": {
+      "type": "object",
+      "required": ["das", "policy", "engine"],
+      "properties": {
+        "das": {"type": "string"},
+        "policy": {"type": "string"},
+        "engine": {"type": "string"}
+      }
+    }
+  }
+}
