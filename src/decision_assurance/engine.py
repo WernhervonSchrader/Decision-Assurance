@@ -113,7 +113,8 @@ class DecisionAssuranceEngine:
                 found.append(("MANDATORY_EVIDENCE_MISSING", Severity.REVIEW, ref))
 
         if data["mandatory_evidence_missing"]:
-            found.append(("MANDATORY_EVIDENCE_MISSING", Severity.REVIEW, None))
+            missing_severity = Severity.BLOCK if data["risk"].get("high_impact", False) else Severity.REVIEW
+            found.append(("MANDATORY_EVIDENCE_MISSING", missing_severity, None))
         for constraint in data["constraints"]:
             ref = constraint.get("constraint_id", constraint.get("id"))
             hard = constraint.get("hard", constraint.get("severity") == "MANDATORY")
@@ -140,6 +141,11 @@ class DecisionAssuranceEngine:
         risk = data["risk"]
         if risk.get("high_impact", False) and risk.get("unresolved_uncertainty", False):
             found.append(("HIGH_IMPACT_UNCERTAINTY", Severity.REVIEW, None))
+        for conflict in data["conflicts"]:
+            if not conflict.get("resolved", False):
+                severity = Severity.BLOCK if conflict.get("severity") == "CRITICAL" else Severity.REVIEW
+                code = "CRITICAL_CONFLICT_UNRESOLVED" if severity is Severity.BLOCK else "CONFLICT_UNRESOLVED"
+                found.append((code, severity, conflict.get("id")))
 
         return tuple(
             Finding(
