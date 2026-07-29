@@ -40,3 +40,12 @@ The current `CaseStore` implements directory creation, atomic Decision File
 writes and append-only audit writes. Lease expiry and compare-and-swap locking
 are documented protocol requirements for the next storage-hardening increment.
 
+# Controlled Intake v0.3 boundary
+
+`Raw input → Extractor port → Candidate facts → Verifier + tenant Policy Registry port → Human
+confirmation when required → Compiler → Decision File → existing Decision Assurance Engine`.
+
+Intake and Decision domains use separate contracts, state machines, repository protocols and
+tables. They deliberately share one database in v0.3. Every Intake primary and foreign key
+contains the tenant. Only the compiler crosses the boundary into a Decision File; only the
+existing engine produces assurance findings and outcomes.

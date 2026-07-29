@@ -1,5 +1,11 @@
 # Testing Strategy — API v0.2
 
+Controlled Intake v0.3 adds contract, extraction/provenance, verification, confirmation,
+compiler, SQLite isolation, CLI/API E2E, prompt-injection and metamorphic tests under
+`tests/intake/`. The separate 13-case corpus under `benchmarks/intake/cases/` executes both
+raw-only and trusted-context variants. READY variants are compiled and evaluated by the existing
+engine; unresolved variants assert `NEEDS_CONFIRMATION` and do not manufacture an outcome.
+
 Unit tests cover domain, permission and localization functions. Integration
 tests use a temporary SQLite database. Contract tests exercise OpenAPI requests
 and responses. E2E tests use FastAPI's in-process HTTP client, deterministic

@@ -91,7 +91,17 @@ class DecisionFileCompiler:
             "claims": claims,
             "evidence": evidence,
             "assumptions": [],
-            "constraints": [],
+            "constraints": [
+                {
+                    "id": finding.finding_id,
+                    "severity": "MANDATORY"
+                    if finding.result_code == "MARGIN_BELOW_POLICY_MINIMUM"
+                    else "REVIEW_REQUIRED",
+                    "satisfied": False,
+                    "reason_code": finding.result_code,
+                }
+                for finding in report.findings
+            ],
             "policies": [
                 {"id": policy.policy_id, "version": policy.policy_version, "requires_review": False}
             ],

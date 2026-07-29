@@ -1,6 +1,6 @@
 # Decision Assurance
 
-**Public Draft v0.2 — executable reference platform, not a recognized standard or certification.**
+**Public Draft v0.3 — executable reference platform, not a recognized standard or certification.**
 
 Decision Assurance (DA) is a control layer for AI-supported decisions. Before a
 result enters a business process, DA checks evidence, policies, constraints,
@@ -24,6 +24,8 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - authenticated, tenant-aware [REST API](docs/API.md) with SQLite reference persistence
 - centralized role authorization, DE/EN errors, idempotent writes and bounded audit pagination
 - two-tenant [E2E journeys](docs/TESTING.md) through `APPROVED` and `BLOCKED`
+- controlled DE/EN [real-world intake](docs/INTAKE.md) with provenance, verification and confirmation
+- a separate 13-case raw-text intake benchmark with raw-only and trusted-context variants
 
 Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
 governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
@@ -66,6 +68,18 @@ decision-assurance transition case.json VALIDATION --actor-id validator-1 --acto
 decision-assurance benchmark tests\gold\manifest.json
 ```
 
+Controlled Intake keeps user text untrusted and emits no assurance outcome:
+
+```powershell
+decision-assurance intake create quote.txt --intake-id Q-42 --locale en --policy policy.json --output intake.json
+decision-assurance intake inspect intake.json
+decision-assurance intake compile intake.json --policy policy.json --output decision.json
+decision-assurance intake evaluate decision.json
+```
+
+If a candidate requires a human decision, an authenticated validator or approver can use
+`intake confirm`. The original value, correction, reason and actor remain in the record.
+
 The transition command writes the validated new state back to the Decision File
 and appends an embedded, hash-linked audit event. Filesystem integrations should
 also append that event to `audit/events.jsonl` via `CaseStore`.
@@ -79,6 +93,7 @@ src/decision_assurance/          domain engine, API, policy, repositories and CL
 migrations/                      SQLite reference migration
 tests/fixtures/invalid/           deliberately invalid contracts
 tests/gold/                       open Gold Dataset manifest
+benchmarks/intake/cases/          13-case untrusted-text benchmark
 docs/                             contract, policy and architecture
 .github/workflows/ci.yml          public verification pipeline
 ```

@@ -12,6 +12,9 @@ TRANSLATIONS = {
         "CONFLICT": "The request conflicts with the current state.",
         "INTERNAL_ERROR": "The operation failed.",
         "PAYLOAD_TOO_LARGE": "The request body is too large.",
+        "NEEDS_CONFIRMATION": "Required intake information still needs confirmation.",
+        "TRUSTED_POLICY_UNAVAILABLE": "No trusted tenant policy is available.",
+        "INTAKE_CONTRACT_INVALID": "The intake contract is invalid.",
     },
     "de": {
         "UNAUTHENTICATED": "Authentifizierung erforderlich.",
@@ -21,6 +24,9 @@ TRANSLATIONS = {
         "CONFLICT": "Die Anfrage widerspricht dem aktuellen Zustand.",
         "INTERNAL_ERROR": "Der Vorgang ist fehlgeschlagen.",
         "PAYLOAD_TOO_LARGE": "Der Anfrageinhalt ist zu groß.",
+        "NEEDS_CONFIRMATION": "Erforderliche Intake-Angaben müssen noch bestätigt werden.",
+        "TRUSTED_POLICY_UNAVAILABLE": "Für den Mandanten ist keine vertrauenswürdige Policy verfügbar.",
+        "INTAKE_CONTRACT_INVALID": "Der Intake-Vertrag ist ungültig.",
     },
 }
 

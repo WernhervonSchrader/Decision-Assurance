@@ -41,7 +41,7 @@ def test_policy_comparison_is_derived_and_never_an_assurance_outcome() -> None:
         "DISCOUNT_ABOVE_POLICY_LIMIT",
         "MARGIN_BELOW_POLICY_MINIMUM",
     }
-    assert not report.ready
+    assert report.ready
     assert all(
         forbidden not in repr(report)
         for forbidden in ("<Outcome.PASS", "<Outcome.REVIEW", "<Outcome.BLOCK")

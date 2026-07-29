@@ -44,3 +44,21 @@ def test_intake_request_contract_rejects_tenant_in_untrusted_payload() -> None:
                 "tenant_id": "attacker-selected",
             },
         )
+
+
+@pytest.mark.parametrize("schema_name", SCHEMA_NAMES)
+def test_valid_examples_and_invalid_fixtures(schema_name: str) -> None:
+    validator = ContractValidator(ROOT / "schemas")
+    valid = json.loads(
+        (ROOT / "examples" / "intake" / "contracts" / f"{schema_name}.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    invalid = json.loads(
+        (ROOT / "tests" / "fixtures" / "invalid" / "intake" / f"{schema_name}.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    validator.validate(f"intake/{schema_name}", valid)
+    with pytest.raises(ContractValidationError):
+        validator.validate(f"intake/{schema_name}", invalid)

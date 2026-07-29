@@ -9,6 +9,9 @@ import uvicorn
 from fastapi import FastAPI
 
 from ..identity import ActorKind, Identity, Role, StaticTokenAuthenticator
+from ..intake.codec import policy_from_dict
+from ..intake.repository import SqliteIntakeRepository
+from ..intake.verification import InMemoryPolicyRegistry
 from ..repositories.sqlite import SqliteDecisionRepository
 from ..tenancy import TenantContext
 from .app import create_app
@@ -32,8 +35,20 @@ def load_runtime(environment: dict[str, str] | None = None) -> FastAPI:
         for token, item in raw.items()
     }
     repository = SqliteDecisionRepository(Path(database_value))
+    intake_repository = SqliteIntakeRepository(Path(database_value))
     repository.initialize()
-    return create_app(repository, StaticTokenAuthenticator(identities))
+    intake_repository.initialize()
+    policies: dict[str, Any] = {}
+    if policies_value := values.get("DA_POLICIES_PATH"):
+        policies = json.loads(Path(policies_value).read_text(encoding="utf-8"))
+    return create_app(
+        repository,
+        StaticTokenAuthenticator(identities),
+        intake_repository,
+        InMemoryPolicyRegistry(
+            {tenant_id: policy_from_dict(item) for tenant_id, item in policies.items()}
+        ),
+    )
 
 
 def main() -> None:

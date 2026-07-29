@@ -6,15 +6,25 @@ import tempfile
 from pathlib import Path
 
 from ..identity import StaticTokenAuthenticator
+from ..intake.repository import SqliteIntakeRepository
+from ..intake.verification import InMemoryPolicyRegistry
 from ..repositories.sqlite import SqliteDecisionRepository
 from .app import create_app
 
 
 def generate(path: Path) -> None:
     with tempfile.TemporaryDirectory() as temporary:
-        repository = SqliteDecisionRepository(Path(temporary) / "openapi.db")
+        database = Path(temporary) / "openapi.db"
+        repository = SqliteDecisionRepository(database)
+        intake_repository = SqliteIntakeRepository(database)
         repository.initialize()
-        app = create_app(repository, StaticTokenAuthenticator({}))
+        intake_repository.initialize()
+        app = create_app(
+            repository,
+            StaticTokenAuthenticator({}),
+            intake_repository,
+            InMemoryPolicyRegistry({}),
+        )
         path.write_text(
             json.dumps(app.openapi(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",

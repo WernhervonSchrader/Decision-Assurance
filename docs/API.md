@@ -1,9 +1,15 @@
-# API Guide — Public Draft v0.2
+# API Guide — Public Draft v0.3
 
-The normative interface is [DA-API-v0.2](specifications/DA-API-v0.2.md), with
-generated [OpenAPI JSON](openapi-v0.2.json). All `/v1` endpoints require a
+The Decision API remains defined by [DA-API-v0.2](specifications/DA-API-v0.2.md) and the
+new Intake boundary by [DA-INTAKE-v0.3](specifications/DA-INTAKE-v0.3.md), with generated
+[OpenAPI JSON](openapi-v0.3.json). All `/v1` endpoints require a
 Bearer identity except health checks. Identity establishes tenant, actor, role
 and human/agent kind; `tenant_id` is never accepted from a body.
+
+Intake endpoints are `POST /v1/intakes`, `GET /v1/intakes/{id}`,
+`POST /v1/intakes/{id}/confirmations`, and `POST /v1/intakes/{id}/compile`.
+Compilation returns a DRAFT Decision File with a null outcome. Evaluation remains exclusively
+on the existing `POST /v1/decisions/{id}/evaluate` endpoint.
 
 Every write requires `Idempotency-Key` (1–128 characters). Repeating the same
 operation and payload returns the stored status/body; changing the payload under

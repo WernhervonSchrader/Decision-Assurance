@@ -116,11 +116,17 @@ class DeterministicQuoteExtractor:
             )
 
         for match in self._date.finditer(raw_input):
+            date_context = raw_input[max(0, match.start() - 30) : match.start()].lower()
+            date_type = (
+                FactType.EVIDENCE_DATE
+                if any(term in date_context for term in ("bonitätsprüfung", "credit check"))
+                else FactType.DATE
+            )
             found.append(
                 (
                     match.start(),
                     match.end(),
-                    FactType.DATE,
+                    date_type,
                     match.group(0),
                     self._normalize_date(match.group("date")),
                     None,

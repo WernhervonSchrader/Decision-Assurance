@@ -30,6 +30,7 @@ class FactType(str, Enum):
     PAYMENT_TERM_DAYS = "PAYMENT_TERM_DAYS"
     DURATION_MONTHS = "DURATION_MONTHS"
     DATE = "DATE"
+    EVIDENCE_DATE = "EVIDENCE_DATE"
     POLICY_CLAIM = "POLICY_CLAIM"
     EXCEPTION_CLAIM = "EXCEPTION_CLAIM"
     APPROVAL_CLAIM = "APPROVAL_CLAIM"
@@ -172,6 +173,7 @@ class PolicyContext:
     minimum_margin_percent: str
     maximum_duration_months_without_exception: int
     requires_approval_above_amount: str
+    maximum_evidence_age_days: int = 365
 
 
 @dataclass(frozen=True, slots=True)

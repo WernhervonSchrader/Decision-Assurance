@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from ..tenancy import TenantContext
 
@@ -18,6 +18,24 @@ class IntakeRepository(Protocol):
     ) -> None: ...
 
     def get(self, tenant: TenantContext, intake_id: str) -> dict[str, Any] | None: ...
+
+    def get_idempotency(
+        self, tenant: TenantContext, actor_id: str, operation: str, key: str, request_hash: str
+    ) -> dict[str, Any] | None: ...
+
+    def store_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        response: dict[str, Any],
+    ) -> None: ...
+
+
+class IntakeIdempotencyConflict(ValueError):
+    pass
 
 
 class SqliteIntakeRepository:
@@ -75,6 +93,45 @@ class SqliteIntakeRepository:
                 "INSERT INTO intake_facts (tenant_id,intake_id,fact_id,fact_json) VALUES (?,?,?,?) "
                 "ON CONFLICT (tenant_id,intake_id,fact_id) DO UPDATE SET fact_json=excluded.fact_json",
                 (tenant.tenant_id, intake_id, fact_id, self._serialize(fact)),
+            )
+
+    def get_idempotency(
+        self, tenant: TenantContext, actor_id: str, operation: str, key: str, request_hash: str
+    ) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_hash,response_json FROM intake_idempotency "
+                "WHERE tenant_id=? AND actor_id=? AND operation=? AND idempotency_key=?",
+                (tenant.tenant_id, actor_id, operation, key),
+            ).fetchone()
+        if row is None:
+            return None
+        if row["request_hash"] != request_hash:
+            raise IntakeIdempotencyConflict("IDEMPOTENCY_KEY_REUSED")
+        return cast(dict[str, Any], json.loads(row["response_json"]))
+
+    def store_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        response: dict[str, Any],
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO intake_idempotency "
+                "(tenant_id,actor_id,operation,idempotency_key,request_hash,response_json) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    self._serialize(response),
+                ),
             )
 
     @staticmethod

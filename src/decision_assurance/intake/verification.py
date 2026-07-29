@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import replace
+from datetime import date
 from decimal import Decimal
 from typing import Protocol
 
@@ -37,13 +38,17 @@ _OBJECTIVE_FACTS = {
     FactType.PAYMENT_TERM_DAYS,
     FactType.DURATION_MONTHS,
     FactType.DATE,
+    FactType.EVIDENCE_DATE,
 }
 _REQUIRED_FACTS = {FactType.AMOUNT, FactType.DISCOUNT_PERCENT, FactType.MARGIN_PERCENT}
 
 
 class IntakeVerifier:
-    def __init__(self, policy_registry: PolicyRegistry):
+    def __init__(
+        self, policy_registry: PolicyRegistry, *, reference_date: Callable[[], date] = date.today
+    ):
         self._policy_registry = policy_registry
+        self._reference_date = reference_date
 
     def verify(self, tenant_id: str, extraction: ExtractionReport) -> VerificationReport:
         policy = self._policy_registry.get_active(tenant_id)
@@ -54,7 +59,11 @@ class IntakeVerifier:
         if policy is None:
             reasons.append("TRUSTED_POLICY_UNAVAILABLE")
         else:
-            findings.extend(self._compare_policy(extraction.intake_id, candidates, policy))
+            findings.extend(
+                self._compare_policy(
+                    extraction.intake_id, candidates, policy, self._reference_date()
+                )
+            )
         if extraction.conflicts:
             reasons.append("CONFLICTS_UNRESOLVED")
         if extraction.requirements:
@@ -75,9 +84,10 @@ class IntakeVerifier:
             for candidate in candidates
             if candidate.confirmation_required
             and candidate.verification_status is VerificationStatus.UNRESOLVED
-            and candidate.fact_type is not FactType.UNTRUSTED_INSTRUCTION
+            and candidate.fact_type
+            in {FactType.POLICY_CLAIM, FactType.EXCEPTION_CLAIM, FactType.APPROVAL_CLAIM}
         )
-        if untrusted or findings:
+        if untrusted:
             reasons.append("HUMAN_CONFIRMATION_REQUIRED")
         reasons = list(dict.fromkeys(reasons))
         return VerificationReport(
@@ -107,6 +117,7 @@ class IntakeVerifier:
         intake_id: str,
         candidates: tuple[CandidateFact, ...],
         policy: PolicyContext,
+        reference_date: date,
     ) -> list[DerivedFinding]:
         findings: list[DerivedFinding] = []
 
@@ -145,6 +156,21 @@ class IntakeVerifier:
                         f"{policy.policy_id}@{policy.policy_version}",
                         f"{actual} compared with {limit}",
                         result_code,
+                    )
+                )
+        evidence_date = value(FactType.EVIDENCE_DATE)
+        if evidence_date and evidence_date.normalized_value:
+            observed = date.fromisoformat(evidence_date.normalized_value)
+            age_days = (reference_date - observed).days
+            if age_days > policy.maximum_evidence_age_days:
+                findings.append(
+                    DerivedFinding(
+                        f"{intake_id}:derived:{len(findings) + 1}",
+                        "EVIDENCE_FRESHNESS",
+                        (evidence_date.fact_id,),
+                        f"{policy.policy_id}@{policy.policy_version}",
+                        f"{age_days} days compared with {policy.maximum_evidence_age_days} days",
+                        "EVIDENCE_OUTDATED",
                     )
                 )
         return findings
