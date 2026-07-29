@@ -35,7 +35,11 @@ decision-assurance-openapi = "decision_assurance.api.openapi:main"
 packages = ["src/decision_assurance"]
 
 [tool.hatch.build]
-include = ["src/decision_assurance/**/*.py", "src/decision_assurance/schemas/*.json"]
+include = [
+  "src/decision_assurance/**/*.py",
+  "src/decision_assurance/migrations/*.sql",
+  "src/decision_assurance/schemas/*.json",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

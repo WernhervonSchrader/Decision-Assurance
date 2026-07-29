@@ -1,6 +1,6 @@
 # Decision Assurance
 
-**Public Draft v0.1.x — executable MVP, not a recognized standard or certification.**
+**Public Draft v0.2 — executable reference platform, not a recognized standard or certification.**
 
 Decision Assurance (DA) is a control layer for AI-supported decisions. Before a
 result enters a business process, DA checks evidence, policies, constraints,
@@ -21,6 +21,9 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - 10-scenario open Gold Dataset and reproducible benchmark
 - CLI commands: `validate`, `evaluate`, `transition`, `report`, `benchmark`
 - CI for schemas, unit/transition tests, examples and Gold regression
+- authenticated, tenant-aware [REST API](docs/API.md) with SQLite reference persistence
+- centralized role authorization, DE/EN errors, idempotent writes and bounded audit pagination
+- two-tenant [E2E journeys](docs/TESTING.md) through `APPROVED` and `BLOCKED`
 
 Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
 governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
@@ -37,6 +40,21 @@ python -m venv .venv
 ```
 
 Linux and macOS use `.venv/bin/python` and `.venv/bin/decision-assurance`.
+
+## Reference API
+
+The API is created through an injected repository and authenticator. A
+loopback-only local runtime is included for evaluation:
+
+```powershell
+$env:DA_DATABASE_PATH = ".local/decision-assurance.db"
+$env:DA_IDENTITIES_PATH = "C:/protected/development-identities.json"
+decision-assurance-api
+```
+
+The static identity adapter is not production OIDC. Read the
+[deployment](docs/DEPLOYMENT.md), [security](docs/SECURITY.md) and
+[operations](docs/OPERATIONS.md) limitations before using real data.
 
 ## CLI examples
 
@@ -57,7 +75,8 @@ also append that event to `audit/events.jsonl` via `CaseStore`.
 ```text
 schemas/                         normative JSON Schemas
 examples/decision-cases/         valid Decision Files
-src/decision_assurance/          reference engine, policy, store and CLI
+src/decision_assurance/          domain engine, API, policy, repositories and CLI
+migrations/                      SQLite reference migration
 tests/fixtures/invalid/           deliberately invalid contracts
 tests/gold/                       open Gold Dataset manifest
 docs/                             contract, policy and architecture

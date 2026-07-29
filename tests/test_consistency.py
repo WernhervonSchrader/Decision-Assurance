@@ -10,6 +10,12 @@ def test_packaged_schemas_match_public_schemas() -> None:
         assert (packaged / schema.name).read_bytes() == schema.read_bytes()
 
 
+def test_packaged_migration_matches_public_migration() -> None:
+    public = ROOT / "migrations" / "001_api_v0_2.sql"
+    packaged = ROOT / "src" / "decision_assurance" / "migrations" / public.name
+    assert packaged.read_bytes() == public.read_bytes()
+
+
 def test_documentation_relative_links_resolve() -> None:
     import re
 

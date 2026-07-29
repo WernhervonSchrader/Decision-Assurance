@@ -7,6 +7,13 @@ def test_health_endpoints(client: TestClient) -> None:
     assert client.get("/health/ready").status_code == 200
 
 
+def test_security_headers_are_applied(client: TestClient) -> None:
+    response = client.get("/health/live")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_missing_authentication_is_localized(client: TestClient) -> None:
     response = client.get("/v1/decisions/D-1", headers={"Accept-Language": "de"})
     assert response.status_code == 401

@@ -17,7 +17,7 @@ class SqliteDecisionRepository:
     def __init__(self, database_path: Path, migration_path: Path | None = None):
         self.database_path = database_path
         self.migration_path = (
-            migration_path or Path(__file__).parents[3] / "migrations" / "001_api_v0_2.sql"
+            migration_path or Path(__file__).parents[1] / "migrations" / "001_api_v0_2.sql"
         )
 
     def _connect(self) -> sqlite3.Connection:

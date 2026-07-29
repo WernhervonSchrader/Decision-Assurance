@@ -29,13 +29,21 @@ def create_app(repository: DecisionRepository, authenticator: Authenticator) -> 
     ) -> Response:
         request.state.correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > MAX_BODY_BYTES:
+        if content_length:
+            try:
+                if int(content_length) > MAX_BODY_BYTES:
+                    return _error_response(request, 413, "PAYLOAD_TOO_LARGE")
+            except ValueError:
+                return _error_response(request, 422, "INVALID_REQUEST")
+        if len(await request.body()) > MAX_BODY_BYTES:
             return _error_response(request, 413, "PAYLOAD_TOO_LARGE")
         response = await call_next(request)
         response.headers["X-Correlation-ID"] = request.state.correlation_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cache-Control"] = "no-store"
         return response
 
     @app.exception_handler(ApiError)
@@ -52,6 +60,11 @@ def create_app(repository: DecisionRepository, authenticator: Authenticator) -> 
             ]
         }
         return _error_response(request, 422, "INVALID_REQUEST", details)
+
+    @app.exception_handler(Exception)
+    async def unexpected_error_handler(request: Request, error: Exception) -> JSONResponse:
+        del error
+        return _error_response(request, 500, "INTERNAL_ERROR")
 
     @app.get("/health/live", tags=["health"])
     def live() -> dict[str, str]:
