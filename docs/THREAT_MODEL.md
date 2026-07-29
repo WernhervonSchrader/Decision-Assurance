@@ -22,3 +22,22 @@ future identity provider.
 Production rollout remains blocked until OIDC, PostgreSQL RLS, edge limits and
 operational monitoring are integrated.
 
+## Controlled Intake v0.3 extension
+
+New assets are raw business text, candidate provenance, trusted Policy Packs,
+human corrections and compiled Decision Files. The raw-input boundary is
+hostile: prompt injection, claimed authority/policy/approval, locale ambiguity,
+oversized content, cross-tenant references and forged verification status are
+expected abuse cases.
+
+Controls are strict Intake schemas without governance flags; extraction that
+only creates candidates; tenant-scoped trusted registries; authenticated
+human-only confirmation; immutable corrections; READY-gated compilation;
+content-type/body limits; parameterized tenant-scoped storage; hash-linked audit
+and raw/trusted/metamorphic security tests. A deterministic regex extractor may
+miss linguistic variants (medium likelihood/medium impact); this remains
+visible as missing/unresolved information and therefore fails toward review,
+not pass. Raw text retention creates privacy exposure; v0.3 stores only the
+minimum case text and documents tenant-controlled retention/deletion as an
+operational prerequisite.
+
