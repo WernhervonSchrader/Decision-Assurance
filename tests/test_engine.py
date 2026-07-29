@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
+from itertools import pairwise
 
 import pytest
 
 from decision_assurance import DecisionAssuranceEngine, Outcome
 from decision_assurance.audit import payload_hash
 from decision_assurance.validation import ContractValidationError, ContractValidator
-
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
 
@@ -44,7 +44,7 @@ def test_pass_report_has_required_versions_and_audit_reference() -> None:
 def test_audit_events_form_a_hash_chain() -> None:
     events = engine().assess({"decision_id": "D-3"}).audit_events
     assert events[0]["previous_event_hash"] is None
-    for previous, current in zip(events, events[1:]):
+    for previous, current in pairwise(events):
         assert current["previous_event_hash"] == payload_hash(previous)
 
 
@@ -82,4 +82,3 @@ def test_duplicate_reason_codes_are_reported_once() -> None:
     )
     assert result.reason_codes == ("EVIDENCE_OUTDATED",)
     assert len(result.findings) == 2
-

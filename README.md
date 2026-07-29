@@ -1,104 +1,94 @@
-# Decision Assurance Engine
+# Decision Assurance
 
-Deterministische Python-Referenzimplementierung für den öffentlichen Draft der
-Decision Assurance Specification (DAS) v0.1.0.
+**Public Draft v0.2 — executable reference platform, not a recognized standard or certification.**
 
-Die Engine bewertet strukturierte Evidenz, Constraints, Policies,
-Akteurstrennung und Risikoindikatoren. Jede Bewertung endet in genau einem
-Governance-Zustand:
+Decision Assurance (DA) is a control layer for AI-supported decisions. Before a
+result enters a business process, DA checks evidence, policies, constraints,
+uncertainty, role separation and required human authority. The deterministic
+governance outcome is always exactly one of `PASS`, `REVIEW` or `BLOCK`.
 
-- `PASS`: Alle erforderlichen Prüfungen sind erfüllt.
-- `REVIEW`: Eine qualifizierte menschliche Prüfung ist erforderlich.
-- `BLOCK`: Eine zwingende Regel verhindert die Ausführung.
+The MVP is useful to an enterprise team because the complete case remains a
+portable, reviewable JSON record instead of hidden model-session state. Core
+evaluation requires no LLM and never turns an internal failure into `PASS`.
 
-Die Präzedenz ist fest und nachvollziehbar: `BLOCK > REVIEW > PASS`.
+## What runs today
 
-## Enthaltener Funktionsumfang
+- normative [Decision File Contract](docs/DECISION_FILE_CONTRACT.md) and examples
+- executable [Transition Policy](docs/TRANSITION_POLICY.md)
+- deterministic reference engine and Assurance Reports
+- hash-linked, append-only audit records
+- vendor-neutral [case directory interface](docs/ARCHITECTURE.md)
+- 10-scenario open Gold Dataset and reproducible benchmark
+- CLI commands: `validate`, `evaluate`, `transition`, `report`, `benchmark`
+- CI for schemas, unit/transition tests, examples and Gold regression
+- authenticated, tenant-aware [REST API](docs/API.md) with SQLite reference persistence
+- centralized role authorization, DE/EN errors, idempotent writes and bounded audit pagination
+- two-tenant [E2E journeys](docs/TESTING.md) through `APPROVED` and `BLOCKED`
 
-- domänenneutraler, deterministischer Governance-Kern
-- strukturierte Findings und stabile Reason Codes
-- Assurance Report gemäß öffentlichem JSON-Schema
-- hash-verkettete Audit-Events
-- Validierung aller sieben öffentlichen DAS-Verträge
-- Adapter und Regressionstests für DATS v0.1.0
-- CLI für lokale JSON-Bewertungen
+Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
+governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
+`APPROVED` requires explicit human authority even when evaluation returns
+`PASS`.
 
-Dies ist eine Referenzimplementierung und keine Zertifizierung oder Aussage zur
-Produktionsreife.
-
-## Installation und Tests
-
-Python 3.10 oder neuer wird benötigt.
+## Install and verify
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\decision-assurance.exe benchmark tests\gold\manifest.json
 ```
 
-Unter Linux und macOS wird entsprechend `.venv/bin/python` verwendet.
+Linux and macOS use `.venv/bin/python` and `.venv/bin/decision-assurance`.
 
-## Verwendung als Bibliothek
+## Reference API
 
-```python
-from decision_assurance import DecisionAssuranceEngine
-
-request = {
-    "decision_id": "QUOTE-42",
-    "evidence": [
-        {"id": "PRICE-LIST", "verifiable": True, "supports_claim": True}
-    ],
-    "constraints": [
-        {"id": "MARGIN", "hard": True, "satisfied": True}
-    ],
-    "policies": [],
-    "actors": {"generator": "sales-agent", "approver": "rules-engine"},
-    "risk": {"high_impact": False, "unresolved_uncertainty": False},
-}
-
-result = DecisionAssuranceEngine().assess(request)
-print(result.outcome.value)       # PASS
-print(result.report)              # Assurance Report
-print(result.audit_events)        # verkettetes Audit-Protokoll
-```
-
-## CLI
-
-Ein natives Assessment oder ein DATS-Szenario kann direkt ausgewertet werden:
+The API is created through an injected repository and authenticator. A
+loopback-only local runtime is included for evaluation:
 
 ```powershell
-.\.venv\Scripts\decision-assurance.exe tests\scenarios\dats-007.json
+$env:DA_DATABASE_PATH = ".local/decision-assurance.db"
+$env:DA_IDENTITIES_PATH = "C:/protected/development-identities.json"
+decision-assurance-api
 ```
 
-Die CLI gibt den Assurance Report als JSON aus.
+The static identity adapter is not production OIDC. Read the
+[deployment](docs/DEPLOYMENT.md), [security](docs/SECURITY.md) and
+[operations](docs/OPERATIONS.md) limitations before using real data.
 
-## Projektstruktur
+## CLI examples
+
+```powershell
+decision-assurance validate examples\decision-cases\low-risk-pass.json
+decision-assurance evaluate examples\decision-cases\hard-constraint-block.json
+decision-assurance report examples\decision-cases\missing-evidence-review.json
+decision-assurance transition case.json VALIDATION --actor-id validator-1 --actor-role VALIDATOR
+decision-assurance benchmark tests\gold\manifest.json
+```
+
+The transition command writes the validated new state back to the Decision File
+and appends an embedded, hash-linked audit event. Filesystem integrations should
+also append that event to `audit/events.jsonl` via `CaseStore`.
+
+## Repository map
 
 ```text
-schemas/                         öffentliche DAS-Vertragsschemas
-src/decision_assurance/
-  adapters.py                    DATS-/Request-Normalisierung
-  audit.py                       kanonische Hashes und Audit-Verkettung
-  engine.py                      Validierung und Governance
-  models.py                      Outcome-, Finding- und Result-Modelle
-  validation.py                  JSON-Schema-Vertragsvalidierung
-tests/scenarios/                 zehn DATS-v0.1.0-Szenarien
-tests/                           Contract- und Engine-Tests
+schemas/                         normative JSON Schemas
+examples/decision-cases/         valid Decision Files
+src/decision_assurance/          domain engine, API, policy, repositories and CLI
+migrations/                      SQLite reference migration
+tests/fixtures/invalid/           deliberately invalid contracts
+tests/gold/                       open Gold Dataset manifest
+docs/                             contract, policy and architecture
+.github/workflows/ci.yml          public verification pipeline
 ```
 
-## Entwicklungsreihenfolge
+The included benchmark is the project-owned **open benchmark suite**. It is not
+an independent assessment. The engine does not simulate legal, medical or other
+professional approval.
 
-Der nächste Ausbauschritt ist eine persistente Assurance API für Assessments,
-Reports, Review-Aktionen und Audit-Abfragen. Sie wird auf diesem Kern aufbauen,
-ohne die Governance-Regeln in die Transportschicht zu duplizieren.
+## License and positioning
 
-## Repository-Arbeitsregel
-
-GitHub ist die Quelle der Wahrheit: Vor der Arbeit wird `git pull origin main`
-ausgeführt; abgeschlossene Änderungen werden bewusst committed und anschließend
-gepusht.
-
-## Lizenz
-
-Der Code steht unter der Apache License 2.0. Normative Spezifikationstexte
-unterliegen gegebenenfalls einer getrennten Lizenzierung.
+Reference code is licensed under Apache-2.0. Normative specification licensing
+may be separated in a future reviewed release. Internal research sources such as
+RIF or RRS are not public product claims and are not required to run this MVP.

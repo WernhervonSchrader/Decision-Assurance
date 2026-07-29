@@ -1,0 +1,5 @@
+{
+  "schema_version": "0.1.0", "decision_id": "EXAMPLE-BLOCK-001", "title": "Restricted shipment", "description": "Shipment violates a mandatory destination restriction.", "use_case": "export-screening", "status": "DRAFT", "assurance_level": "HIGH", "created_at": "2026-07-28T06:00:00Z", "updated_at": "2026-07-28T06:00:00Z",
+  "created_by": {"id": "screening-agent", "role": "GENERATOR", "kind": "AGENT"}, "current_owner": {"id": "export-owner", "role": "OWNER", "kind": "HUMAN"},
+  "claims": [{"id": "CLAIM-1", "statement": "Destination is permitted.", "mandatory_evidence": true}], "evidence": [{"id": "EVIDENCE-1", "claim_refs": ["CLAIM-1"], "source_ref": "evidence/screening.json", "status": "VERIFIED"}], "assumptions": [], "constraints": [{"id": "DESTINATION-1", "severity": "MANDATORY", "satisfied": false, "reason_code": "PROHIBITED_DESTINATION"}], "policies": [{"id": "EXPORT-POLICY", "version": "3.1", "requires_review": false}], "risks": [{"id": "RISK-1", "level": "HIGH", "unresolved": false}], "conflicts": [], "validation_results": [], "review_requirements": [], "approvals": [], "decision_outcome": null, "outcome_reasons": [], "audit_events": []
+}

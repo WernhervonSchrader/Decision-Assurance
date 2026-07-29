@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 
 def payload_hash(payload: Any) -> str:
@@ -43,4 +44,3 @@ class AuditLedger:
     @property
     def events(self) -> tuple[dict[str, Any], ...]:
         return tuple(dict(event) for event in self._events)
-

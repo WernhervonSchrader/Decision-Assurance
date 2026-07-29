@@ -24,7 +24,6 @@ class ContractValidator:
         errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
         if errors:
             descriptions = "; ".join(
-                f"{'/'.join(map(str, error.path)) or '<root>'}: {error.message}"
-                for error in errors
+                f"{'/'.join(map(str, error.path)) or '<root>'}: {error.message}" for error in errors
             )
             raise ContractValidationError(descriptions)

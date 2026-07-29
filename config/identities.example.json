@@ -1,0 +1,9 @@
+{
+  "replace-with-development-token": {
+    "actor_id": "generator-1",
+    "tenant_id": "example-tenant",
+    "role": "GENERATOR",
+    "kind": "AGENT"
+  }
+}
+

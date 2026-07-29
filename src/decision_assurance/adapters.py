@@ -15,9 +15,8 @@ def normalize(payload: dict[str, Any]) -> dict[str, Any]:
             "policies": data.get("policies", []),
             "actors": data.get("actors", {}),
             "risk": data.get("risk", {}),
-            "mandatory_evidence_missing": data.get(
-                "mandatory_evidence_missing", False
-            ),
+            "conflicts": data.get("conflicts", []),
+            "mandatory_evidence_missing": data.get("mandatory_evidence_missing", False),
             "policy_version": payload.get("policy_version", "dats-0.1.0"),
         }
 
@@ -28,7 +27,7 @@ def normalize(payload: dict[str, Any]) -> dict[str, Any]:
     normalized.setdefault("policies", [])
     normalized.setdefault("actors", {})
     normalized.setdefault("risk", {})
+    normalized.setdefault("conflicts", [])
     normalized.setdefault("mandatory_evidence_missing", False)
     normalized.setdefault("policy_version", "unspecified")
     return normalized
-

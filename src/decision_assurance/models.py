@@ -52,4 +52,3 @@ class AssessmentResult:
             "reason_codes": list(self.reason_codes),
             "human_review": self.human_review,
         }
-

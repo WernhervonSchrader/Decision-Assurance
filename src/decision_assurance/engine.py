@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from .adapters import normalize
 from .audit import AuditLedger
 from .models import AssessmentResult, Finding, Outcome, Severity
-
 
 Clock = Callable[[], datetime]
 
@@ -29,9 +29,7 @@ class DecisionAssuranceEngine:
         ledger.append("decision.received", data)
 
         findings = self._validate(data)
-        ledger.append(
-            "evidence.validated", {"evidence": data["evidence"], "valid": not findings}
-        )
+        ledger.append("evidence.validated", {"evidence": data["evidence"], "valid": not findings})
         for finding in findings:
             ledger.append("finding.created", finding.as_dict())
 
@@ -113,7 +111,10 @@ class DecisionAssuranceEngine:
                 found.append(("MANDATORY_EVIDENCE_MISSING", Severity.REVIEW, ref))
 
         if data["mandatory_evidence_missing"]:
-            found.append(("MANDATORY_EVIDENCE_MISSING", Severity.REVIEW, None))
+            missing_severity = (
+                Severity.BLOCK if data["risk"].get("high_impact", False) else Severity.REVIEW
+            )
+            found.append(("MANDATORY_EVIDENCE_MISSING", missing_severity, None))
         for constraint in data["constraints"]:
             ref = constraint.get("constraint_id", constraint.get("id"))
             hard = constraint.get("hard", constraint.get("severity") == "MANDATORY")
@@ -123,7 +124,11 @@ class DecisionAssuranceEngine:
                 "satisfied", True
             ):
                 found.append(
-                    (constraint.get("reason_code", "CONSTRAINT_REQUIRES_REVIEW"), Severity.REVIEW, ref)
+                    (
+                        constraint.get("reason_code", "CONSTRAINT_REQUIRES_REVIEW"),
+                        Severity.REVIEW,
+                        ref,
+                    )
                 )
         for policy in data["policies"]:
             if policy.get("requires_review", False):
@@ -140,6 +145,17 @@ class DecisionAssuranceEngine:
         risk = data["risk"]
         if risk.get("high_impact", False) and risk.get("unresolved_uncertainty", False):
             found.append(("HIGH_IMPACT_UNCERTAINTY", Severity.REVIEW, None))
+        for conflict in data["conflicts"]:
+            if not conflict.get("resolved", False):
+                severity = (
+                    Severity.BLOCK if conflict.get("severity") == "CRITICAL" else Severity.REVIEW
+                )
+                code = (
+                    "CRITICAL_CONFLICT_UNRESOLVED"
+                    if severity is Severity.BLOCK
+                    else "CONFLICT_UNRESOLVED"
+                )
+                found.append((code, severity, conflict.get("id")))
 
         return tuple(
             Finding(
