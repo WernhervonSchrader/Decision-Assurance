@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import Header, Request
 
 from ..authorization import AuthorizationDenied, Permission, authorize
@@ -11,7 +13,7 @@ def get_identity(request: Request, authorization: str | None = Header(default=No
     if not authorization or not authorization.startswith("Bearer "):
         raise ApiError(401, "UNAUTHENTICATED")
     try:
-        return request.app.state.authenticator.authenticate(authorization[7:])
+        return cast(Identity, request.app.state.authenticator.authenticate(authorization[7:]))
     except ValueError as error:
         raise ApiError(401, "UNAUTHENTICATED") from error
 
@@ -27,4 +29,3 @@ def require_idempotency_key(value: str | None) -> str:
     if value is None or not 1 <= len(value) <= 128:
         raise ApiError(422, "INVALID_REQUEST", {"field": "Idempotency-Key"})
     return value
-

@@ -35,7 +35,9 @@ class CaseStore:
         case = self.case_path(document["decision_id"])
         target = case / "decision.json"
         temporary = case / ".decision.json.tmp"
-        temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        temporary.write_text(
+            json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         os.replace(temporary, target)
 
     def append_audit_event(self, decision_id: str, event: dict[str, Any]) -> None:

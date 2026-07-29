@@ -1,21 +1,28 @@
-import json
 from pathlib import Path
 
 import pytest
 
-from decision_assurance.decision_file import DecisionFileSemanticError, evaluate_decision_file, load_decision_file, validate_semantics
+from decision_assurance.decision_file import (
+    DecisionFileSemanticError,
+    evaluate_decision_file,
+    load_decision_file,
+    validate_semantics,
+)
 from decision_assurance.validation import ContractValidationError
-
 
 ROOT = Path(__file__).parents[1]
 
 
-@pytest.mark.parametrize("path", sorted((ROOT / "examples" / "decision-cases").glob("*.json")), ids=lambda p: p.stem)
+@pytest.mark.parametrize(
+    "path", sorted((ROOT / "examples" / "decision-cases").glob("*.json")), ids=lambda p: p.stem
+)
 def test_examples_are_valid(path: Path) -> None:
     assert load_decision_file(path)["schema_version"] == "0.1.0"
 
 
-@pytest.mark.parametrize("path", sorted((ROOT / "tests" / "fixtures" / "invalid").glob("*.json")), ids=lambda p: p.stem)
+@pytest.mark.parametrize(
+    "path", sorted((ROOT / "tests" / "fixtures" / "invalid").glob("*.json")), ids=lambda p: p.stem
+)
 def test_invalid_fixtures_are_rejected_with_context(path: Path) -> None:
     with pytest.raises(ContractValidationError) as error:
         load_decision_file(path)
@@ -24,7 +31,11 @@ def test_invalid_fixtures_are_rejected_with_context(path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("name", "outcome"),
-    [("low-risk-pass.json", "PASS"), ("missing-evidence-review.json", "REVIEW"), ("hard-constraint-block.json", "BLOCK")],
+    [
+        ("low-risk-pass.json", "PASS"),
+        ("missing-evidence-review.json", "REVIEW"),
+        ("hard-constraint-block.json", "BLOCK"),
+    ],
 )
 def test_decision_file_evaluation(name: str, outcome: str) -> None:
     document = load_decision_file(ROOT / "examples" / "decision-cases" / name)

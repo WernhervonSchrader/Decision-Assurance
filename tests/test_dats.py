@@ -6,7 +6,6 @@ import pytest
 
 from decision_assurance import evaluate
 
-
 ROOT = Path(__file__).parent
 SCHEMA = json.loads((ROOT / "scenario.schema.json").read_text(encoding="utf-8"))
 CASES = sorted((ROOT / "scenarios").glob("*.json"))
@@ -26,4 +25,3 @@ def test_expected_outcome(path: Path) -> None:
 
 def test_exactly_ten_initial_scenarios() -> None:
     assert len(CASES) == 10
-

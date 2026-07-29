@@ -11,4 +11,3 @@ def test_gold_dataset_is_reproducible() -> None:
     assert first["total"] == 10
     assert first["passed"] == 10
     assert first["failed"] == 0
-

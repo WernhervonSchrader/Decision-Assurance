@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -11,7 +11,6 @@ class TransitionRequest(BaseModel):
 
 
 class AuditPage(BaseModel):
-    items: list[dict]
+    items: list[dict[str, Any]]
     limit: int
     offset: int
-

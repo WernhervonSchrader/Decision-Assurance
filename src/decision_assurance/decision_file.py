@@ -4,10 +4,10 @@ import copy
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from .engine import DecisionAssuranceEngine
 from .audit import payload_hash
+from .engine import DecisionAssuranceEngine
 from .validation import ContractValidator
 
 
@@ -17,7 +17,7 @@ class DecisionFileSemanticError(ValueError):
 
 def load_decision_file(path: Path) -> dict[str, Any]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"Cannot read Decision File {path}: {error}") from error
     ContractValidator().validate("decision-file", document)
@@ -27,7 +27,9 @@ def load_decision_file(path: Path) -> dict[str, Any]:
 
 def validate_semantics(document: dict[str, Any]) -> None:
     errors: list[str] = []
-    if datetime.fromisoformat(document["updated_at"].replace("Z", "+00:00")) < datetime.fromisoformat(document["created_at"].replace("Z", "+00:00")):
+    if datetime.fromisoformat(
+        document["updated_at"].replace("Z", "+00:00")
+    ) < datetime.fromisoformat(document["created_at"].replace("Z", "+00:00")):
         errors.append("updated_at must not be earlier than created_at")
     claim_ids = [item["id"] for item in document["claims"]]
     if len(claim_ids) != len(set(claim_ids)):
@@ -35,13 +37,23 @@ def validate_semantics(document: dict[str, Any]) -> None:
     evidence_ids = [item["id"] for item in document["evidence"]]
     if len(evidence_ids) != len(set(evidence_ids)):
         errors.append("evidence contains duplicate ids")
-    unknown_claims = sorted({ref for item in document["evidence"] for ref in item["claim_refs"] if ref not in claim_ids})
+    unknown_claims = sorted(
+        {ref for item in document["evidence"] for ref in item["claim_refs"] if ref not in claim_ids}
+    )
     if unknown_claims:
         errors.append("evidence references unknown claims: " + ", ".join(unknown_claims))
     requirement_ids = {item["id"] for item in document["review_requirements"]}
-    unknown_requirements = sorted({item["requirement_ref"] for item in document["approvals"] if item["requirement_ref"] not in requirement_ids})
+    unknown_requirements = sorted(
+        {
+            item["requirement_ref"]
+            for item in document["approvals"]
+            if item["requirement_ref"] not in requirement_ids
+        }
+    )
     if unknown_requirements:
-        errors.append("approvals reference unknown requirements: " + ", ".join(unknown_requirements))
+        errors.append(
+            "approvals reference unknown requirements: " + ", ".join(unknown_requirements)
+        )
     if errors:
         raise DecisionFileSemanticError("; ".join(errors))
 
@@ -64,8 +76,7 @@ def evaluate_decision_file(
         "mandatory_evidence_missing": any(
             claim["mandatory_evidence"]
             and not any(
-                claim["id"] in evidence["claim_refs"]
-                and evidence["status"] not in {"UNAVAILABLE"}
+                claim["id"] in evidence["claim_refs"] and evidence["status"] not in {"UNAVAILABLE"}
                 for evidence in document["evidence"]
             )
             for claim in document["claims"]
@@ -88,7 +99,11 @@ def evaluate_decision_file(
     updated["updated_at"] = occurred_at
     updated["validation_results"].append(
         {
-            "validator": {"id": "decision-assurance-engine", "role": "VALIDATOR", "kind": "SERVICE"},
+            "validator": {
+                "id": "decision-assurance-engine",
+                "role": "VALIDATOR",
+                "kind": "SERVICE",
+            },
             "result": result.outcome.value,
             "reason_codes": list(result.reason_codes),
             "validated_at": occurred_at,

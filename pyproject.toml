@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "decision-assurance-engine"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic reference engine for the Decision Assurance Specification"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,8 @@ dev = [
 
 [project.scripts]
 decision-assurance = "decision_assurance.cli:main"
+decision-assurance-api = "decision_assurance.api.runtime:main"
+decision-assurance-openapi = "decision_assurance.api.openapi:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/decision_assurance"]
@@ -45,9 +47,16 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
-ignore = ["S101"]
+ignore = ["B008", "E501", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/decision_assurance/models.py" = ["S105"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 packages = ["decision_assurance"]
+
+[[tool.mypy.overrides]]
+module = "jsonschema.*"
+ignore_missing_imports = true

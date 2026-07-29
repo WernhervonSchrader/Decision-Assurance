@@ -9,12 +9,13 @@ from decision_assurance.repositories.sqlite import (
 )
 from decision_assurance.tenancy import TenantContext
 
-
 ROOT = Path(__file__).parents[2]
 
 
 def example() -> dict:
-    return json.loads((ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8")
+    )
 
 
 @pytest.fixture
@@ -39,7 +40,9 @@ def test_cross_tenant_lookup_fails_closed(repository: SqliteDecisionRepository) 
     assert repository.get_decision(TenantContext("tenant-b"), example()["decision_id"]) is None
 
 
-def test_update_and_audit_are_atomic_and_tenant_scoped(repository: SqliteDecisionRepository) -> None:
+def test_update_and_audit_are_atomic_and_tenant_scoped(
+    repository: SqliteDecisionRepository,
+) -> None:
     tenant = TenantContext("tenant-a")
     document = example()
     repository.create_decision(tenant, document)
@@ -50,13 +53,23 @@ def test_update_and_audit_are_atomic_and_tenant_scoped(repository: SqliteDecisio
     assert repository.get_decision(tenant, document["decision_id"])["status"] == "VALIDATION"
     assert repository.get_report(tenant, document["decision_id"]) == report
     assert repository.list_audit(tenant, document["decision_id"], limit=10, offset=0) == [event]
-    assert repository.list_audit(TenantContext("tenant-b"), document["decision_id"], limit=10, offset=0) == []
+    assert (
+        repository.list_audit(
+            TenantContext("tenant-b"), document["decision_id"], limit=10, offset=0
+        )
+        == []
+    )
 
 
-def test_idempotency_replays_same_hash_and_rejects_changed_payload(repository: SqliteDecisionRepository) -> None:
+def test_idempotency_replays_same_hash_and_rejects_changed_payload(
+    repository: SqliteDecisionRepository,
+) -> None:
     tenant = TenantContext("tenant-a")
     repository.store_idempotency(tenant, "actor", "create", "key-1", "hash-a", 201, {"ok": True})
-    assert repository.get_idempotency(tenant, "actor", "create", "key-1", "hash-a") == (201, {"ok": True})
+    assert repository.get_idempotency(tenant, "actor", "create", "key-1", "hash-a") == (
+        201,
+        {"ok": True},
+    )
     with pytest.raises(IdempotencyConflict):
         repository.get_idempotency(tenant, "actor", "create", "key-1", "hash-b")
 

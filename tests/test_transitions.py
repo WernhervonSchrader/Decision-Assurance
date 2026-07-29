@@ -7,7 +7,6 @@ import pytest
 from decision_assurance.decision_file import evaluate_decision_file
 from decision_assurance.transitions import TransitionPolicy, TransitionRejected
 
-
 ROOT = Path(__file__).parents[1]
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
 VALIDATOR = {"id": "validator-1", "role": "VALIDATOR", "kind": "HUMAN"}
@@ -15,7 +14,9 @@ APPROVER = {"id": "approver-1", "role": "APPROVER", "kind": "HUMAN"}
 
 
 def fixture() -> dict:
-    return json.loads((ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8")
+    )
 
 
 def test_full_draft_to_approved_process_is_audited() -> None:
@@ -24,10 +25,22 @@ def test_full_draft_to_approved_process_is_audited() -> None:
     document = policy.transition(document, "VALIDATION", VALIDATOR)
     document = policy.transition(document, "REVIEW", VALIDATOR)
     document["review_requirements"][0]["satisfied"] = True
-    document["approvals"] = [{"requirement_ref":"APPROVAL-1","actor":APPROVER,"decision":"APPROVE","decided_at":NOW.isoformat()}]
+    document["approvals"] = [
+        {
+            "requirement_ref": "APPROVAL-1",
+            "actor": APPROVER,
+            "decision": "APPROVE",
+            "decided_at": NOW.isoformat(),
+        }
+    ]
     document = policy.transition(document, "APPROVED", APPROVER)
     assert document["status"] == "APPROVED"
-    assert [event["to_status"] for event in document["audit_events"]] == ["DRAFT", "VALIDATION", "REVIEW", "APPROVED"]
+    assert [event["to_status"] for event in document["audit_events"]] == [
+        "DRAFT",
+        "VALIDATION",
+        "REVIEW",
+        "APPROVED",
+    ]
     assert all(event["previous_event_hash"] for event in document["audit_events"][1:])
 
 
@@ -41,7 +54,9 @@ def test_agent_cannot_simulate_human_approval() -> None:
     document["status"] = "REVIEW"
     document["review_requirements"][0]["satisfied"] = True
     with pytest.raises(TransitionRejected) as error:
-        TransitionPolicy().transition(document, "APPROVED", {"id":"agent-x","role":"APPROVER","kind":"AGENT"})
+        TransitionPolicy().transition(
+            document, "APPROVED", {"id": "agent-x", "role": "APPROVER", "kind": "AGENT"}
+        )
     assert "HUMAN_APPROVER_REQUIRED" in error.value.reason_codes
 
 

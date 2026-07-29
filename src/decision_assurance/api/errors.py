@@ -9,4 +9,3 @@ class ApiError(Exception):
     status_code: int
     code: str
     details: dict[str, Any] | None = None
-

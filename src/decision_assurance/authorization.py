@@ -16,10 +16,23 @@ class Permission(str, Enum):
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.GENERATOR: frozenset({Permission.DECISION_CREATE, Permission.DECISION_READ, Permission.REPORT_READ}),
-    Role.VALIDATOR: frozenset({Permission.DECISION_READ, Permission.DECISION_EVALUATE, Permission.DECISION_VALIDATE, Permission.REPORT_READ}),
-    Role.APPROVER: frozenset({Permission.DECISION_READ, Permission.DECISION_APPROVE, Permission.REPORT_READ}),
-    Role.AUDITOR: frozenset({Permission.DECISION_READ, Permission.REPORT_READ, Permission.AUDIT_READ}),
+    Role.GENERATOR: frozenset(
+        {Permission.DECISION_CREATE, Permission.DECISION_READ, Permission.REPORT_READ}
+    ),
+    Role.VALIDATOR: frozenset(
+        {
+            Permission.DECISION_READ,
+            Permission.DECISION_EVALUATE,
+            Permission.DECISION_VALIDATE,
+            Permission.REPORT_READ,
+        }
+    ),
+    Role.APPROVER: frozenset(
+        {Permission.DECISION_READ, Permission.DECISION_APPROVE, Permission.REPORT_READ}
+    ),
+    Role.AUDITOR: frozenset(
+        {Permission.DECISION_READ, Permission.REPORT_READ, Permission.AUDIT_READ}
+    ),
     Role.TENANT_ADMIN: frozenset(Permission),
 }
 
@@ -31,4 +44,3 @@ class AuthorizationDenied(PermissionError):
 def authorize(identity: Identity, permission: Permission) -> None:
     if permission not in ROLE_PERMISSIONS.get(identity.role, frozenset()):
         raise AuthorizationDenied("FORBIDDEN")
-

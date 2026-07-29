@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 SUPPORTED_LOCALES = ("en", "de")
 FALLBACK_LOCALE = "en"
 

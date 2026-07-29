@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from .benchmark import run_benchmark
 from .decision_file import evaluate_decision_file, load_decision_file
@@ -39,9 +39,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(result.report, indent=2, ensure_ascii=False))
     elif args.command == "transition":
         document = load_decision_file(args.input)
-        updated = TransitionPolicy().transition(document, args.target, {"id":args.actor_id,"role":args.actor_role,"kind":args.actor_kind})
-        args.input.write_text(json.dumps(updated, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        print(json.dumps({"status": updated["status"], "event": updated["audit_events"][-1]}, indent=2))
+        updated = TransitionPolicy().transition(
+            document,
+            args.target,
+            {"id": args.actor_id, "role": args.actor_role, "kind": args.actor_kind},
+        )
+        args.input.write_text(
+            json.dumps(updated, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        print(
+            json.dumps(
+                {"status": updated["status"], "event": updated["audit_events"][-1]}, indent=2
+            )
+        )
     else:
         report = run_benchmark(args.manifest)
         print(json.dumps(report, indent=2, ensure_ascii=False))

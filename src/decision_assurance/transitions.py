@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from .audit import payload_hash
 from .decision_file import validate_semantics
@@ -61,7 +62,9 @@ class TransitionPolicy:
             "from_status": source.value,
             "to_status": destination.value,
             "reason_codes": ["TRANSITION_AUTHORIZED"],
-            "payload_hash": payload_hash({"from": source.value, "to": destination.value, "actor": actor}),
+            "payload_hash": payload_hash(
+                {"from": source.value, "to": destination.value, "actor": actor}
+            ),
             "previous_event_hash": payload_hash(previous) if previous else None,
         }
         updated["status"] = destination.value
@@ -89,22 +92,30 @@ class TransitionPolicy:
             if actor.get("id") == document["created_by"]["id"]:
                 reasons.append("SEPARATION_OF_DUTIES_VIOLATION")
             validator_ids = {
-                event["actor"]["id"] for event in document["audit_events"]
+                event["actor"]["id"]
+                for event in document["audit_events"]
                 if event["to_status"] == "VALIDATION"
             }
             if actor.get("id") in validator_ids:
                 reasons.append("VALIDATOR_APPROVER_NOT_SEPARATE")
             if document["decision_outcome"] != "PASS":
                 reasons.append("PASS_OUTCOME_REQUIRED")
-            if any(c["severity"] == "MANDATORY" and not c["satisfied"] for c in document["constraints"]):
+            if any(
+                c["severity"] == "MANDATORY" and not c["satisfied"] for c in document["constraints"]
+            ):
                 reasons.append("MANDATORY_CONSTRAINT_UNSATISFIED")
-            if any(c["severity"] == "CRITICAL" and not c["resolved"] for c in document["conflicts"]):
+            if any(
+                c["severity"] == "CRITICAL" and not c["resolved"] for c in document["conflicts"]
+            ):
                 reasons.append("CRITICAL_CONFLICT_UNRESOLVED")
             if any(r["mandatory"] and not r["satisfied"] for r in document["review_requirements"]):
                 reasons.append("MANDATORY_REVIEW_MISSING")
-            for requirement in (item for item in document["review_requirements"] if item["mandatory"]):
+            for requirement in (
+                item for item in document["review_requirements"] if item["mandatory"]
+            ):
                 matching = [
-                    approval for approval in document["approvals"]
+                    approval
+                    for approval in document["approvals"]
                     if approval["requirement_ref"] == requirement["id"]
                     and approval["decision"] == "APPROVE"
                     and approval["actor"]["kind"] == "HUMAN"

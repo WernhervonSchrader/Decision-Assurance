@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Mapping, Protocol
+from typing import Protocol
 
 from .tenancy import TenantContext
 
@@ -48,4 +49,3 @@ class StaticTokenAuthenticator:
         if identity is None:
             raise ValueError("INVALID_TOKEN")
         return identity
-
