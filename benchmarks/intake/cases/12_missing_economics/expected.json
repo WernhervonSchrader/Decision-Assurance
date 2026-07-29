@@ -1,1 +1,1 @@
-{"candidate_types":[],"raw_only_status":"NEEDS_CONFIRMATION","trusted_status":"NEEDS_CONFIRMATION","trusted_outcome":null,"reason_codes":["REQUIRED_FACT_MISSING:AMOUNT"]}
+{"candidate_types":[],"raw_only_status":"NEEDS_CONFIRMATION","trusted_status":"NEEDS_CONFIRMATION","trusted_outcome":null,"reason_codes":["HUMAN_CONFIRMATION_REQUIRED","REQUIRED_FACT_MISSING:AMOUNT","REQUIRED_FACT_MISSING:DISCOUNT_PERCENT","REQUIRED_FACT_MISSING:MARGIN_PERCENT","TRUSTED_POLICY_UNAVAILABLE"],"audit_events":[]}

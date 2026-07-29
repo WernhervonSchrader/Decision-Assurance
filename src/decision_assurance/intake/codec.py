@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from typing import Any
 
@@ -15,7 +16,21 @@ from .contracts import (
 
 
 def to_dict(value: Any) -> dict[str, Any]:
-    return asdict(value)
+    result = json.loads(json.dumps(asdict(value), ensure_ascii=False))
+    _remove_empty_confirmation_identity(result)
+    return result  # type: ignore[no-any-return]
+
+
+def _remove_empty_confirmation_identity(value: Any) -> None:
+    if isinstance(value, dict):
+        for key in ("confirmed_by_actor_id", "confirmed_by_role"):
+            if value.get(key) is None:
+                value.pop(key, None)
+        for item in value.values():
+            _remove_empty_confirmation_identity(item)
+    elif isinstance(value, list):
+        for item in value:
+            _remove_empty_confirmation_identity(item)
 
 
 def policy_from_dict(value: dict[str, Any]) -> PolicyContext:
@@ -38,6 +53,8 @@ def verification_from_dict(value: dict[str, Any]) -> VerificationReport:
             currency=item.get("currency"),
             conflict_refs=tuple(item.get("conflict_refs", ())),
             confirmation_required=item.get("confirmation_required", True),
+            confirmed_by_actor_id=item.get("confirmed_by_actor_id"),
+            confirmed_by_role=item.get("confirmed_by_role"),
         )
         for item in value["candidates"]
     )

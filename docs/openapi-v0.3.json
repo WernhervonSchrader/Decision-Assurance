@@ -794,6 +794,66 @@
         ]
       }
     },
+    "/v1/intakes/{intake_id}/audit": {
+      "get": {
+        "operationId": "get_intake_audit_v1_intakes__intake_id__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intake_id",
+            "required": true,
+            "schema": {
+              "title": "Intake Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Intake Audit V1 Intakes  Intake Id  Audit Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Intake Audit",
+        "tags": [
+          "intakes"
+        ]
+      }
+    },
     "/v1/intakes/{intake_id}/compile": {
       "post": {
         "operationId": "compile_intake_v1_intakes__intake_id__compile_post",

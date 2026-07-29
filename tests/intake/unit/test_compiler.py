@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from decision_assurance.intake.compiler import CompilationRejected, DecisionFileCompiler
-from decision_assurance.intake.contracts import PolicyContext
+from decision_assurance.intake.contracts import IntakeStatus, PolicyContext
 from decision_assurance.intake.extractor import DeterministicQuoteExtractor
 from decision_assurance.intake.verification import InMemoryPolicyRegistry, IntakeVerifier
 from decision_assurance.validation import ContractValidator
@@ -23,8 +23,18 @@ def verified(raw: str):  # type: ignore[no-untyped-def]
 def test_compiler_builds_valid_outcome_free_decision_file_idempotently() -> None:
     report = verified("Quote 40,000 EUR, 8% discount and 30% margin.")
     compiler = DecisionFileCompiler(clock=lambda: NOW)
-    first = compiler.compile(report, policy=POLICY, actor_id="system:intake-compiler")
-    second = compiler.compile(report, policy=POLICY, actor_id="system:intake-compiler")
+    first = compiler.compile(
+        report,
+        policy=POLICY,
+        actor_id="system:intake-compiler",
+        intake_status=IntakeStatus.READY,
+    )
+    second = compiler.compile(
+        report,
+        policy=POLICY,
+        actor_id="system:intake-compiler",
+        intake_status=IntakeStatus.READY,
+    )
     assert first == second
     assert first["decision_outcome"] is None
     assert first["outcome_reasons"] == []
@@ -36,5 +46,20 @@ def test_compiler_fails_closed_for_intake_needing_confirmation() -> None:
     report = verified("Quote 40,000 EUR, approved by management.")
     with pytest.raises(CompilationRejected, match="NEEDS_CONFIRMATION"):
         DecisionFileCompiler(clock=lambda: NOW).compile(
-            report, policy=POLICY, actor_id="system:intake-compiler"
+            report,
+            policy=POLICY,
+            actor_id="system:intake-compiler",
+            intake_status=IntakeStatus.NEEDS_CONFIRMATION,
+        )
+
+
+def test_compiler_rejects_ready_report_when_lifecycle_is_not_ready() -> None:
+    report = verified("Quote 40,000 EUR, 8% discount and 30% margin.")
+    assert report.ready
+    with pytest.raises(CompilationRejected, match="NEEDS_CONFIRMATION"):
+        DecisionFileCompiler(clock=lambda: NOW).compile(
+            report,
+            policy=POLICY,
+            actor_id="system:intake-compiler",
+            intake_status=IntakeStatus.EXTRACTED,
         )

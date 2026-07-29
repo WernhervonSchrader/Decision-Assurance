@@ -92,3 +92,30 @@ def test_confirmation_is_idempotent() -> None:
     )
     assert replace(first) == second
     assert replay == updated
+
+
+def test_corrected_verified_value_requires_policy_reverification() -> None:
+    extracted = DeterministicQuoteExtractor().extract(
+        "Quote 40,000 EUR, 8% discount and 30% margin.", locale="en", intake_id="I-2"
+    )
+    current = IntakeVerifier(InMemoryPolicyRegistry({"a": POLICY})).verify("a", extracted)
+    discount = next(
+        item for item in current.candidates if item.fact_type.value == "DISCOUNT_PERCENT"
+    )
+    corrected, _ = confirm_fact(
+        current,
+        discount.fact_id,
+        action="CORRECT",
+        new_value="80",
+        reason="corrected source value",
+        occurred_at="2026-07-29T10:00:00+00:00",
+        identity=identity(ActorKind.HUMAN),
+    )
+    assert not corrected.ready
+    assert "REVERIFICATION_REQUIRED" in corrected.reason_codes
+
+    reverified = IntakeVerifier(InMemoryPolicyRegistry({"a": POLICY})).reverify("a", corrected)
+    assert reverified.ready
+    assert {finding.result_code for finding in reverified.findings} == {
+        "DISCOUNT_ABOVE_POLICY_LIMIT"
+    }

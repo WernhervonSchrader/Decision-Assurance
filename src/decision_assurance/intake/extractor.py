@@ -45,6 +45,12 @@ class DeterministicQuoteExtractor:
         r"[^.!?]*(?:freigab\w*|freigegeb\w*|genehmig\w*|approv\w*)[^.!?]*[.!?]?",
         re.IGNORECASE,
     )
+    _self_approval = re.compile(
+        r"[^.!?]*(?:selbst\s+(?:vorgenommen|freigegeben|genehmigt)|"
+        r"(?:approval|approved).{0,30}(?:himself|herself|themselves)|"
+        r"(?:creator|generator|ersteller).{0,40}(?:same|selbst|himself|herself))[^.!?]*[.!?]?",
+        re.IGNORECASE,
+    )
     _roles = re.compile(
         r"\b(?:generator|validator|approver|ersteller|prüfer|finance|sales|management)\b",
         re.IGNORECASE,
@@ -137,6 +143,7 @@ class DeterministicQuoteExtractor:
         for pattern, fact_type, confidence in (
             (self._policy, FactType.POLICY_CLAIM, 0.88),
             (self._approval, FactType.APPROVAL_CLAIM, 0.82),
+            (self._self_approval, FactType.SELF_APPROVAL_CLAIM, 0.9),
             (self._roles, FactType.ROLE_CLAIM, 0.9),
             (self._instruction, FactType.UNTRUSTED_INSTRUCTION, 0.99),
         ):
@@ -264,7 +271,7 @@ class DeterministicQuoteExtractor:
             if any(phrase in lowered for phrase in phrases):
                 requirements.append(
                     VerificationRequirement(
-                        f"{intake_id}:requirement:{len(requirements) + 1}",
+                        f"{intake_id}:requirement:{fact_type.value}:{len(requirements) + 1}",
                         fact_type,
                         "MANDATORY_INFORMATION_MISSING",
                     )

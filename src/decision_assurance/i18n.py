@@ -15,6 +15,7 @@ TRANSLATIONS = {
         "NEEDS_CONFIRMATION": "Required intake information still needs confirmation.",
         "TRUSTED_POLICY_UNAVAILABLE": "No trusted tenant policy is available.",
         "INTAKE_CONTRACT_INVALID": "The intake contract is invalid.",
+        "UNSUPPORTED_MEDIA_TYPE": "The request must use a JSON content type.",
     },
     "de": {
         "UNAUTHENTICATED": "Authentifizierung erforderlich.",
@@ -27,6 +28,7 @@ TRANSLATIONS = {
         "NEEDS_CONFIRMATION": "Erforderliche Intake-Angaben müssen noch bestätigt werden.",
         "TRUSTED_POLICY_UNAVAILABLE": "Für den Mandanten ist keine vertrauenswürdige Policy verfügbar.",
         "INTAKE_CONTRACT_INVALID": "Der Intake-Vertrag ist ungültig.",
+        "UNSUPPORTED_MEDIA_TYPE": "Die Anfrage muss einen JSON-Inhaltstyp verwenden.",
     },
 }
 

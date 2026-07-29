@@ -70,6 +70,8 @@ def confirm_fact(
         normalized_value=new_value if action == "CORRECT" else current.normalized_value,
         verification_status=status,
         confirmation_required=False,
+        confirmed_by_actor_id=identity.actor_id,
+        confirmed_by_role=identity.role.value,
     )
     candidates = tuple(
         updated_fact if candidate.fact_id == fact_id else candidate
@@ -85,6 +87,8 @@ def confirm_fact(
         for code in report.reason_codes
         if code != "HUMAN_CONFIRMATION_REQUIRED" or still_unresolved
     )
+    if action == "CORRECT" and "REVERIFICATION_REQUIRED" not in reason_codes:
+        reason_codes = (*reason_codes, "REVERIFICATION_REQUIRED")
     ready = not reason_codes and not report.findings and not report.unresolved_requirement_refs
     return replace(
         report, candidates=candidates, reason_codes=reason_codes, ready=ready

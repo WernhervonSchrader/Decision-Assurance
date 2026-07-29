@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from .contracts import PolicyContext, VerificationReport, VerificationStatus
+from .contracts import IntakeStatus, PolicyContext, VerificationReport, VerificationStatus
 
 Clock = Callable[[], datetime]
 
@@ -31,8 +31,13 @@ class DecisionFileCompiler:
         *,
         policy: PolicyContext,
         actor_id: str,
+        intake_status: IntakeStatus,
     ) -> dict[str, Any]:
-        if not report.ready or report.unresolved_requirement_refs:
+        if (
+            intake_status is not IntakeStatus.READY
+            or not report.ready
+            or report.unresolved_requirement_refs
+        ):
             raise CompilationRejected("NEEDS_CONFIRMATION")
         verified = tuple(
             candidate
@@ -95,7 +100,14 @@ class DecisionFileCompiler:
                 {
                     "id": finding.finding_id,
                     "severity": "MANDATORY"
-                    if finding.result_code == "MARGIN_BELOW_POLICY_MINIMUM"
+                    if finding.result_code
+                    in {
+                        "MARGIN_BELOW_POLICY_MINIMUM",
+                        "POLICY_NOT_EFFECTIVE",
+                        "POLICY_REFERENCE_NOT_REGISTERED",
+                        "SEPARATION_OF_DUTIES_VIOLATION",
+                        "GOVERNANCE_OVERRIDE_ATTEMPT",
+                    }
                     else "REVIEW_REQUIRED",
                     "satisfied": False,
                     "reason_code": finding.result_code,

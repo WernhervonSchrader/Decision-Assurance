@@ -11,6 +11,7 @@ from decision_assurance.intake.lifecycle import IntakeTransitionRejected, next_s
         ("EXTRACTED", "NEEDS_CONFIRMATION"),
         ("EXTRACTED", "READY"),
         ("NEEDS_CONFIRMATION", "READY"),
+        ("READY", "NEEDS_CONFIRMATION"),
         ("READY", "COMPILED"),
         ("RECEIVED", "REJECTED"),
     ],

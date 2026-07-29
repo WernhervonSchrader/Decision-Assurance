@@ -41,3 +41,44 @@ def test_repeated_put_is_idempotent_but_cannot_change_identity(tmp_path: Path) -
     repository.put(tenant("a"), "I-1", "READY", {"intake_id": "I-1", "ready": True})
     repository.put(tenant("a"), "I-1", "READY", {"intake_id": "I-1", "ready": True})
     assert repository.get(tenant("a"), "I-1") == {"intake_id": "I-1", "ready": True}
+
+
+def test_operation_persists_facts_audit_and_idempotency_atomically(tmp_path: Path) -> None:
+    repository = SqliteIntakeRepository(tmp_path / "intake.db")
+    repository.initialize()
+    record = {"intake_id": "I-1", "status": "READY"}
+    fact = {"fact_id": "F-1", "value": "8"}
+    event = {"event_id": "E-1", "event_type": "intake.ready"}
+    repository.save_operation(
+        tenant("a"),
+        "I-1",
+        "READY",
+        record,
+        facts=[fact],
+        confirmation=None,
+        events=[event],
+        idempotency=("actor", "create", "key", "hash", record),
+    )
+    assert repository.list_audit(tenant("a"), "I-1") == [event]
+    assert repository.get_idempotency(tenant("a"), "actor", "create", "key", "hash") == record
+    with sqlite3.connect(repository.database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM intake_facts").fetchone()[0] == 1
+
+
+def test_failed_confirmation_rolls_back_entire_operation(tmp_path: Path) -> None:
+    repository = SqliteIntakeRepository(tmp_path / "intake.db")
+    repository.initialize()
+    record = {"intake_id": "I-1", "status": "READY"}
+    with pytest.raises(sqlite3.IntegrityError):
+        repository.save_operation(
+            tenant("a"),
+            "I-1",
+            "READY",
+            record,
+            facts=[],
+            confirmation={"confirmation_id": "C-1", "fact_id": "missing"},
+            events=[],
+            idempotency=("actor", "confirm", "key", "hash", record),
+        )
+    assert repository.get(tenant("a"), "I-1") is None
+    assert repository.get_idempotency(tenant("a"), "actor", "confirm", "key", "hash") is None

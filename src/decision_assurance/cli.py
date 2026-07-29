@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .benchmark import run_benchmark
@@ -12,6 +13,7 @@ from .identity import ActorKind, Identity, Role
 from .intake.codec import policy_from_dict, to_dict, verification_from_dict
 from .intake.compiler import DecisionFileCompiler
 from .intake.confirmation import confirm_fact
+from .intake.contracts import IntakeStatus
 from .intake.extractor import DeterministicQuoteExtractor
 from .intake.verification import InMemoryPolicyRegistry, IntakeVerifier
 from .tenancy import TenantContext
@@ -50,6 +52,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     confirm_intake.add_argument("--reason", required=True)
     confirm_intake.add_argument("--actor-id", required=True)
     confirm_intake.add_argument("--actor-role", choices=["VALIDATOR", "APPROVER"], required=True)
+    confirm_intake.add_argument("--policy", type=Path)
     compile_intake = intake_commands.add_parser("compile")
     compile_intake.add_argument("input", type=Path)
     compile_intake.add_argument("--policy", type=Path, required=True)
@@ -132,7 +135,7 @@ def _run_intake(args: argparse.Namespace) -> int:
             action=args.action,
             new_value=args.new_value,
             reason=args.reason,
-            occurred_at="1970-01-01T00:00:00+00:00",
+            occurred_at=datetime.now(timezone.utc).isoformat(),
             identity=Identity(
                 args.actor_id,
                 TenantContext("local"),
@@ -140,6 +143,11 @@ def _run_intake(args: argparse.Namespace) -> int:
                 ActorKind.HUMAN,
             ),
         )
+        if args.policy:
+            policy = policy_from_dict(_read_json(args.policy))
+            updated = IntakeVerifier(InMemoryPolicyRegistry({"local": policy})).reverify(
+                "local", updated
+            )
         record["verification"] = to_dict(updated)
         record["contract_ready"] = updated.ready
         record["status"] = "READY" if updated.ready else "NEEDS_CONFIRMATION"
@@ -160,6 +168,7 @@ def _run_intake(args: argparse.Namespace) -> int:
             verification_from_dict(record["verification"]),  # type: ignore[arg-type]
             policy=policy_from_dict(_read_json(args.policy)),
             actor_id="system:intake-compiler",
+            intake_status=IntakeStatus(str(record["status"])),
         )
         _write_json(args.output, decision)
         print(json.dumps(decision, indent=2, ensure_ascii=False))

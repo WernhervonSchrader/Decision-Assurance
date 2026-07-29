@@ -1,1 +1,1 @@
-{"candidate_types":["AMOUNT","DISCOUNT_PERCENT","MARGIN_PERCENT","APPROVAL_CLAIM","ROLE_CLAIM"],"raw_only_status":"NEEDS_CONFIRMATION","trusted_status":"READY","trusted_outcome":"PASS","reason_codes":[]}
+{"candidate_types":["AMOUNT","DISCOUNT_PERCENT","MARGIN_PERCENT","APPROVAL_CLAIM","ROLE_CLAIM"],"raw_only_status":"NEEDS_CONFIRMATION","trusted_status":"READY","trusted_outcome":"PASS","reason_codes":[],"audit_events":["decision.received","evidence.validated","governance.decided"]}

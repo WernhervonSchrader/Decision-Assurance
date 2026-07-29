@@ -34,6 +34,7 @@ class FactType(str, Enum):
     POLICY_CLAIM = "POLICY_CLAIM"
     EXCEPTION_CLAIM = "EXCEPTION_CLAIM"
     APPROVAL_CLAIM = "APPROVAL_CLAIM"
+    SELF_APPROVAL_CLAIM = "SELF_APPROVAL_CLAIM"
     ROLE_CLAIM = "ROLE_CLAIM"
     UNTRUSTED_INSTRUCTION = "UNTRUSTED_INSTRUCTION"
 
@@ -70,6 +71,8 @@ class CandidateFact:
     currency: str | None = None
     conflict_refs: tuple[str, ...] = ()
     confirmation_required: bool = True
+    confirmed_by_actor_id: str | None = None
+    confirmed_by_role: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,7 +149,9 @@ class IntakeRecord:
     created_at: str
     updated_at: str
     raw_input_hash: str
+    contract_ready: bool = False
     extraction: ExtractionReport | None = None
+    verification: VerificationReport | None = None
     confirmations: list[HumanConfirmation] = field(default_factory=list)
     findings: list[DerivedFinding] = field(default_factory=list)
     audit_events: list[IntakeAuditEvent] = field(default_factory=list)
@@ -174,6 +179,7 @@ class PolicyContext:
     maximum_duration_months_without_exception: int
     requires_approval_above_amount: str
     maximum_evidence_age_days: int = 365
+    required_approval_count: int = 1
 
 
 @dataclass(frozen=True, slots=True)

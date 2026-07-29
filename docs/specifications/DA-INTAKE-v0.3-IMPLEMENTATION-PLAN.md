@@ -54,4 +54,3 @@ SQLite databases with deterministic seeds, injected clocks, two tenants and
 human/agent roles. No browser exists, so browser/device/screenshots are not
 applicable; CI retains benchmark/OpenAPI/pytest artifacts on failure. Tests do
 not retry and use no external service, network, key or LLM.
-

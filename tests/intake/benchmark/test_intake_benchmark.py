@@ -1,14 +1,16 @@
 import json
-from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
 from decision_assurance.decision_file import evaluate_decision_file
+from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.intake.codec import policy_from_dict
 from decision_assurance.intake.compiler import DecisionFileCompiler
-from decision_assurance.intake.contracts import FactType, VerificationStatus
+from decision_assurance.intake.confirmation import confirm_fact
+from decision_assurance.intake.contracts import IntakeStatus
 from decision_assurance.intake.extractor import DeterministicQuoteExtractor
 from decision_assurance.intake.verification import InMemoryPolicyRegistry, IntakeVerifier
+from decision_assurance.tenancy import TenantContext
 
 CASES = Path(__file__).parents[3] / "benchmarks" / "intake" / "cases"
 
@@ -52,40 +54,46 @@ def test_intake_benchmark_raw_and_trusted_variants() -> None:
             else InMemoryPolicyRegistry({})
         )
         reference_date = date.fromisoformat(context.get("reference_date", "2026-07-29"))
-        trusted = IntakeVerifier(
-            registry, reference_date=lambda value=reference_date: value
-        ).verify("benchmark", extraction)
+        verifier = IntakeVerifier(registry, reference_date=lambda value=reference_date: value)
+        trusted = verifier.verify("benchmark", extraction)
         confirmed = set(context.get("confirmed_fact_types", []))
         if confirmed:
-            candidates = tuple(
-                replace(
-                    candidate,
-                    verification_status=VerificationStatus.HUMAN_CONFIRMED,
-                    confirmation_required=False,
+            for candidate in tuple(trusted.candidates):
+                if candidate.fact_type.value not in confirmed:
+                    continue
+                trusted, _ = confirm_fact(
+                    trusted,
+                    candidate.fact_id,
+                    action="CONFIRM",
+                    new_value=None,
+                    reason="benchmark trusted context",
+                    occurred_at="2026-07-29T10:00:00+00:00",
+                    identity=Identity(
+                        f"benchmark-{candidate.fact_id}",
+                        TenantContext("benchmark"),
+                        Role.APPROVER
+                        if candidate.fact_type.value == "APPROVAL_CLAIM"
+                        else Role.VALIDATOR,
+                        ActorKind.HUMAN,
+                    ),
                 )
-                if candidate.fact_type.value in confirmed
-                else candidate
-                for candidate in trusted.candidates
-            )
-            blocking_claim = any(
-                item.confirmation_required
-                and item.fact_type
-                in {FactType.POLICY_CLAIM, FactType.EXCEPTION_CLAIM, FactType.APPROVAL_CLAIM}
-                for item in candidates
-            )
-            reasons = tuple(
-                code
-                for code in trusted.reason_codes
-                if code != "HUMAN_CONFIRMATION_REQUIRED" or blocking_claim
-            )
-            trusted = replace(
-                trusted, candidates=candidates, reason_codes=reasons, ready=not reasons
-            )
+                trusted = verifier.reverify("benchmark", trusted)
         status = "READY" if trusted.ready else "NEEDS_CONFIRMATION"
         assert status == expected["trusted_status"], case.name
+        actual_reason_codes = set(trusted.reason_codes) | {
+            finding.result_code for finding in trusted.findings
+        }
+        assert set(expected["reason_codes"]) == actual_reason_codes, case.name
         if expected["trusted_outcome"] is not None:
             decision = DecisionFileCompiler().compile(
-                trusted, policy=policy_from_dict(policy_data), actor_id="system:intake-compiler"
+                trusted,
+                policy=policy_from_dict(policy_data),
+                actor_id="system:intake-compiler",
+                intake_status=IntakeStatus.READY,
             )
             _, result = evaluate_decision_file(decision)
             assert result.outcome.value == expected["trusted_outcome"], case.name
+            actual_events = {event["event_type"] for event in result.audit_events}
+            assert set(expected["audit_events"]) == actual_events, case.name
+        else:
+            assert expected["audit_events"] == [], case.name

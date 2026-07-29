@@ -19,6 +19,14 @@ Compilation is fail-closed. Only `READY` reports whose used facts are `VERIFIED`
 claims result in `NEEDS_CONFIRMATION`. The emitted Decision File has `decision_outcome: null`;
 the existing evaluation path alone can produce `PASS`, `REVIEW` or `BLOCK`.
 
+Corrections invalidate readiness until the complete tenant-policy verification has run again.
+Approval thresholds count distinct authenticated human `APPROVER` identities, not repeated text
+claims. Policy effective dates, evidence freshness, duration exceptions, approval completeness,
+confirmed self-approval and governance-override attempts are deterministic derived findings.
+Record, facts, confirmations, hash-linked Intake audit events and idempotency response are written
+in one SQLite transaction. Compilation uses a deterministic decision ID so interrupted handoffs
+converge safely on retry.
+
 Contracts are versioned under `schemas/intake/`. Additive optional fields are permitted within a
 compatible draft; new required fields, changed semantics or enum removals require a new schema
 version. Public and packaged copies must stay byte-equivalent in meaning and are contract-tested.

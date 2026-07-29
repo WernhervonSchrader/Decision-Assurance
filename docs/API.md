@@ -8,6 +8,8 @@ and human/agent kind; `tenant_id` is never accepted from a body.
 
 Intake endpoints are `POST /v1/intakes`, `GET /v1/intakes/{id}`,
 `POST /v1/intakes/{id}/confirmations`, and `POST /v1/intakes/{id}/compile`.
+Authorized auditors can retrieve the append-only Intake trail through
+`GET /v1/intakes/{id}/audit`.
 Compilation returns a DRAFT Decision File with a null outcome. Evaluation remains exclusively
 on the existing `POST /v1/decisions/{id}/evaluate` endpoint.
 

@@ -12,6 +12,7 @@ _ALLOWED = {
     (IntakeStatus.EXTRACTED, IntakeStatus.NEEDS_CONFIRMATION),
     (IntakeStatus.EXTRACTED, IntakeStatus.READY),
     (IntakeStatus.NEEDS_CONFIRMATION, IntakeStatus.READY),
+    (IntakeStatus.READY, IntakeStatus.NEEDS_CONFIRMATION),
     (IntakeStatus.READY, IntakeStatus.COMPILED),
 }
 

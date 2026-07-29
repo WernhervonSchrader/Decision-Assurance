@@ -1,6 +1,6 @@
 # DA Public Draft v0.3 — Controlled Real-World Intake
 
-**Status:** implementation specification approved by project owner  
+**Status:** implementation specification approved by project owner
 **Positioning:** Public Draft; no standard, certification, compliance, medical or legal approval claim
 
 ## Context and objective

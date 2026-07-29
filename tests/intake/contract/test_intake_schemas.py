@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from decision_assurance.intake.codec import to_dict
+from decision_assurance.intake.extractor import DeterministicQuoteExtractor
 from decision_assurance.validation import ContractValidationError, ContractValidator
 
 ROOT = Path(__file__).parents[3]
@@ -62,3 +64,22 @@ def test_valid_examples_and_invalid_fixtures(schema_name: str) -> None:
     validator.validate(f"intake/{schema_name}", valid)
     with pytest.raises(ContractValidationError):
         validator.validate(f"intake/{schema_name}", invalid)
+
+
+def test_nested_candidate_contract_rejects_incomplete_source() -> None:
+    validator = ContractValidator(ROOT / "schemas")
+    candidate = json.loads(
+        (ROOT / "examples" / "intake" / "contracts" / "candidate-fact.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    candidate["source"] = {}
+    with pytest.raises(ContractValidationError):
+        validator.validate("intake/candidate-fact", candidate)
+
+
+def test_real_extraction_report_satisfies_nested_contract() -> None:
+    report = DeterministicQuoteExtractor().extract(
+        "Quote 40,000 EUR, 8% discount and 30% margin.", locale="en", intake_id="I-real"
+    )
+    ContractValidator(ROOT / "schemas").validate("intake/extraction-report", to_dict(report))
