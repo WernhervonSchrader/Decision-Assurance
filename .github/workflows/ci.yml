@@ -22,16 +22,18 @@ jobs:
       - run: mypy src
       - run: python -m pytest -q
       - run: decision-assurance benchmark tests/gold/manifest.json
+      - run: python -m pytest tests/intake/benchmark -q
       - run: bandit -q -r src -s B105
       - run: pip-audit
       - run: python -m build
-      - run: decision-assurance-openapi docs/openapi-v0.2.json
+      - run: decision-assurance-openapi /tmp/openapi-v0.3.json && diff -u docs/openapi-v0.3.json /tmp/openapi-v0.3.json
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: verification-artifacts
           path: |
-            docs/openapi-v0.2.json
+            docs/openapi-v0.3.json
+            benchmarks/intake
             .pytest_cache
 
   secret-scan:

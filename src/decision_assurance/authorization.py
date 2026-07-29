@@ -13,11 +13,21 @@ class Permission(str, Enum):
     DECISION_APPROVE = "decision:approve"
     REPORT_READ = "report:read"
     AUDIT_READ = "audit:read"
+    INTAKE_CREATE = "intake:create"
+    INTAKE_READ = "intake:read"
+    INTAKE_CONFIRM = "intake:confirm"
+    INTAKE_COMPILE = "intake:compile"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.GENERATOR: frozenset(
-        {Permission.DECISION_CREATE, Permission.DECISION_READ, Permission.REPORT_READ}
+        {
+            Permission.DECISION_CREATE,
+            Permission.DECISION_READ,
+            Permission.REPORT_READ,
+            Permission.INTAKE_CREATE,
+            Permission.INTAKE_READ,
+        }
     ),
     Role.VALIDATOR: frozenset(
         {
@@ -25,13 +35,28 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.DECISION_EVALUATE,
             Permission.DECISION_VALIDATE,
             Permission.REPORT_READ,
+            Permission.INTAKE_READ,
+            Permission.INTAKE_CONFIRM,
+            Permission.INTAKE_COMPILE,
         }
     ),
     Role.APPROVER: frozenset(
-        {Permission.DECISION_READ, Permission.DECISION_APPROVE, Permission.REPORT_READ}
+        {
+            Permission.DECISION_READ,
+            Permission.DECISION_APPROVE,
+            Permission.REPORT_READ,
+            Permission.INTAKE_READ,
+            Permission.INTAKE_CONFIRM,
+            Permission.INTAKE_COMPILE,
+        }
     ),
     Role.AUDITOR: frozenset(
-        {Permission.DECISION_READ, Permission.REPORT_READ, Permission.AUDIT_READ}
+        {
+            Permission.DECISION_READ,
+            Permission.REPORT_READ,
+            Permission.AUDIT_READ,
+            Permission.INTAKE_READ,
+        }
     ),
     Role.TENANT_ADMIN: frozenset(Permission),
 }

@@ -1,0 +1,1 @@
+{"event_id":"E-1","event_type":"intake.received","occurred_at":"2026-07-29T10:00:00Z","actor_id":"generator-1","from_status":"RECEIVED","to_status":"EXTRACTED","reason_codes":[],"payload_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","previous_event_hash":null}

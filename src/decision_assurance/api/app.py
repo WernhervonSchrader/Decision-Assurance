@@ -11,17 +11,27 @@ from starlette.responses import Response
 
 from ..i18n import localize, select_locale
 from ..identity import Authenticator
+from ..intake.repository import IntakeRepository
+from ..intake.verification import PolicyRegistry
 from ..repositories.protocols import DecisionRepository
 from .errors import ApiError
 from .routes.decisions import router
+from .routes.intakes import router as intake_router
 
 MAX_BODY_BYTES = 1_048_576
 
 
-def create_app(repository: DecisionRepository, authenticator: Authenticator) -> FastAPI:
-    app = FastAPI(title="Decision Assurance API", version="0.2.0")
+def create_app(
+    repository: DecisionRepository,
+    authenticator: Authenticator,
+    intake_repository: IntakeRepository | None = None,
+    policy_registry: PolicyRegistry | None = None,
+) -> FastAPI:
+    app = FastAPI(title="Decision Assurance API", version="0.3.0")
     app.state.repository = repository
     app.state.authenticator = authenticator
+    app.state.intake_repository = intake_repository
+    app.state.policy_registry = policy_registry
 
     @app.middleware("http")
     async def request_controls(
@@ -35,6 +45,10 @@ def create_app(repository: DecisionRepository, authenticator: Authenticator) -> 
                     return _error_response(request, 413, "PAYLOAD_TOO_LARGE")
             except ValueError:
                 return _error_response(request, 422, "INVALID_REQUEST")
+        if request.method in {"POST", "PUT", "PATCH"} and content_length != "0":
+            media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            if media_type != "application/json" and not media_type.endswith("+json"):
+                return _error_response(request, 415, "UNSUPPORTED_MEDIA_TYPE")
         if len(await request.body()) > MAX_BODY_BYTES:
             return _error_response(request, 413, "PAYLOAD_TOO_LARGE")
         response = await call_next(request)
@@ -78,6 +92,8 @@ def create_app(repository: DecisionRepository, authenticator: Authenticator) -> 
         )
 
     app.include_router(router)
+    if intake_repository is not None and policy_registry is not None:
+        app.include_router(intake_router)
     return app
 
 

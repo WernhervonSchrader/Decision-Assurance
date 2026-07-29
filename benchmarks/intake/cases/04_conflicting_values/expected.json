@@ -1,0 +1,1 @@
+{"candidate_types":["AMOUNT","DISCOUNT_PERCENT"],"raw_only_status":"NEEDS_CONFIRMATION","trusted_status":"NEEDS_CONFIRMATION","trusted_outcome":null,"reason_codes":["CONFLICTS_UNRESOLVED","DISCOUNT_ABOVE_POLICY_LIMIT","REQUIRED_APPROVAL_MISSING","REQUIRED_FACT_MISSING:MARGIN_PERCENT"],"audit_events":[]}
