@@ -22,11 +22,7 @@ def run_benchmark(manifest_path: Path) -> dict[str, Any]:
 
 def _run_case(case: dict[str, Any], root: Path) -> dict[str, Any]:
     if case["kind"] == "transition":
-        fixture = json.loads(
-            (
-                Path(__file__).parents[2] / "examples" / "decision-cases" / "low-risk-pass.json"
-            ).read_text(encoding="utf-8")
-        )
+        fixture = _transition_fixture()
         fixture["status"] = case["source"]
         try:
             updated = TransitionPolicy().transition(
@@ -69,3 +65,32 @@ def _run_case(case: dict[str, Any], root: Path) -> dict[str, Any]:
         "audit_events": events,
     }
     return {"id": case["id"], "passed": actual == expected, "expected": expected, "actual": actual}
+
+
+def _transition_fixture() -> dict[str, Any]:
+    return {
+        "schema_version": "0.1.0",
+        "decision_id": "BENCHMARK-TRANSITION",
+        "title": "Transition benchmark fixture",
+        "description": "Self-contained deterministic transition input.",
+        "use_case": "benchmark",
+        "status": "DRAFT",
+        "assurance_level": "BASIC",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "created_by": {"id": "generator", "role": "GENERATOR", "kind": "AGENT"},
+        "current_owner": {"id": "owner", "role": "OWNER", "kind": "HUMAN"},
+        "claims": [{"id": "C-1", "statement": "Fixture claim", "mandatory_evidence": False}],
+        "evidence": [],
+        "assumptions": [],
+        "constraints": [],
+        "policies": [],
+        "risks": [],
+        "conflicts": [],
+        "validation_results": [],
+        "review_requirements": [],
+        "approvals": [],
+        "decision_outcome": None,
+        "outcome_reasons": [],
+        "audit_events": [],
+    }
