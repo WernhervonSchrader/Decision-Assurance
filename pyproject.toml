@@ -38,7 +38,7 @@ packages = ["src/decision_assurance"]
 include = [
   "src/decision_assurance/**/*.py",
   "src/decision_assurance/migrations/*.sql",
-  "src/decision_assurance/schemas/*.json",
+  "src/decision_assurance/schemas/**/*.json",
 ]
 
 [tool.pytest.ini_options]
