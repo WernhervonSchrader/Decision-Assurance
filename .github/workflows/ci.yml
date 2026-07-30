@@ -237,15 +237,26 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > release-evidence/workflow-run.json
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > release-evidence/workflow-jobs.json
       - name: Compute release verification report
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python -m scripts.release.ci_gate_input release-evidence/gate-results.json \
-            --workflow-run release-evidence/workflow-run.json \
-            --workflow-jobs release-evidence/workflow-jobs.json \
-            --artifact-root release-artifacts \
-            --checksums release-evidence/SHA256SUMS \
-            --commit-sha "$GITHUB_SHA" \
-            --repository "$GITHUB_REPOSITORY"
-          python -m scripts.release.generate_report --input release-evidence/gate-results.json --output release-evidence/release-verification.json --commit-sha "$GITHUB_SHA"
+          for attempt in 1 2 3 4 5 6; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > release-evidence/workflow-jobs.json
+            python -m scripts.release.ci_gate_input release-evidence/gate-results.json \
+              --workflow-run release-evidence/workflow-run.json \
+              --workflow-jobs release-evidence/workflow-jobs.json \
+              --artifact-root release-artifacts \
+              --checksums release-evidence/SHA256SUMS \
+              --commit-sha "$GITHUB_SHA" \
+              --repository "$GITHUB_REPOSITORY"
+            if python -m scripts.release.generate_report --input release-evidence/gate-results.json --output release-evidence/release-verification.json --commit-sha "$GITHUB_SHA"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              exit 1
+            fi
+            sleep 5
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: release-evidence-${{ github.sha }}
