@@ -65,6 +65,7 @@ def test_database_roles_are_separate_non_owner_and_cannot_bypass_rls() -> None:
         "decision_assurance_application",
         "decision_assurance_operations_readonly",
         "decision_assurance_audit_export",
+        "decision_assurance_worker",
     ):
         assert f"CREATE ROLE {role}" in roles
         declaration = next(line for line in roles.splitlines() if f"CREATE ROLE {role}" in line)

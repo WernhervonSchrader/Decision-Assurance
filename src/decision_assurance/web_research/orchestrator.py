@@ -110,6 +110,42 @@ class ResearchOrchestrator:
         *,
         refresh_generation: str | None = None,
     ) -> ResearchRun:
+        run = self.prepare(
+            tenant,
+            actor_id,
+            request,
+            expected_document_hash,
+            correlation_id,
+            refresh_generation=refresh_generation,
+        )
+        if run.audit_events or run.status is not ResearchStatus.CREATED:
+            self._metrics.increment("research.semantic_replay")
+            return run
+
+        apply_transition(
+            run,
+            ResearchStatus.SEARCHING,
+            occurred_at=self._time(),
+            actor_id=actor_id,
+            reason_codes=("SEARCH_STARTED",),
+            payload={"query_hash": hashlib.sha256(request.query.encode()).hexdigest()},
+        )
+        self._repository.save(tenant, run)
+        if not await self._discover(tenant, run, actor_id):
+            return run
+        self._start_extraction(tenant, run, actor_id, retry=False)
+        return await self._extract_and_finalize(tenant, run, actor_id, retry_only=False)
+
+    def prepare(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        request: ResearchRequest,
+        expected_document_hash: str,
+        correlation_id: str,
+        *,
+        refresh_generation: str | None = None,
+    ) -> ResearchRun:
         if request.max_search_results > self._policy.max_search_results:
             raise ValueError("SEARCH_LIMIT_EXCEEDS_CONFIGURATION")
         if request.max_sources_to_extract > self._policy.max_extractions:
@@ -137,23 +173,7 @@ class ResearchOrchestrator:
             correlation_id,
         )
         run = self._repository.create_or_get(tenant, proposed)
-        if run.audit_events or run.status is not ResearchStatus.CREATED:
-            self._metrics.increment("research.semantic_replay")
-            return run
-
-        apply_transition(
-            run,
-            ResearchStatus.SEARCHING,
-            occurred_at=self._time(),
-            actor_id=actor_id,
-            reason_codes=("SEARCH_STARTED",),
-            payload={"query_hash": hashlib.sha256(request.query.encode()).hexdigest()},
-        )
-        self._repository.save(tenant, run)
-        if not await self._discover(tenant, run, actor_id):
-            return run
-        self._start_extraction(tenant, run, actor_id, retry=False)
-        return await self._extract_and_finalize(tenant, run, actor_id, retry_only=False)
+        return run
 
     async def retry(
         self,

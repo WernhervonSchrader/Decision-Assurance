@@ -47,13 +47,18 @@ CREATE TABLE IF NOT EXISTS tenant_runtime_limits (
 ALTER TABLE research_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE research_jobs FORCE ROW LEVEL SECURITY;
 CREATE POLICY research_jobs_tenant_isolation ON research_jobs USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
+CREATE POLICY research_jobs_worker_access ON research_jobs TO decision_assurance_worker USING (true) WITH CHECK (true);
 ALTER TABLE research_job_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE research_job_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY research_job_events_tenant_isolation ON research_job_events USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
+CREATE POLICY research_job_events_worker_access ON research_job_events TO decision_assurance_worker USING (true) WITH CHECK (true);
 ALTER TABLE tenant_runtime_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_runtime_limits FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_runtime_limits_tenant_isolation ON tenant_runtime_limits USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
+CREATE POLICY tenant_runtime_limits_worker_access ON tenant_runtime_limits TO decision_assurance_worker USING (true) WITH CHECK (true);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON research_jobs, research_job_events, tenant_runtime_limits TO decision_assurance_application;
 GRANT SELECT ON research_jobs, research_job_events, tenant_runtime_limits TO decision_assurance_operations_readonly;
 GRANT SELECT ON research_job_events TO decision_assurance_audit_export;
+GRANT SELECT, INSERT, UPDATE ON research_jobs, research_job_events TO decision_assurance_worker;
+GRANT SELECT ON tenant_runtime_limits TO decision_assurance_worker;

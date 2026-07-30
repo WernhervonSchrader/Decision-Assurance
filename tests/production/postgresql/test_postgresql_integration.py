@@ -9,12 +9,16 @@ import psycopg
 import pytest
 from psycopg import Connection
 
+from decision_assurance.jobs.contracts import LeaseToken
+from decision_assurance.jobs.postgresql import LeaseRejected, PostgresJobRepository
 from decision_assurance.persistence.postgresql import (
     MigrationIntegrityError,
+    PostgresConnectionProvider,
     PostgresMigrationRunner,
     PostgresSettings,
 )
-from decision_assurance.production.contracts import SecretValue
+from decision_assurance.production.contracts import JobPolicy, JobStatus, ResearchJob, SecretValue
+from decision_assurance.tenancy import TenantContext
 
 ROOT = Path(__file__).parents[3]
 MIGRATIONS = ROOT / "migrations" / "postgresql"
@@ -149,3 +153,118 @@ def test_runtime_roles_are_non_owner_and_cannot_bypass_rls(postgres_dsn: str) ->
     assert len(rows) == 3
     assert all(not any(row[1:]) for row in rows)
     assert ledger_privileges == (False,)
+
+
+def _seed_job_run(connection: Connection[tuple[object, ...]], run_id: str) -> None:
+    connection.execute(
+        """
+        INSERT INTO research_runs (
+            tenant_id, research_run_id, decision_file_id, semantic_fingerprint,
+            status, run_json, created_at, updated_at
+        ) VALUES (
+            'job-tenant', %s, %s, %s, 'CREATED', '{}',
+            '2026-07-30T10:00:00Z', '2026-07-30T10:00:00Z'
+        ) ON CONFLICT (tenant_id, research_run_id) DO NOTHING
+        """,
+        (run_id, f"decision-{run_id}", f"fingerprint-{run_id}"),
+    )
+
+
+def _research_job(job_id: str, run_id: str) -> ResearchJob:
+    return ResearchJob(
+        job_id=job_id,
+        tenant_id="job-tenant",
+        research_run_id=run_id,
+        correlation_id=f"correlation-{job_id}",
+        payload_hash="sha256:" + "a" * 64,
+        status=JobStatus.QUEUED,
+        attempt_count=0,
+        available_at="2026-07-30T10:00:00Z",
+        created_at="2026-07-30T10:00:00Z",
+        updated_at="2026-07-30T10:00:00Z",
+    )
+
+
+def test_job_enqueue_claim_retry_lease_and_completion_are_atomic(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'job-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'job-tenant'")
+        _seed_job_run(owner, "run-job-1")
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    repository = PostgresJobRepository(
+        connections,
+        JobPolicy(max_attempts=3, lease_seconds=60, base_backoff_seconds=5),
+    )
+    tenant = TenantContext("job-tenant")
+    job = _research_job("job-1", "run-job-1")
+
+    assert repository.enqueue(tenant, job) == job
+    assert repository.enqueue(tenant, job) == job
+    claimed = repository.claim("worker-1", now="2026-07-30T10:00:00Z")
+    assert claimed is not None
+    assert claimed.job.status is JobStatus.RUNNING
+    with pytest.raises(LeaseRejected):
+        repository.complete(
+            tenant,
+            job.job_id,
+            LeaseToken("incorrect-lease"),
+            partial=False,
+            now="2026-07-30T10:00:01Z",
+        )
+    repository.fail(
+        tenant,
+        job.job_id,
+        claimed.lease_token,
+        "PROVIDER_TIMEOUT",
+        retryable=True,
+        now="2026-07-30T10:00:01Z",
+    )
+    assert repository.claim("worker-1", now="2026-07-30T10:00:05Z") is None
+    retried = repository.claim("worker-1", now="2026-07-30T10:00:06Z")
+    assert retried is not None
+    repository.complete(
+        tenant,
+        job.job_id,
+        retried.lease_token,
+        partial=False,
+        now="2026-07-30T10:00:07Z",
+    )
+
+    with psycopg.connect(postgres_dsn) as owner:
+        status = owner.execute(
+            "SELECT status, attempt_count FROM research_jobs "
+            "WHERE tenant_id = 'job-tenant' AND job_id = 'job-1'"
+        ).fetchone()
+        event_count = owner.execute(
+            "SELECT count(*) FROM research_job_events "
+            "WHERE tenant_id = 'job-tenant' AND job_id = 'job-1'"
+        ).fetchone()
+    assert status == ("COMPLETED", 2)
+    assert event_count == (5,)
+
+
+def test_stale_lease_recovery_and_cancellation_prevent_delivery(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'job-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'job-tenant'")
+        _seed_job_run(owner, "run-job-stale")
+        _seed_job_run(owner, "run-job-cancel")
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    repository = PostgresJobRepository(connections, JobPolicy(lease_seconds=5))
+    tenant = TenantContext("job-tenant")
+    repository.enqueue(tenant, _research_job("job-stale", "run-job-stale"))
+    repository.enqueue(tenant, _research_job("job-cancel", "run-job-cancel"))
+    claimed = repository.claim("worker-1", now="2026-07-30T10:00:00Z")
+    assert claimed is not None
+
+    assert repository.recover_stale(now="2026-07-30T10:00:06Z") == 1
+    cancelled = repository.cancel(tenant, "job-cancel", now="2026-07-30T10:00:07Z")
+    assert cancelled.status is JobStatus.CANCELLED
+
+
+def test_worker_role_can_access_only_queue_owned_tables(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as worker:
+        worker.execute("SET ROLE decision_assurance_worker")
+        worker.execute("SELECT count(*) FROM research_jobs").fetchone()
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            worker.execute("SELECT count(*) FROM decisions").fetchone()

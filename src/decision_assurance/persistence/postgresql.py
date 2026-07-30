@@ -107,6 +107,12 @@ class PostgresConnectionProvider:
             )
             yield connection
 
+    @contextmanager
+    def worker_connection(self) -> Iterator[Connection[dict[str, Any]]]:
+        """Unscoped queue session; the worker role has access only to job-owned tables."""
+        with self._connect() as connection, connection.transaction():
+            yield connection
+
     def ready(self) -> bool:
         try:
             with self._connect() as connection:

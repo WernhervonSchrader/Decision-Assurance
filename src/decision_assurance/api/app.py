@@ -16,6 +16,7 @@ from ..intake.verification import PolicyRegistry
 from ..repositories.protocols import DecisionRepository
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.repository import SqliteResearchRepository
+from ..web_research.service import ResearchSubmissionService
 from .errors import ApiError
 from .routes.decisions import router
 from .routes.intakes import router as intake_router
@@ -31,6 +32,7 @@ def create_app(
     policy_registry: PolicyRegistry | None = None,
     research_repository: SqliteResearchRepository | None = None,
     research_orchestrator: ResearchOrchestrator | None = None,
+    research_submission_service: ResearchSubmissionService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Decision Assurance API", version="0.4.0")
     app.state.repository = repository
@@ -39,6 +41,7 @@ def create_app(
     app.state.policy_registry = policy_registry
     app.state.research_repository = research_repository
     app.state.research_orchestrator = research_orchestrator
+    app.state.research_submission_service = research_submission_service
 
     @app.middleware("http")
     async def request_controls(
