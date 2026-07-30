@@ -248,6 +248,8 @@ def _load_configured_runtime(
         build_metadata=build_metadata,
     )
     app.state.job_repository = jobs
+    app.state.operating_mode = config.operating_mode
+    app.state.data_residency = config.data_residency
     return app
 
 

@@ -1,0 +1,40 @@
+{
+  "profile": "production",
+  "operating_mode": "local",
+  "data_residency": {
+    "storage_locations": ["local"],
+    "processing_locations": ["local"],
+    "backup_locations": ["local"],
+    "support_access_locations": ["local"],
+    "external_processing_locations": [],
+    "evidence_refs": []
+  },
+  "database_backend": "postgresql",
+  "authentication_mode": "oidc",
+  "secret_provider": "external",
+  "database_dsn_secret": "decision-assurance-database-dsn",
+  "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
+  "oidc": {
+    "issuer": "https://identity.local.example",
+    "audience": "decision-assurance",
+    "jwks_uri": "https://identity.local.example/.well-known/jwks.json",
+    "algorithms": ["RS256"],
+    "tenant_claim": "tenant_id",
+    "actor_id_claim": "sub",
+    "role_claim": "role",
+    "actor_kind_claim": "actor_kind",
+    "organization_claim": "organization",
+    "groups_claim": "groups",
+    "clock_skew_seconds": 30
+  },
+  "egress_allowed_hosts": [
+    "research-extract.local.example",
+    "research-search.local.example"
+  ],
+  "worker": {
+    "max_attempts": 5,
+    "lease_seconds": 60,
+    "base_backoff_seconds": 5,
+    "maximum_backoff_seconds": 300
+  }
+}

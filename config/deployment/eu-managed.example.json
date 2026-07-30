@@ -1,0 +1,43 @@
+{
+  "profile": "production",
+  "operating_mode": "eu-managed",
+  "data_residency": {
+    "storage_locations": ["DE"],
+    "processing_locations": ["DE", "IE"],
+    "backup_locations": ["DE", "IE"],
+    "support_access_locations": ["DE", "NL"],
+    "external_processing_locations": ["DE"],
+    "evidence_refs": [
+      "https://compliance.example/eu-residency",
+      "https://compliance.example/eu-subprocessors"
+    ]
+  },
+  "database_backend": "postgresql",
+  "authentication_mode": "oidc",
+  "secret_provider": "external",
+  "database_dsn_secret": "decision-assurance-database-dsn",
+  "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
+  "oidc": {
+    "issuer": "https://identity.eu.example",
+    "audience": "decision-assurance",
+    "jwks_uri": "https://identity.eu.example/.well-known/jwks.json",
+    "algorithms": ["RS256"],
+    "tenant_claim": "tenant_id",
+    "actor_id_claim": "sub",
+    "role_claim": "role",
+    "actor_kind_claim": "actor_kind",
+    "organization_claim": "organization",
+    "groups_claim": "groups",
+    "clock_skew_seconds": 30
+  },
+  "egress_allowed_hosts": [
+    "research-extract.eu.example",
+    "research-search.eu.example"
+  ],
+  "worker": {
+    "max_attempts": 5,
+    "lease_seconds": 60,
+    "base_backoff_seconds": 5,
+    "maximum_backoff_seconds": 300
+  }
+}
