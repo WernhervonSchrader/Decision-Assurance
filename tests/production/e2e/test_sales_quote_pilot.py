@@ -349,8 +349,11 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         )
         return result.status is ResearchStatus.PARTIALLY_COMPLETED
 
-    worker = ResearchWorker(jobs, process)
-    assert worker.run_once("pilot-worker", now="2026-07-30T12:00:01Z")
+    def worker_time() -> str:
+        return "2026-07-30T12:00:01Z"
+
+    worker = ResearchWorker(jobs, process, clock=worker_time)
+    assert worker.run_once("pilot-worker", now=worker_time())
     run_id = queued.json()["research_run_id"]
     completed = api.get(
         f"/v1/research-runs/{run_id}",

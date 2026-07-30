@@ -139,13 +139,23 @@ def test_cancelled_delivery_never_invokes_processor() -> None:
     assert calls == 0
 
 
-def test_long_processing_heartbeats_and_completes_with_current_time() -> None:
+def test_controlled_clock_advances_across_claim_heartbeat_and_completion() -> None:
     repository = FakeJobs(ClaimedJob(_job(), LeaseToken("lease-secret")))
     heartbeat_seen = Event()
+    controlled_times = iter(
+        (
+            "2026-07-30T10:00:00Z",
+            "2026-07-30T10:00:04Z",
+            "2026-07-30T10:00:07Z",
+        )
+    )
+
+    def clock() -> str:
+        return next(controlled_times)
 
     def heartbeat(*args, **kwargs):  # type: ignore[no-untyped-def]
-        del args, kwargs
-        repository.calls.append(("heartbeat", "2026-07-30T10:00:05Z"))
+        del args
+        repository.calls.append(("heartbeat", kwargs["now"]))
         heartbeat_seen.set()
 
     repository.heartbeat = heartbeat  # type: ignore[method-assign]
@@ -159,13 +169,13 @@ def test_long_processing_heartbeats_and_completes_with_current_time() -> None:
     worker = ResearchWorker(
         repository,
         processor,
-        clock=lambda: "2026-07-30T10:00:05Z",
+        clock=clock,
         heartbeat_interval_seconds=0.01,
     )
 
-    assert worker.run_once("worker-1", now="2026-07-30T10:00:00Z")
-    assert ("heartbeat", "2026-07-30T10:00:05Z") in repository.calls
-    assert repository.calls[-1] == ("complete", (False, "2026-07-30T10:00:05Z"))
+    assert worker.run_once("worker-1", now=clock())
+    assert ("heartbeat", "2026-07-30T10:00:04Z") in repository.calls
+    assert repository.calls[-1] == ("complete", (False, "2026-07-30T10:00:07Z"))
 
 
 def test_lease_loss_stops_processing_without_terminal_write() -> None:
