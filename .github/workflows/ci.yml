@@ -116,6 +116,12 @@ jobs:
         run: |
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.api -t decision-assurance-api:"$GITHUB_SHA" .
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.worker -t decision-assurance-worker:"$GITHUB_SHA" .
+      - name: Smoke immutable non-root runtimes
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-api:"$GITHUB_SHA")" = "10001:10001"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-worker:"$GITHUB_SHA")" = "10001:10001"
+          docker run --rm --entrypoint python decision-assurance-api:"$GITHUB_SHA" -c "import decision_assurance; assert decision_assurance.__version__ == '0.5.0'"
+          docker run --rm --entrypoint python decision-assurance-worker:"$GITHUB_SHA" -c "from decision_assurance.api.worker_runtime import load_worker; assert callable(load_worker)"
       - name: Scan API image for critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:

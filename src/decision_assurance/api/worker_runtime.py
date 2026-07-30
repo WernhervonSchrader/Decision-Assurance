@@ -41,9 +41,9 @@ def load_worker(
         raise RuntimeError("WORKER_PRODUCTION_CONFIGURATION_REQUIRED")
     config = load_config(Path(config_path), values)
     worker_dsn = external_secrets.resolve(config.worker_database_dsn_secret)
-    jobs = PostgresJobRepository(
-        PostgresConnectionProvider(PostgresSettings(worker_dsn)), config.worker_policy
-    )
+    worker_connections = PostgresConnectionProvider(PostgresSettings(worker_dsn))
+    worker_connections.assert_safe_runtime_role("decision_assurance_worker")
+    jobs = PostgresJobRepository(worker_connections, config.worker_policy)
     repository = app.state.research_repository
     orchestrator = app.state.research_orchestrator
     if not isinstance(orchestrator, ResearchOrchestrator):

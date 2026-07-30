@@ -132,19 +132,33 @@ class PostgresConnectionProvider:
             return False
 
     def assert_safe_application_role(self) -> None:
+        self.assert_safe_runtime_role(self._settings.application_role)
+
+    def assert_safe_runtime_role(self, required_role: str) -> None:
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT current_user AS role_name,
                        rolsuper,
                        rolbypassrls,
-                       pg_has_role(current_user, %s, 'MEMBER') AS migration_member
+                       rolcreatedb,
+                       rolcreaterole,
+                       pg_has_role(current_user, %s, 'MEMBER') AS migration_member,
+                       pg_has_role(current_user, %s, 'MEMBER') AS required_member
                 FROM pg_roles
                 WHERE rolname = current_user
                 """,
-                (self._settings.migration_role,),
+                (self._settings.migration_role, required_role),
             ).fetchone()
-        if row is None or row["rolsuper"] or row["rolbypassrls"] or row["migration_member"]:
+        if (
+            row is None
+            or row["rolsuper"]
+            or row["rolbypassrls"]
+            or row["rolcreatedb"]
+            or row["rolcreaterole"]
+            or row["migration_member"]
+            or not row["required_member"]
+        ):
             raise UnsafeDatabaseRole("UNSAFE_APPLICATION_DATABASE_ROLE")
 
 

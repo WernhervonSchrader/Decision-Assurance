@@ -2,9 +2,11 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 from decision_assurance.api.runtime import load_runtime
 from decision_assurance.oidc.authenticator import OidcAuthenticator
+from decision_assurance.persistence.postgresql import PostgresConnectionProvider
 from decision_assurance.production.contracts import SecretReference, SecretValue
 from decision_assurance.repositories.postgresql import PostgresDecisionRepository
 
@@ -20,7 +22,15 @@ class FakeExternalSecrets:
         return SecretValue(values[reference.name])
 
 
-def test_configured_production_runtime_selects_only_production_adapters(tmp_path: Path) -> None:
+def test_configured_production_runtime_selects_only_production_adapters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    role_checks: list[bool] = []
+    monkeypatch.setattr(
+        PostgresConnectionProvider,
+        "assert_safe_application_role",
+        lambda self: role_checks.append(True),
+    )
     config = {
         "profile": "production",
         "database_backend": "postgresql",
@@ -58,4 +68,5 @@ def test_configured_production_runtime_selects_only_production_adapters(tmp_path
     assert isinstance(app.state.repository, PostgresDecisionRepository)
     assert isinstance(app.state.authenticator, OidcAuthenticator)
     assert app.state.research_submission_service is not None
+    assert role_checks == [True]
     assert "canary-value" not in repr(app.state)

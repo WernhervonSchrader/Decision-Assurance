@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from ..audit import payload_hash
 from ..tenancy import TenantContext
 from .audit import apply_transition
+from .circuit_breaker import NoOpProviderCircuitBreaker, ProviderCircuitOpen
 from .conflicts import mark_conflicting_evidence
 from .contracts import (
     EvidenceCandidate,
@@ -33,6 +34,7 @@ from .ports import (
     ContentExtractorPort,
     DecisionEvidenceHandoffPort,
     EvidenceCompilerPort,
+    ProviderCircuitPort,
     ResearchMetricsPort,
     ResearchRepositoryPort,
     SearchProviderPort,
@@ -85,6 +87,7 @@ class ResearchOrchestrator:
         policy: ResearchPolicy = ResearchPolicy(),
         selection_policy: SourceSelectionPolicy | None = None,
         metrics: ResearchMetricsPort | None = None,
+        circuit_breaker: ProviderCircuitPort | None = None,
         clock: Clock = _utc_now,
     ):
         self._search = search_provider
@@ -98,6 +101,7 @@ class ResearchOrchestrator:
         self._policy = policy
         self._selection = selection_policy or SourceSelectionPolicy()
         self._metrics = metrics or NoOpResearchMetrics()
+        self._circuit = circuit_breaker or NoOpProviderCircuitBreaker()
         self._clock = clock
 
     async def execute(
@@ -254,6 +258,14 @@ class ResearchOrchestrator:
             )
             self._fail_run(tenant, run, actor_id, "RETRY_LIMIT_EXCEEDED")
             return False
+        provider_id = self._provider_id(self._search)
+        try:
+            self._circuit.before_call(tenant.tenant_id, provider_id)
+        except ProviderCircuitOpen:
+            provider_failure = ProviderError(provider_id, "PROVIDER_CIRCUIT_OPEN", True)
+            self._record_error(run, provider_failure)
+            self._fail_run(tenant, run, actor_id, provider_failure.reason_code)
+            return False
         try:
             self._reserve(run, tenant, "search", None)
         except ValueError as budget_failure:
@@ -273,11 +285,15 @@ class ResearchOrchestrator:
                 )
             )
         except ProviderRequestFailed as failure:
+            self._circuit.record_failure(
+                tenant.tenant_id, provider_id, retryable=failure.error.retryable
+            )
             self._fail_attempt(run, failure.error)
             self._record_error(run, failure.error)
             self._fail_run(tenant, run, actor_id, failure.error.reason_code)
             return False
         except Exception:
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=True)
             provider_failure = ProviderError(
                 self._provider_id(self._search), "PROVIDER_UNAVAILABLE", True
             )
@@ -285,6 +301,7 @@ class ResearchOrchestrator:
             self._record_error(run, provider_failure)
             self._fail_run(tenant, run, actor_id, provider_failure.reason_code)
             return False
+        self._circuit.record_success(tenant.tenant_id, provider_id)
         self._succeed_attempt(run)
         self._store_discovery(run, response)
         apply_transition(
@@ -511,6 +528,15 @@ class ResearchOrchestrator:
                 source.source_id,
             )
             return None
+        provider_id = self._provider_id(self._extractor)
+        try:
+            self._circuit.before_call(tenant.tenant_id, provider_id)
+        except ProviderCircuitOpen:
+            provider_failure = ProviderError(provider_id, "PROVIDER_CIRCUIT_OPEN", True)
+            source.status = "FAILED"
+            source.reason_codes = (provider_failure.reason_code,)
+            self._record_error(run, provider_failure, source.source_id)
+            return None
         try:
             self._reserve(run, tenant, "extract", source.source_id)
         except ValueError as budget_failure:
@@ -533,6 +559,7 @@ class ResearchOrchestrator:
                 )
             )
         except Exception:
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=True)
             provider_failure = ProviderError(
                 self._provider_id(self._extractor), "PROVIDER_UNAVAILABLE", True
             )
@@ -542,12 +569,16 @@ class ResearchOrchestrator:
             self._record_error(run, provider_failure, source.source_id)
             return None
         if extraction.error:
+            self._circuit.record_failure(
+                tenant.tenant_id, provider_id, retryable=extraction.error.retryable
+            )
             self._fail_attempt(run, extraction.error)
             source.status = "FAILED"
             source.reason_codes = (extraction.error.reason_code,)
             self._record_error(run, extraction.error, source.source_id)
             return None
         if extraction.content is None:
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=False)
             provider_failure = ProviderError(
                 self._provider_id(self._extractor), "EMPTY_EXTRACTION_RESPONSE", False
             )
@@ -569,6 +600,7 @@ class ResearchOrchestrator:
             self._fail_attempt(run, normalization_failure)
             self._record_error(run, normalization_failure, source.source_id)
             return None
+        self._circuit.record_success(tenant.tenant_id, provider_id)
         self._succeed_attempt(run)
         return snapshot
 

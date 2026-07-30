@@ -63,7 +63,8 @@ services:
       DA_HOST: 0.0.0.0
       DA_PORT: "8000"
     secrets:
-      - database-dsn
+      - source: database-dsn
+        target: decision-assurance-database-dsn
       - decision-assurance-brave-api-key
       - decision-assurance-firecrawl-api-key
     depends_on:
@@ -96,7 +97,8 @@ services:
       DA_DATABASE_ROLE: decision_assurance_worker
       DA_WORKER_ID: compose-worker-1
     secrets:
-      - database-dsn
+      - source: database-dsn
+        target: decision-assurance-database-dsn
       - decision-assurance-worker-database-dsn
       - decision-assurance-brave-api-key
       - decision-assurance-firecrawl-api-key

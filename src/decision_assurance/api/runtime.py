@@ -28,6 +28,7 @@ from ..production.ports import SecretProviderPort
 from ..production.secrets import EnvironmentSecretProvider
 from ..repositories.sqlite import SqliteDecisionRepository
 from ..tenancy import TenantContext
+from ..web_research.circuit_breaker import InMemoryProviderCircuitBreaker
 from ..web_research.compiler import (
     PostgresDecisionEvidenceHandoff,
     ResearchEvidenceCompiler,
@@ -153,6 +154,7 @@ def _load_configured_runtime(
     )
     if persistence.connections is None or config.oidc is None:
         raise RuntimeError("CONFIGURED_PRODUCTION_ADAPTERS_REQUIRED")
+    persistence.connections.assert_safe_application_role()
     oidc_client = oidc_http_client or httpx.Client(follow_redirects=False, timeout=5.0)
     authenticator = create_authenticator(
         profile=config.profile,
@@ -208,6 +210,7 @@ def _load_configured_runtime(
         ResearchEvidenceCompiler(),
         PostgresDecisionEvidenceHandoff(persistence.connections),
         policy=policy,
+        circuit_breaker=InMemoryProviderCircuitBreaker(),
     )
     jobs = PostgresJobRepository(persistence.connections, config.worker_policy)
     submission = ResearchSubmissionService(orchestrator, jobs, jobs)

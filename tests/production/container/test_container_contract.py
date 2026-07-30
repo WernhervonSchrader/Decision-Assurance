@@ -31,6 +31,7 @@ def test_compose_separates_api_worker_migration_and_database_roles() -> None:
     assert "decision_assurance_migration" in compose
     assert "decision_assurance_application" in compose
     assert "decision_assurance_worker" in compose
+    assert "target: decision-assurance-database-dsn" in compose
 
 
 def test_docker_context_excludes_secrets_vcs_and_local_databases() -> None:
