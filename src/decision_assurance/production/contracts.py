@@ -15,6 +15,11 @@ class EnvironmentProfile(str, Enum):
     PRODUCTION = "production"
 
 
+class OperatingMode(str, Enum):
+    LOCAL = "local"
+    EU_MANAGED = "eu-managed"
+
+
 class DatabaseBackend(str, Enum):
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"

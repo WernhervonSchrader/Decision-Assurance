@@ -12,8 +12,51 @@ from .contracts import (
     EnvironmentProfile,
     JobPolicy,
     OidcPolicy,
+    OperatingMode,
     SecretProviderMode,
     SecretReference,
+)
+
+_EU_COUNTRY_CODES = frozenset(
+    {
+        "AT",
+        "BE",
+        "BG",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+    }
+)
+_RESIDENCY_FIELDS = frozenset(
+    {
+        "storage_locations",
+        "processing_locations",
+        "backup_locations",
+        "support_access_locations",
+        "external_processing_locations",
+        "evidence_refs",
+    }
 )
 
 
@@ -28,8 +71,47 @@ class OidcRuntimeConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class DataResidencyPolicy:
+    storage_locations: tuple[str, ...]
+    processing_locations: tuple[str, ...]
+    backup_locations: tuple[str, ...]
+    support_access_locations: tuple[str, ...]
+    external_processing_locations: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+
+    def validate_for(self, mode: OperatingMode) -> None:
+        required = (
+            self.storage_locations,
+            self.processing_locations,
+            self.backup_locations,
+            self.support_access_locations,
+        )
+        if any(not locations for locations in required):
+            raise ValueError("DATA_LOCATION_REQUIRED")
+        if mode is OperatingMode.LOCAL:
+            if any(locations != ("local",) for locations in required):
+                raise ValueError("LOCAL_DATA_BOUNDARY_REQUIRED")
+            return
+        all_locations = (
+            *self.storage_locations,
+            *self.processing_locations,
+            *self.backup_locations,
+            *self.support_access_locations,
+            *self.external_processing_locations,
+        )
+        if any(location not in _EU_COUNTRY_CODES for location in all_locations):
+            raise ValueError("EU_DATA_LOCATION_REQUIRED")
+        if not self.evidence_refs:
+            raise ValueError("EU_RESIDENCY_EVIDENCE_REQUIRED")
+        if any(not reference.startswith("https://") for reference in self.evidence_refs):
+            raise ValueError("INVALID_RESIDENCY_EVIDENCE_REFERENCE")
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     profile: EnvironmentProfile
+    operating_mode: OperatingMode | None
+    data_residency: DataResidencyPolicy | None
     database_backend: DatabaseBackend
     authentication_mode: AuthenticationMode
     secret_provider: SecretProviderMode
@@ -41,6 +123,11 @@ class RuntimeConfig:
 
     def __post_init__(self) -> None:
         if self.profile in {EnvironmentProfile.STAGING, EnvironmentProfile.PRODUCTION}:
+            if self.operating_mode is None:
+                raise ValueError("OPERATING_MODE_REQUIRED")
+            if self.data_residency is None:
+                raise ValueError("DATA_RESIDENCY_POLICY_REQUIRED")
+            self.data_residency.validate_for(self.operating_mode)
             if self.database_backend is not DatabaseBackend.POSTGRESQL:
                 raise ValueError("PRODUCTION_REQUIRES_POSTGRESQL")
             if self.authentication_mode is not AuthenticationMode.OIDC or self.oidc is None:
@@ -54,6 +141,12 @@ class RuntimeConfig:
     def from_mapping(cls, raw: Mapping[str, Any]) -> RuntimeConfig:
         _reject_literal_secrets(raw)
         profile = EnvironmentProfile(_required(raw, "profile"))
+        operating_mode_raw = raw.get("operating_mode")
+        operating_mode = (
+            OperatingMode(operating_mode_raw) if isinstance(operating_mode_raw, str) else None
+        )
+        residency_raw = raw.get("data_residency")
+        residency = _residency_policy(residency_raw) if residency_raw is not None else None
         backend = DatabaseBackend(_required(raw, "database_backend"))
         auth = AuthenticationMode(_required(raw, "authentication_mode"))
         oidc_raw = raw.get("oidc")
@@ -89,6 +182,8 @@ class RuntimeConfig:
             raise ValueError("INVALID_EGRESS_ALLOWLIST")
         return cls(
             profile=profile,
+            operating_mode=operating_mode,
+            data_residency=residency,
             database_backend=backend,
             authentication_mode=auth,
             secret_provider=SecretProviderMode(_required(raw, "secret_provider")),
@@ -140,6 +235,37 @@ def _optional(raw: Mapping[str, Any], key: str) -> str | None:
     if not isinstance(value, str):
         raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
     return value
+
+
+def _residency_policy(raw: object) -> DataResidencyPolicy:
+    if not isinstance(raw, Mapping):
+        raise ValueError("INVALID_DATA_RESIDENCY_POLICY")
+    unknown = set(raw).difference(_RESIDENCY_FIELDS)
+    if unknown:
+        raise ValueError("UNKNOWN_DATA_RESIDENCY_FIELD")
+    return DataResidencyPolicy(
+        storage_locations=_locations(raw, "storage_locations"),
+        processing_locations=_locations(raw, "processing_locations"),
+        backup_locations=_locations(raw, "backup_locations"),
+        support_access_locations=_locations(raw, "support_access_locations"),
+        external_processing_locations=_locations(raw, "external_processing_locations"),
+        evidence_refs=_string_tuple(raw, "evidence_refs"),
+    )
+
+
+def _locations(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    values = _string_tuple(raw, key)
+    return tuple(value if value == "local" else value.upper() for value in values)
+
+
+def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    value = raw.get(key)
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    normalized = tuple(item.strip() for item in value)
+    if any(not item for item in normalized) or len(set(normalized)) != len(normalized):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return normalized
 
 
 def _reject_literal_secrets(raw: Mapping[str, Any]) -> None:

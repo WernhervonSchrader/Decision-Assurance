@@ -14,6 +14,15 @@ from decision_assurance.production.contracts import (
 def _production() -> dict[str, object]:
     return {
         "profile": "production",
+        "operating_mode": "local",
+        "data_residency": {
+            "storage_locations": ["local"],
+            "processing_locations": ["local"],
+            "backup_locations": ["local"],
+            "support_access_locations": ["local"],
+            "external_processing_locations": [],
+            "evidence_refs": [],
+        },
         "database_backend": "postgresql",
         "authentication_mode": "oidc",
         "secret_provider": "external",
