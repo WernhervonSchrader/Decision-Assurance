@@ -34,6 +34,7 @@ class RuntimeConfig:
     authentication_mode: AuthenticationMode
     secret_provider: SecretProviderMode
     database_dsn_secret: SecretReference
+    worker_database_dsn_secret: SecretReference
     oidc: OidcRuntimeConfig | None
     egress_allowed_hosts: tuple[str, ...]
     worker_policy: JobPolicy
@@ -92,6 +93,9 @@ class RuntimeConfig:
             authentication_mode=auth,
             secret_provider=SecretProviderMode(_required(raw, "secret_provider")),
             database_dsn_secret=SecretReference(_required(raw, "database_dsn_secret")),
+            worker_database_dsn_secret=SecretReference(
+                _required(raw, "worker_database_dsn_secret")
+            ),
             oidc=oidc,
             egress_allowed_hosts=tuple(hosts),
             worker_policy=JobPolicy(

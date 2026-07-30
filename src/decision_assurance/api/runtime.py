@@ -22,7 +22,7 @@ from ..observability.metrics import InMemoryMetrics
 from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
-from ..production.contracts import AuthenticationMode, HealthStatus, SecretReference
+from ..production.contracts import AuthenticationMode, BuildMetadata, HealthStatus, SecretReference
 from ..production.egress import HttpsEgressAllowlist
 from ..production.ports import SecretProviderPort
 from ..production.secrets import EnvironmentSecretProvider
@@ -222,6 +222,12 @@ def _load_configured_runtime(
         ),
         clock=lambda: datetime.now(timezone.utc).isoformat(),
     )
+    build_metadata = BuildMetadata(
+        version=values.get("DA_VERSION", ""),
+        commit_sha=values.get("DA_COMMIT_SHA", ""),
+        build_timestamp=values.get("DA_BUILD_TIMESTAMP", ""),
+        database_schema_version="002",
+    )
     app = create_app(
         persistence.decisions,
         authenticator,
@@ -231,11 +237,12 @@ def _load_configured_runtime(
         ),
         persistence.research,
         orchestrator,
-        submission,
-        health,
-        JsonEventLogger(print),
-        InMemoryMetrics(),
-        "0.5.0",
+        research_submission_service=submission,
+        health_service=health,
+        logger=JsonEventLogger(print),
+        metrics=InMemoryMetrics(),
+        api_version="0.5.0",
+        build_metadata=build_metadata,
     )
     app.state.job_repository = jobs
     return app
@@ -256,4 +263,9 @@ def _number(values: Mapping[str, str], name: str, default: float) -> float:
 
 
 def main() -> None:
-    uvicorn.run(load_runtime(), host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(
+        load_runtime(),
+        host=os.getenv("DA_HOST", "127.0.0.1"),
+        port=_integer(os.environ, "DA_PORT", 8000),
+        log_level=os.getenv("DA_LOG_LEVEL", "info"),
+    )

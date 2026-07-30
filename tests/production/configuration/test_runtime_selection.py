@@ -13,6 +13,7 @@ class FakeExternalSecrets:
     def resolve(self, reference: SecretReference) -> SecretValue:
         values = {
             "database-dsn": "postgresql://runtime.invalid/decision-assurance",
+            "worker-database-dsn": "postgresql://worker.invalid/decision-assurance",
             "brave-key": "brave-canary-value",
             "firecrawl-key": "firecrawl-canary-value",
         }
@@ -26,6 +27,7 @@ def test_configured_production_runtime_selects_only_production_adapters(tmp_path
         "authentication_mode": "oidc",
         "secret_provider": "external",
         "database_dsn_secret": "database-dsn",
+        "worker_database_dsn_secret": "worker-database-dsn",
         "oidc": {
             "issuer": "https://identity.example",
             "audience": "decision-assurance",
@@ -43,6 +45,9 @@ def test_configured_production_runtime_selects_only_production_adapters(tmp_path
             "DA_CONFIG_PATH": str(path),
             "DA_BRAVE_API_KEY_SECRET_REF": "brave-key",
             "DA_FIRECRAWL_API_KEY_SECRET_REF": "firecrawl-key",
+            "DA_VERSION": "0.5.0",
+            "DA_COMMIT_SHA": "a" * 40,
+            "DA_BUILD_TIMESTAMP": "2026-07-30T10:00:00Z",
         },
         external_secrets=FakeExternalSecrets(),
         oidc_http_client=httpx.Client(

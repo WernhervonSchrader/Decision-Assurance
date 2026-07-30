@@ -33,6 +33,7 @@ decision-assurance = "decision_assurance.cli:main"
 decision-assurance-api = "decision_assurance.api.runtime:main"
 decision-assurance-openapi = "decision_assurance.api.openapi:main"
 decision-assurance-worker = "decision_assurance.api.worker_runtime:main"
+decision-assurance-migrate = "decision_assurance.persistence.migrate:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/decision_assurance"]

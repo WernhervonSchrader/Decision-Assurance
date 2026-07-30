@@ -18,6 +18,7 @@ def _production() -> dict[str, object]:
         "authentication_mode": "oidc",
         "secret_provider": "external",
         "database_dsn_secret": "database-dsn",
+        "worker_database_dsn_secret": "worker-database-dsn",
         "oidc": {
             "issuer": "https://identity.example",
             "audience": "decision-assurance",

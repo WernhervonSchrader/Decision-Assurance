@@ -15,6 +15,7 @@ from ..identity import Authenticator
 from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
 from ..observability.health import HealthService
+from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
 from ..web_research.orchestrator import ResearchOrchestrator
@@ -40,6 +41,7 @@ def create_app(
     logger: StructuredLoggerPort | None = None,
     metrics: MetricsPort | None = None,
     api_version: str = "0.4.0",
+    build_metadata: BuildMetadata | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Decision Assurance API", version=api_version)
     app.state.repository = repository
@@ -126,6 +128,17 @@ def create_app(
     @app.get("/health/live", tags=["health"])
     def live() -> dict[str, str]:
         return {"status": "ok"}
+
+    if build_metadata is not None:
+
+        @app.get("/version", tags=["health"])
+        def version() -> dict[str, str]:
+            return {
+                "version": build_metadata.version,
+                "commit_sha": build_metadata.commit_sha,
+                "build_timestamp": build_metadata.build_timestamp,
+                "database_schema_version": build_metadata.database_schema_version,
+            }
 
     @app.get("/health/ready", tags=["health"])
     def ready() -> JSONResponse:

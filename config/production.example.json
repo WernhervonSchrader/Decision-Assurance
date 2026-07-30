@@ -4,6 +4,7 @@
   "authentication_mode": "oidc",
   "secret_provider": "external",
   "database_dsn_secret": "decision-assurance-database-dsn",
+  "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
   "oidc": {
     "issuer": "https://identity.example.com",
     "audience": "decision-assurance",

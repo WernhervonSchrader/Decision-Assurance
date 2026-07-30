@@ -12,6 +12,8 @@ import httpx
 
 from ..jobs.postgresql import PostgresJobRepository
 from ..jobs.worker import CancellationCheck, ResearchWorker
+from ..persistence.postgresql import PostgresConnectionProvider, PostgresSettings
+from ..production.config import load_config
 from ..production.contracts import ResearchJob
 from ..production.ports import SecretProviderPort
 from ..production.secrets import FileSecretProvider
@@ -34,9 +36,14 @@ def load_worker(
         external_secrets=external_secrets,
         oidc_http_client=oidc_http_client,
     )
-    jobs = app.state.job_repository
-    if not isinstance(jobs, PostgresJobRepository):
-        raise RuntimeError("PRODUCTION_JOB_REPOSITORY_REQUIRED")
+    config_path = values.get("DA_CONFIG_PATH")
+    if not config_path or external_secrets is None:
+        raise RuntimeError("WORKER_PRODUCTION_CONFIGURATION_REQUIRED")
+    config = load_config(Path(config_path), values)
+    worker_dsn = external_secrets.resolve(config.worker_database_dsn_secret)
+    jobs = PostgresJobRepository(
+        PostgresConnectionProvider(PostgresSettings(worker_dsn)), config.worker_policy
+    )
     repository = app.state.research_repository
     orchestrator = app.state.research_orchestrator
     if not isinstance(orchestrator, ResearchOrchestrator):
