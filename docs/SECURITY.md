@@ -9,14 +9,15 @@ transactional. Bodies and audit pagination are bounded.
 
 Do not commit identity/token files. Store them outside the repository with
 owner-only permissions. The API never logs tokens or request bodies itself.
-TLS, rate limiting, trusted proxy configuration, OIDC verification, PostgreSQL
-RLS and centralized security monitoring are deployment responsibilities and
-prerequisites for production claims. See [Threat Model](THREAT_MODEL.md).
+The v0.5 production profile implements exact-issuer/audience OIDC verification, bounded JWKS caching,
+RS256/ES256 allowlists, PostgreSQL forced RLS, external secret references, explicit egress policy,
+redacted telemetry and separate application/worker/migration roles. TLS termination, edge rate
+limits, managed identity operation, monitoring and encrypted storage remain deployment duties.
+See [Threat Model](THREAT_MODEL.md).
 
-Data is minimized to Decision Files, reports, audit events and idempotency
-responses. v0.2 has no automated retention/deletion workflow. A tenant export,
-retention and deletion policy must be approved before real personal or
-regulated data is stored.
+Data is minimized to Decision, Intake, Research, job, audit and idempotency records. The pilot sets a
+30-day retention ceiling, but automated export/deletion and legal hold are not implemented. Deployers
+must supply and test those controls before storing real personal or regulated data.
 
 Web Research treats search and scraped material as untrusted and applies HTTPS/public-address,
 credential, redirect, domain, MIME, size, active-content, secret-redaction and prompt-injection

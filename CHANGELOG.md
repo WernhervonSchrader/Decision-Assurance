@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — Public Draft
+
+- Added PostgreSQL adapters, tenant-composite keys, forced RLS, checksummed migrations and
+  least-privilege runtime roles.
+- Added production OIDC/JWKS, strict claim mapping and human-only approval controls.
+- Added durable asynchronous Research jobs with atomic submission, leases, retries, cancellation,
+  dead-letter state, concurrency limits and stale-lease recovery.
+- Added typed production configuration, external secrets, exact HTTPS egress, redacted telemetry,
+  readiness and immutable build metadata.
+- Added non-root images, backup/restore verification, SBOM and critical vulnerability scanning,
+  checksums and computed release governance.
+- Added a controlled two-tenant Sales Quote Review pilot with local OIDC and fake providers.
+
 ## 0.4.0 — Public Draft
 
 - Added a provider-neutral Web Research domain with isolated lifecycle, ports, policies and tables.

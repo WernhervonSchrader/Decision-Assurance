@@ -1,6 +1,7 @@
 # Decision Assurance
 
-**Public Draft v0.4 — executable reference platform, not a recognized standard or certification.**
+**Public Draft v0.5 — production foundation and controlled-pilot candidate, not a recognized
+standard or certification.**
 
 Decision Assurance (DA) is a control layer for AI-supported decisions. Before a
 result enters a business process, DA checks evidence, policies, constraints,
@@ -28,6 +29,12 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - a separate 13-case raw-text intake benchmark with raw-only and trusted-context variants
 - provider-neutral [Web Research v0.4](docs/web-research/README.md) with Brave discovery,
   guarded Firecrawl extraction, tenant-scoped evidence and conservative DRAFT-only handoff
+- PostgreSQL persistence with forced row-level security and least-privilege application/worker roles
+- production OIDC/JWKS, external secret references and exact HTTPS egress allowlists
+- durable asynchronous Research jobs with leases, retry, cancellation and recovery
+- non-root containers, readiness, redacted telemetry, backup/restore, CycloneDX SBOMs and
+  fail-closed [release verification](docs/CI-RELEASE.md)
+- a bounded [Sales Quote Review pilot](docs/PILOT.md) with two tenants and human gates
 
 Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
 governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
@@ -56,7 +63,7 @@ $env:DA_IDENTITIES_PATH = "C:/protected/development-identities.json"
 decision-assurance-api
 ```
 
-The static identity adapter is not production OIDC. Read the
+The static identity adapter is not production OIDC and is rejected by configured production. Read the
 [deployment](docs/DEPLOYMENT.md), [security](docs/SECURITY.md) and
 [operations](docs/OPERATIONS.md) limitations before using real data.
 
@@ -92,12 +99,13 @@ also append that event to `audit/events.jsonl` via `CaseStore`.
 schemas/                         normative JSON Schemas
 examples/decision-cases/         valid Decision Files
 src/decision_assurance/          domain engine, API, policy, repositories and CLI
-migrations/                      SQLite reference migration
+migrations/                      SQLite and PostgreSQL/RLS migrations
 tests/fixtures/invalid/           deliberately invalid contracts
 tests/gold/                       open Gold Dataset manifest
 benchmarks/intake/cases/          13-case untrusted-text benchmark
 docs/                             contract, policy and architecture
 .github/workflows/ci.yml          public verification pipeline
+Dockerfile.api / Dockerfile.worker production container targets
 ```
 
 The included benchmark is the project-owned **open benchmark suite**. It is not

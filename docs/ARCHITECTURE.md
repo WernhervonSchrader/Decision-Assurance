@@ -56,3 +56,14 @@ Web Research owns provider-neutral contracts, lifecycle, ports, policies, audit 
 tables in the shared database. Brave discovers; Firecrawl extracts; the compiler alone translates
 eligible candidates to Decision evidence. Only the existing engine evaluates that Decision File.
 See [the detailed architecture](web-research/architecture.md) and ADR-003.
+
+# Production Foundation v0.5
+
+The production profile separates API and Worker processes over one PostgreSQL database. OIDC
+establishes the tenant; repositories set transaction-local tenant context and PostgreSQL forces RLS.
+The Worker has a queue-only cross-tenant role and uses a tenant-scoped application connection for
+domain work. Migration credentials are unavailable to both runtimes.
+
+Configuration contains secret references only. Provider calls occur only in the Worker and pass an
+exact HTTPS egress policy. Logs contain allowlisted metadata, metrics use bounded labels, and
+readiness checks material dependencies. See [Production Architecture](PRODUCTION-ARCHITECTURE.md).

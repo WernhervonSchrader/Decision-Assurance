@@ -1,4 +1,4 @@
-# API Guide — Public Draft v0.4
+# API Guide — Public Draft v0.5
 
 The Decision API remains defined by [DA-API-v0.2](specifications/DA-API-v0.2.md) and the
 Intake boundary by [DA-INTAKE-v0.3](specifications/DA-INTAKE-v0.3.md), and Research by
@@ -6,6 +6,11 @@ Intake boundary by [DA-INTAKE-v0.3](specifications/DA-INTAKE-v0.3.md), and Resea
 [OpenAPI JSON](openapi-v0.4.json). All `/v1` endpoints require a
 Bearer identity except health checks. Identity establishes tenant, actor, role
 and human/agent kind; `tenant_id` is never accepted from a body.
+
+Configured v0.5 uses verified OIDC and PostgreSQL; static tokens and SQLite fail at startup.
+`POST /v1/research-runs` returns `202` with a durable job reference, and no provider call is made by
+the API process. `/health/live`, dependency-aware `/health/ready`, and `/version` expose operational
+and immutable build metadata. The v0.5 snapshot is [openapi-v0.5.json](openapi-v0.5.json).
 
 Intake endpoints are `POST /v1/intakes`, `GET /v1/intakes/{id}`,
 `POST /v1/intakes/{id}/confirmations`, and `POST /v1/intakes/{id}/compile`.

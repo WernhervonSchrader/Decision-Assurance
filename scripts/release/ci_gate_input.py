@@ -19,7 +19,7 @@ EVIDENCE = {
     "observability-health": "ci/verify:tests/production/observability",
     "container-scan": "supply-chain/trivy-results",
     "restore-verification": "ci/restore-verification",
-    "controlled-pilot-e2e": "ci/verify:tests/production/e2e",
+    "controlled-pilot-e2e": "ci/postgresql:tests/production/e2e",
     "artifact-integrity": "release/SHA256SUMS",
 }
 
