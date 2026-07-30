@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Protocol
 
 from ..jobs.repository import JobRepository
 from ..production.contracts import JobStatus, ResearchJob
@@ -17,12 +18,24 @@ class SubmittedResearch:
     replayed: bool
 
 
+class AtomicResearchSubmitter(Protocol):
+    def submit(
+        self, tenant: TenantContext, run: ResearchRun, job: ResearchJob
+    ) -> SubmittedResearch: ...
+
+
 class ResearchSubmissionService:
     """Prepares durable Research work without calling an external provider."""
 
-    def __init__(self, orchestrator: ResearchOrchestrator, jobs: JobRepository):
+    def __init__(
+        self,
+        orchestrator: ResearchOrchestrator,
+        jobs: JobRepository,
+        atomic_submitter: AtomicResearchSubmitter | None = None,
+    ):
         self._orchestrator = orchestrator
         self._jobs = jobs
+        self._atomic_submitter = atomic_submitter
 
     def submit(
         self,
@@ -34,14 +47,24 @@ class ResearchSubmissionService:
         *,
         refresh_generation: str | None = None,
     ) -> SubmittedResearch:
-        run = self._orchestrator.prepare(
-            tenant,
-            actor_id,
-            request,
-            expected_document_hash,
-            correlation_id,
-            refresh_generation=refresh_generation,
-        )
+        if self._atomic_submitter is None:
+            run = self._orchestrator.prepare(
+                tenant,
+                actor_id,
+                request,
+                expected_document_hash,
+                correlation_id,
+                refresh_generation=refresh_generation,
+            )
+        else:
+            run = self._orchestrator.propose(
+                tenant,
+                actor_id,
+                request,
+                expected_document_hash,
+                correlation_id,
+                refresh_generation=refresh_generation,
+            )
         job_id = "job-" + str(uuid.uuid5(uuid.NAMESPACE_URL, run.research_run_id))
         proposed = ResearchJob(
             job_id=job_id,
@@ -55,6 +78,8 @@ class ResearchSubmissionService:
             created_at=run.created_at,
             updated_at=run.updated_at,
         )
+        if self._atomic_submitter is not None:
+            return self._atomic_submitter.submit(tenant, run, proposed)
         job = self._jobs.enqueue(tenant, proposed)
         replayed = run.status is not ResearchStatus.CREATED or job != proposed
         return SubmittedResearch(run, job, replayed)

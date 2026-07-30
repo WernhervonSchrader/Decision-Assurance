@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -11,8 +11,13 @@ from psycopg.types.json import Jsonb
 from ..persistence.postgresql import PostgresConnectionProvider
 from ..production.contracts import JobPolicy, JobStatus, ResearchJob
 from ..tenancy import TenantContext
+from ..web_research.codec import run_from_data, to_data
+from ..web_research.contracts import ResearchRun
 from .contracts import ClaimedJob, LeaseToken
 from .lifecycle import retry_delay
+
+if TYPE_CHECKING:
+    from ..web_research.service import SubmittedResearch
 
 
 class JobConflict(ValueError):
@@ -69,6 +74,98 @@ class PostgresJobRepository:
             if inserted.rowcount == 1:
                 self._append_event(connection, existing, "JOB_QUEUED", job.updated_at)
             return existing
+
+    def submit(
+        self, tenant: TenantContext, run: ResearchRun, job: ResearchJob
+    ) -> SubmittedResearch:
+        """Atomically persist a proposed Research run, budget row, queue job and queue audit."""
+        from ..web_research.service import SubmittedResearch
+
+        if tenant.tenant_id != run.tenant_id or tenant.tenant_id != job.tenant_id:
+            raise ValueError("TENANT_MISMATCH")
+        if run.research_run_id != job.research_run_id or job.status is not JobStatus.QUEUED:
+            raise ValueError("INVALID_RESEARCH_JOB_SUBMISSION")
+        with self._connections.tenant_connection(tenant) as connection:
+            inserted_run = connection.execute(
+                """
+                INSERT INTO research_runs (
+                    tenant_id, research_run_id, decision_file_id, semantic_fingerprint,
+                    status, run_json, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id, semantic_fingerprint) DO NOTHING
+                """,
+                (
+                    tenant.tenant_id,
+                    run.research_run_id,
+                    run.request.decision_file_id,
+                    run.semantic_fingerprint,
+                    run.status.value,
+                    Jsonb(to_data(run)),
+                    run.created_at,
+                    run.updated_at,
+                ),
+            )
+            run_row = connection.execute(
+                """
+                SELECT run_json FROM research_runs
+                WHERE tenant_id = %s AND semantic_fingerprint = %s
+                FOR UPDATE
+                """,
+                (tenant.tenant_id, run.semantic_fingerprint),
+            ).fetchone()
+            if run_row is None:
+                raise RuntimeError("RESEARCH_SUBMISSION_CONVERGENCE_FAILED")
+            stored_run = run_from_data(dict(run_row["run_json"]))
+            if inserted_run.rowcount == 1:
+                connection.execute(
+                    """
+                    INSERT INTO research_budget_usage
+                        (tenant_id, research_run_id, used_units)
+                    VALUES (%s, %s, 0)
+                    """,
+                    (tenant.tenant_id, stored_run.research_run_id),
+                )
+            inserted_job = connection.execute(
+                """
+                INSERT INTO research_jobs (
+                    tenant_id, job_id, research_run_id, correlation_id, payload_hash,
+                    status, attempt_count, available_at, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id, research_run_id) DO NOTHING
+                """,
+                (
+                    tenant.tenant_id,
+                    job.job_id,
+                    stored_run.research_run_id,
+                    job.correlation_id,
+                    job.payload_hash,
+                    job.status.value,
+                    job.attempt_count,
+                    job.available_at,
+                    job.created_at,
+                    job.updated_at,
+                ),
+            )
+            job_row = connection.execute(
+                """
+                SELECT * FROM research_jobs
+                WHERE tenant_id = %s AND research_run_id = %s
+                FOR UPDATE
+                """,
+                (tenant.tenant_id, stored_run.research_run_id),
+            ).fetchone()
+            if job_row is None:
+                raise RuntimeError("JOB_SUBMISSION_CONVERGENCE_FAILED")
+            stored_job = self._row_to_job(job_row)
+            if stored_job.payload_hash != job.payload_hash:
+                raise JobConflict("JOB_PAYLOAD_CONFLICT")
+            if inserted_job.rowcount == 1:
+                self._append_event(connection, stored_job, "JOB_QUEUED", job.updated_at)
+            return SubmittedResearch(
+                stored_run,
+                stored_job,
+                replayed=inserted_run.rowcount != 1 or inserted_job.rowcount != 1,
+            )
 
     def claim(self, worker_id: str, *, now: str) -> ClaimedJob | None:
         if not worker_id.strip():
@@ -365,7 +462,7 @@ class PostgresJobRepository:
     @staticmethod
     def _timestamp(value: object) -> str:
         if isinstance(value, datetime):
-            return value.isoformat()
+            return value.isoformat().replace("+00:00", "Z")
         return str(value)
 
     @staticmethod

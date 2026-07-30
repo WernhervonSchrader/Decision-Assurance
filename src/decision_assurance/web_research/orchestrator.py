@@ -34,10 +34,10 @@ from .ports import (
     DecisionEvidenceHandoffPort,
     EvidenceCompilerPort,
     ResearchMetricsPort,
+    ResearchRepositoryPort,
     SearchProviderPort,
 )
 from .providers.errors import ProviderRequestFailed
-from .repository import SqliteResearchRepository
 from .selection import SourceSelectionPolicy
 from .url_policy import PublicUrlPolicy, UrlPolicyRejected
 
@@ -75,7 +75,7 @@ class ResearchOrchestrator:
         self,
         search_provider: SearchProviderPort,
         content_extractor: ContentExtractorPort,
-        repository: SqliteResearchRepository,
+        repository: ResearchRepositoryPort,
         url_policy: PublicUrlPolicy,
         normalizer: EvidenceNormalizer,
         evidence_policy: EvidencePolicy,
@@ -146,6 +146,26 @@ class ResearchOrchestrator:
         *,
         refresh_generation: str | None = None,
     ) -> ResearchRun:
+        proposed = self.propose(
+            tenant,
+            actor_id,
+            request,
+            expected_document_hash,
+            correlation_id,
+            refresh_generation=refresh_generation,
+        )
+        return self._repository.create_or_get(tenant, proposed)
+
+    def propose(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        request: ResearchRequest,
+        expected_document_hash: str,
+        correlation_id: str,
+        *,
+        refresh_generation: str | None = None,
+    ) -> ResearchRun:
         if request.max_search_results > self._policy.max_search_results:
             raise ValueError("SEARCH_LIMIT_EXCEEDS_CONFIGURATION")
         if request.max_sources_to_extract > self._policy.max_extractions:
@@ -160,7 +180,7 @@ class ResearchOrchestrator:
         )
         run_id = "research-" + str(uuid.uuid5(uuid.NAMESPACE_URL, fingerprint))
         now = self._time()
-        proposed = ResearchRun(
+        return ResearchRun(
             run_id,
             tenant.tenant_id,
             actor_id,
@@ -172,8 +192,6 @@ class ResearchOrchestrator:
             now,
             correlation_id,
         )
-        run = self._repository.create_or_get(tenant, proposed)
-        return run
 
     async def retry(
         self,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import psycopg
@@ -19,6 +20,7 @@ from decision_assurance.persistence.postgresql import (
 )
 from decision_assurance.production.contracts import JobPolicy, JobStatus, ResearchJob, SecretValue
 from decision_assurance.tenancy import TenantContext
+from decision_assurance.web_research.contracts import ResearchRequest, ResearchRun, ResearchStatus
 
 ROOT = Path(__file__).parents[3]
 MIGRATIONS = ROOT / "migrations" / "postgresql"
@@ -268,3 +270,77 @@ def test_worker_role_can_access_only_queue_owned_tables(postgres_dsn: str) -> No
         worker.execute("SELECT count(*) FROM research_jobs").fetchone()
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             worker.execute("SELECT count(*) FROM decisions").fetchone()
+
+
+def _proposed_run(run_id: str, fingerprint: str) -> ResearchRun:
+    return ResearchRun(
+        research_run_id=run_id,
+        tenant_id="atomic-tenant",
+        actor_id="actor-1",
+        request=ResearchRequest(
+            decision_file_id=f"decision-{run_id}",
+            claim_refs=("claim-1",),
+            query="current public evidence",
+            locale="en",
+            preferred_languages=("en",),
+        ),
+        expected_document_hash="sha256:" + "c" * 64,
+        semantic_fingerprint=fingerprint,
+        status=ResearchStatus.CREATED,
+        created_at="2026-07-30T10:00:00Z",
+        updated_at="2026-07-30T10:00:00Z",
+        correlation_id="correlation-atomic",
+    )
+
+
+def test_research_run_budget_job_and_queue_audit_submit_atomically(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'atomic-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'atomic-tenant'")
+        owner.execute("DELETE FROM research_budget_usage WHERE tenant_id = 'atomic-tenant'")
+        owner.execute("DELETE FROM research_runs WHERE tenant_id = 'atomic-tenant'")
+    repository = PostgresJobRepository(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    )
+    tenant = TenantContext("atomic-tenant")
+    run = _proposed_run("run-atomic-1", "fingerprint-atomic-1")
+    job = ResearchJob(
+        job_id="job-atomic",
+        tenant_id=tenant.tenant_id,
+        research_run_id=run.research_run_id,
+        correlation_id=run.correlation_id,
+        payload_hash=run.expected_document_hash,
+        status=JobStatus.QUEUED,
+        attempt_count=0,
+        available_at=run.created_at,
+        created_at=run.created_at,
+        updated_at=run.updated_at,
+    )
+
+    first = repository.submit(tenant, run, job)
+    replay = repository.submit(tenant, run, job)
+
+    assert first.replayed is False
+    assert replay.replayed is True
+    with psycopg.connect(postgres_dsn) as owner:
+        counts = owner.execute(
+            """
+            SELECT
+                (SELECT count(*) FROM research_runs WHERE tenant_id = 'atomic-tenant'),
+                (SELECT count(*) FROM research_budget_usage WHERE tenant_id = 'atomic-tenant'),
+                (SELECT count(*) FROM research_jobs WHERE tenant_id = 'atomic-tenant'),
+                (SELECT count(*) FROM research_job_events WHERE tenant_id = 'atomic-tenant')
+            """
+        ).fetchone()
+    assert counts == (1, 1, 1, 1)
+
+    conflicting_run = _proposed_run("run-atomic-2", "fingerprint-atomic-2")
+    conflicting_job = replace(job, research_run_id=conflicting_run.research_run_id)
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        repository.submit(tenant, conflicting_run, conflicting_job)
+    with psycopg.connect(postgres_dsn) as owner:
+        rolled_back = owner.execute(
+            "SELECT count(*) FROM research_runs "
+            "WHERE tenant_id = 'atomic-tenant' AND research_run_id = 'run-atomic-2'"
+        ).fetchone()
+    assert rolled_back == (0,)

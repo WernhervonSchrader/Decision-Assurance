@@ -15,7 +15,7 @@ from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
 from ..repositories.protocols import DecisionRepository
 from ..web_research.orchestrator import ResearchOrchestrator
-from ..web_research.repository import SqliteResearchRepository
+from ..web_research.ports import ResearchRepositoryPort
 from ..web_research.service import ResearchSubmissionService
 from .errors import ApiError
 from .routes.decisions import router
@@ -30,7 +30,7 @@ def create_app(
     authenticator: Authenticator,
     intake_repository: IntakeRepository | None = None,
     policy_registry: PolicyRegistry | None = None,
-    research_repository: SqliteResearchRepository | None = None,
+    research_repository: ResearchRepositoryPort | None = None,
     research_orchestrator: ResearchOrchestrator | None = None,
     research_submission_service: ResearchSubmissionService | None = None,
 ) -> FastAPI:

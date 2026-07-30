@@ -11,7 +11,8 @@ from ...repositories.protocols import DecisionRepository
 from ...web_research.contracts import ResearchRun
 from ...web_research.lifecycle import ResearchTransitionRejected
 from ...web_research.orchestrator import ResearchOrchestrator
-from ...web_research.repository import ResearchIdempotencyConflict, SqliteResearchRepository
+from ...web_research.ports import ResearchRepositoryPort
+from ...web_research.repository import ResearchIdempotencyConflict
 from ...web_research.service import ResearchSubmissionService
 from ..dependencies import get_identity, require, require_idempotency_key
 from ..errors import ApiError
@@ -20,8 +21,8 @@ from ..research_schemas import EmptyResearchAction, ResearchRequestBody
 router = APIRouter(prefix="/v1/research-runs", tags=["research"])
 
 
-def _research(request: Request) -> SqliteResearchRepository:
-    return cast(SqliteResearchRepository, request.app.state.research_repository)
+def _research(request: Request) -> ResearchRepositoryPort:
+    return cast(ResearchRepositoryPort, request.app.state.research_repository)
 
 
 def _orchestrator(request: Request) -> ResearchOrchestrator:

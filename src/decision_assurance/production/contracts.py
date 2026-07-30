@@ -25,6 +25,11 @@ class AuthenticationMode(str, Enum):
     OIDC = "oidc"
 
 
+class SecretProviderMode(str, Enum):
+    ENVIRONMENT = "environment"
+    EXTERNAL = "external"
+
+
 class JobStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"

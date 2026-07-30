@@ -40,6 +40,8 @@ class ResearchWorker:
             return True
         try:
             partial = self._processor(job, cancelled)
+            if cancelled():
+                return True
             self._repository.complete(
                 tenant,
                 job.job_id,
