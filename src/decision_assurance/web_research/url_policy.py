@@ -127,5 +127,9 @@ class PublicUrlPolicy:
             for key, item in parse_qsl(parsed.query, keep_blank_values=True)
             if not key.casefold().startswith("utm_") and key.casefold() not in {"gclid", "fbclid"}
         ]
-        canonical = urlunsplit(("https", domain, path, urlencode(sorted(query)), ""))
+        try:
+            netloc = f"[{domain}]" if ipaddress.ip_address(domain).version == 6 else domain
+        except ValueError:
+            netloc = domain
+        canonical = urlunsplit(("https", netloc, path, urlencode(sorted(query)), ""))
         return SafeUrl(value, canonical, domain)
