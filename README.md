@@ -1,6 +1,6 @@
 # Decision Assurance
 
-**Public Draft v0.3 — executable reference platform, not a recognized standard or certification.**
+**Public Draft v0.4 — executable reference platform, not a recognized standard or certification.**
 
 Decision Assurance (DA) is a control layer for AI-supported decisions. Before a
 result enters a business process, DA checks evidence, policies, constraints,
@@ -26,6 +26,8 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - two-tenant [E2E journeys](docs/TESTING.md) through `APPROVED` and `BLOCKED`
 - controlled DE/EN [real-world intake](docs/INTAKE.md) with provenance, verification and confirmation
 - a separate 13-case raw-text intake benchmark with raw-only and trusted-context variants
+- provider-neutral [Web Research v0.4](docs/web-research/README.md) with Brave discovery,
+  guarded Firecrawl extraction, tenant-scoped evidence and conservative DRAFT-only handoff
 
 Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
 governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.

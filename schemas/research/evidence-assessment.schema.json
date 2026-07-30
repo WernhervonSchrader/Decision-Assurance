@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/research/evidence-assessment.schema.json",
+  "title": "Evidence Assessment v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["freshness_status", "source_type", "authority_score", "relevance_score", "conflict_status", "usable_for_decision", "requires_human_review", "reason_codes"],
+  "properties": {
+    "freshness_status": {"enum": ["CURRENT", "STALE", "UNKNOWN"]}, "source_type": {"enum": ["PRIMARY", "SECONDARY", "UNKNOWN"]},
+    "authority_score": {"type": "number", "minimum": 0, "maximum": 1}, "relevance_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "conflict_status": {"enum": ["NOT_CHECKED", "CONFLICTING"]}, "usable_for_decision": {"type": "boolean"}, "requires_human_review": {"type": "boolean"},
+    "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+  }
+}

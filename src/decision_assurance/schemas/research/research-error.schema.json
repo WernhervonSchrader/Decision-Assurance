@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/research/research-error.schema.json",
+  "title": "Research Error v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason_code"],
+  "properties": {
+    "reason_code": {"type": "string"}, "source_id": {"type": ["string", "null"]},
+    "provider": {"type": ["object", "null"], "additionalProperties": false, "required": ["provider_id", "reason_code", "retryable"], "properties": {"provider_id": {"type": "string"}, "reason_code": {"type": "string"}, "retryable": {"type": "boolean"}, "status_code": {"type": ["integer", "null"]}, "retry_after_seconds": {"type": ["number", "null"]}}}
+  }
+}

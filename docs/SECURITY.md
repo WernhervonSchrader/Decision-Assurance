@@ -18,3 +18,8 @@ responses. v0.2 has no automated retention/deletion workflow. A tenant export,
 retention and deletion policy must be approved before real personal or
 regulated data is stored.
 
+Web Research treats search and scraped material as untrusted and applies HTTPS/public-address,
+credential, redirect, domain, MIME, size, active-content, secret-redaction and prompt-injection
+controls before conservative handoff. Provider credentials and raw responses are not persisted as
+Research errors or returned by the API. See [Web Research Security](web-research/security.md).
+

@@ -41,3 +41,9 @@ not pass. Raw text retention creates privacy exposure; v0.3 stores only the
 minimum case text and documents tenant-controlled retention/deletion as an
 operational prerequisite.
 
+Web Research adds SSRF, DNS/IP rebinding assumptions, hostile markup, prompt injection, poisoned
+provenance, provider compromise, cost exhaustion and cross-tenant cache/handoff threats. Controls
+include repeated URL validation, public-only addressing, fixed scrape options, normalization,
+composite tenant keys, atomic budgets, bounded attempts and human-review markers. DNS changes
+between adapter validation and remote provider retrieval remain an upstream/provider risk.
+

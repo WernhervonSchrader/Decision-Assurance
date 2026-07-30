@@ -14,9 +14,12 @@ from ..identity import Authenticator
 from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
 from ..repositories.protocols import DecisionRepository
+from ..web_research.orchestrator import ResearchOrchestrator
+from ..web_research.repository import SqliteResearchRepository
 from .errors import ApiError
 from .routes.decisions import router
 from .routes.intakes import router as intake_router
+from .routes.research import router as research_router
 
 MAX_BODY_BYTES = 1_048_576
 
@@ -26,12 +29,16 @@ def create_app(
     authenticator: Authenticator,
     intake_repository: IntakeRepository | None = None,
     policy_registry: PolicyRegistry | None = None,
+    research_repository: SqliteResearchRepository | None = None,
+    research_orchestrator: ResearchOrchestrator | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Decision Assurance API", version="0.3.0")
+    app = FastAPI(title="Decision Assurance API", version="0.4.0")
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository
     app.state.policy_registry = policy_registry
+    app.state.research_repository = research_repository
+    app.state.research_orchestrator = research_orchestrator
 
     @app.middleware("http")
     async def request_controls(
@@ -94,6 +101,8 @@ def create_app(
     app.include_router(router)
     if intake_repository is not None and policy_registry is not None:
         app.include_router(intake_router)
+    if research_repository is not None and research_orchestrator is not None:
+        app.include_router(research_router)
     return app
 
 

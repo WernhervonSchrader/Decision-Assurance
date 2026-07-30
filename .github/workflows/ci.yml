@@ -26,13 +26,13 @@ jobs:
       - run: bandit -q -r src -s B105
       - run: pip-audit
       - run: python -m build
-      - run: decision-assurance-openapi /tmp/openapi-v0.3.json && diff -u docs/openapi-v0.3.json /tmp/openapi-v0.3.json
+      - run: decision-assurance-openapi /tmp/openapi-v0.4.json && diff -u docs/openapi-v0.4.json /tmp/openapi-v0.4.json
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: verification-artifacts
           path: |
-            docs/openapi-v0.3.json
+            docs/openapi-v0.4.json
             benchmarks/intake
             .pytest_cache
 
@@ -43,3 +43,5 @@ jobs:
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

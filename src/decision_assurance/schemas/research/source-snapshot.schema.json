@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/research/source-snapshot.schema.json",
+  "title": "Source Snapshot v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["snapshot_id", "source_id", "original_url", "canonical_url", "domain", "title", "retrieved_at", "expires_at", "content_hash", "http_status", "mime_type", "format", "text", "language", "content_provider", "content_provider_version", "risk"],
+  "properties": {
+    "snapshot_id": {"type": "string"}, "source_id": {"type": "string"}, "original_url": {"type": "string"}, "canonical_url": {"type": "string"}, "domain": {"type": "string"}, "title": {"type": "string"},
+    "retrieved_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "content_hash": {"type": "string"},
+    "http_status": {"type": "integer"}, "mime_type": {"type": "string"}, "format": {"type": "string"}, "text": {"type": "string"}, "language": {"type": "string"},
+    "content_provider": {"type": "string"}, "content_provider_version": {"type": "string"},
+    "risk": {"type": "object", "additionalProperties": false, "required": ["prompt_injection_suspected", "risk_reasons", "secret_redacted", "active_content_removed"], "properties": {"prompt_injection_suspected": {"type": "boolean"}, "risk_reasons": {"type": "array", "items": {"type": "string"}}, "secret_redacted": {"type": "boolean"}, "active_content_removed": {"type": "boolean"}}}
+  }
+}

@@ -17,6 +17,12 @@ class Permission(str, Enum):
     INTAKE_READ = "intake:read"
     INTAKE_CONFIRM = "intake:confirm"
     INTAKE_COMPILE = "intake:compile"
+    RESEARCH_CREATE = "research:create"
+    RESEARCH_READ = "research:read"
+    RESEARCH_RETRY = "research:retry"
+    RESEARCH_CANCEL = "research:cancel"
+    RESEARCH_FORCE_REFRESH = "research:force-refresh"
+    RESEARCH_AUDIT_READ = "research:audit-read"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -27,6 +33,9 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.REPORT_READ,
             Permission.INTAKE_CREATE,
             Permission.INTAKE_READ,
+            Permission.RESEARCH_CREATE,
+            Permission.RESEARCH_READ,
+            Permission.RESEARCH_CANCEL,
         }
     ),
     Role.VALIDATOR: frozenset(
@@ -38,6 +47,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.INTAKE_READ,
             Permission.INTAKE_CONFIRM,
             Permission.INTAKE_COMPILE,
+            Permission.RESEARCH_CREATE,
+            Permission.RESEARCH_READ,
+            Permission.RESEARCH_RETRY,
+            Permission.RESEARCH_CANCEL,
         }
     ),
     Role.APPROVER: frozenset(
@@ -48,6 +61,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.INTAKE_READ,
             Permission.INTAKE_CONFIRM,
             Permission.INTAKE_COMPILE,
+            Permission.RESEARCH_READ,
         }
     ),
     Role.AUDITOR: frozenset(
@@ -56,6 +70,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.REPORT_READ,
             Permission.AUDIT_READ,
             Permission.INTAKE_READ,
+            Permission.RESEARCH_READ,
+            Permission.RESEARCH_AUDIT_READ,
         }
     ),
     Role.TENANT_ADMIN: frozenset(Permission),
