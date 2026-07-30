@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -13,6 +14,8 @@ from ..i18n import localize, select_locale
 from ..identity import Authenticator
 from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
+from ..observability.health import HealthService
+from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
@@ -33,8 +36,12 @@ def create_app(
     research_repository: ResearchRepositoryPort | None = None,
     research_orchestrator: ResearchOrchestrator | None = None,
     research_submission_service: ResearchSubmissionService | None = None,
+    health_service: HealthService | None = None,
+    logger: StructuredLoggerPort | None = None,
+    metrics: MetricsPort | None = None,
+    api_version: str = "0.4.0",
 ) -> FastAPI:
-    app = FastAPI(title="Decision Assurance API", version="0.4.0")
+    app = FastAPI(title="Decision Assurance API", version=api_version)
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository
@@ -47,6 +54,7 @@ def create_app(
     async def request_controls(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
+        started = time.perf_counter()
         request.state.correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
         content_length = request.headers.get("content-length")
         if content_length:
@@ -68,6 +76,31 @@ def create_app(
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Cache-Control"] = "no-store"
+        route = request.scope.get("route")
+        route_name = getattr(route, "name", "unmatched")
+        duration_ms = (time.perf_counter() - started) * 1000
+        if logger is not None:
+            logger.emit(
+                "request.completed",
+                level="INFO",
+                correlation_id=request.state.correlation_id,
+                fields={
+                    "method": request.method,
+                    "route": route_name,
+                    "status_code": response.status_code,
+                    "duration_ms": round(duration_ms, 3),
+                },
+            )
+        if metrics is not None:
+            status_class = f"{response.status_code // 100}xx"
+            metrics.increment(
+                "http_requests_total", labels={"route": route_name, "status": status_class}
+            )
+            metrics.observe(
+                "http_request_duration_seconds",
+                duration_ms / 1000,
+                labels={"route": route_name, "status": status_class},
+            )
         return response
 
     @app.exception_handler(ApiError)
@@ -96,6 +129,25 @@ def create_app(
 
     @app.get("/health/ready", tags=["health"])
     def ready() -> JSONResponse:
+        if health_service is not None:
+            report = health_service.check()
+            return JSONResponse(
+                {
+                    "schema_version": report.schema_version,
+                    "status": "ok" if report.ready else "unavailable",
+                    "checked_at": report.checked_at,
+                    "components": [
+                        {
+                            "component": item.component,
+                            "status": item.status.value,
+                            "reason_code": item.reason_code,
+                            "critical": item.critical,
+                        }
+                        for item in report.components
+                    ],
+                },
+                200 if report.ready else 503,
+            )
         available = repository.ready()
         return JSONResponse(
             {"status": "ok" if available else "unavailable"}, 200 if available else 503

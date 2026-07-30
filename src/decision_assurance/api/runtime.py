@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,10 +16,13 @@ from ..intake.codec import policy_from_dict
 from ..intake.repository import SqliteIntakeRepository
 from ..intake.verification import InMemoryPolicyRegistry
 from ..jobs.postgresql import PostgresJobRepository
+from ..observability.health import HealthService, ReadinessDependency, StaticHealthProbe
+from ..observability.logging import JsonEventLogger
+from ..observability.metrics import InMemoryMetrics
 from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
-from ..production.contracts import AuthenticationMode, SecretReference
+from ..production.contracts import AuthenticationMode, HealthStatus, SecretReference
 from ..production.egress import HttpsEgressAllowlist
 from ..production.ports import SecretProviderPort
 from ..production.secrets import EnvironmentSecretProvider
@@ -210,6 +214,14 @@ def _load_configured_runtime(
     policies: dict[str, Any] = {}
     if policies_value := values.get("DA_POLICIES_PATH"):
         policies = json.loads(Path(policies_value).read_text(encoding="utf-8"))
+    health = HealthService(
+        (
+            ReadinessDependency("database", persistence.connections.ready, "DATABASE_UNAVAILABLE"),
+            StaticHealthProbe("configuration", HealthStatus.HEALTHY),
+            StaticHealthProbe("providers", HealthStatus.HEALTHY),
+        ),
+        clock=lambda: datetime.now(timezone.utc).isoformat(),
+    )
     app = create_app(
         persistence.decisions,
         authenticator,
@@ -220,6 +232,10 @@ def _load_configured_runtime(
         persistence.research,
         orchestrator,
         submission,
+        health,
+        JsonEventLogger(print),
+        InMemoryMetrics(),
+        "0.5.0",
     )
     app.state.job_repository = jobs
     return app

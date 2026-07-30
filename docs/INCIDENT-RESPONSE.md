@@ -1,0 +1,18 @@
+# Incident response
+
+1. Declare severity, incident lead, time and affected environment; stop the controlled pilot for any
+   suspected secret disclosure, tenant crossover, audit corruption or unbounded provider spend.
+2. Contain with credential revocation, egress disablement, queue cancellation or service removal from
+   readiness. Preserve immutable evidence before restarting or restoring.
+3. Determine scope using correlation IDs and tenant-local audit exports. Logs and metrics may locate
+   the interval but cannot substitute for audit records.
+4. Eradicate the cause through reviewed configuration, code, migration or provider controls. Rotate
+   every potentially exposed credential and verify old references fail.
+5. Recover into a verified state: migrations current, RLS negative tests passing, stale jobs handled,
+   audit chains contiguous, backups restorable and required providers bounded.
+6. Obtain human operational and governance approval before resuming. Record timeline, impact,
+   evidence, decisions, residual risk and preventive actions.
+
+Rollback uses the prior immutable image and compatible schema only. Forward-only database changes
+require a tested compensating migration or restore into a fresh instance; never rewrite the migration
+ledger or delete audit evidence.
