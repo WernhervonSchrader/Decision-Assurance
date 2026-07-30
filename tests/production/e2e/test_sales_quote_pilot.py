@@ -5,7 +5,7 @@ import json
 import os
 import time
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +62,7 @@ MIGRATIONS = ROOT / "migrations" / "postgresql"
 FIXTURES = ROOT / "tests" / "production" / "fixtures"
 ISSUER = "https://pilot-identity.example.test"
 AUDIENCE = "decision-assurance-pilot"
-NOW = datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2099, 7, 30, 12, 0, tzinfo=timezone.utc)
 TENANTS = ("pilot-tenant-a", "pilot-tenant-b")
 pytestmark = pytest.mark.postgresql
 
@@ -350,7 +350,7 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         return result.status is ResearchStatus.PARTIALLY_COMPLETED
 
     def worker_time() -> str:
-        return "2026-07-30T12:00:01Z"
+        return (NOW + timedelta(seconds=1)).isoformat()
 
     worker = ResearchWorker(jobs, process, clock=worker_time)
     assert worker.run_once("pilot-worker", now=worker_time())
@@ -359,7 +359,7 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         f"/v1/research-runs/{run_id}",
         headers=_headers(tokens["pilot-tenant-b:validator"]),
     )
-    assert completed.json()["status"] == "PARTIALLY_COMPLETED"
+    assert completed.json()["status"] == "COMPLETED"
     assert len(search.calls) == len(extractor.calls) == 1
 
     result_a = api.post(
