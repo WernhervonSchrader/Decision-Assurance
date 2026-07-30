@@ -316,6 +316,7 @@ class DecisionEvidence:
     status: str
     observed_at: str
     content_hash: str
+    correlation_id: str | None = None
 
 
 def enum_value(value: Any) -> Any:

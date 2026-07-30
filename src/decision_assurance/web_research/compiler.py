@@ -47,6 +47,7 @@ class ResearchEvidenceCompiler:
                     status=status,
                     observed_at=snapshot.retrieved_at,
                     content_hash=candidate.content_hash,
+                    correlation_id=run.correlation_id,
                 )
             )
         return tuple(compiled)
@@ -77,6 +78,10 @@ class SqliteDecisionEvidenceHandoff:
         if len(run_ids) != 1:
             raise DecisionEvidenceHandoffRejected("MIXED_RESEARCH_RUNS")
         run_id = next(iter(run_ids))
+        correlation_ids = {item.correlation_id for item in evidence}
+        if len(correlation_ids) != 1 or None in correlation_ids:
+            raise DecisionEvidenceHandoffRejected("CORRELATION_CONTEXT_REQUIRED")
+        correlation_id = next(iter(correlation_ids))
         handoff_payload = [
             [item.evidence_id, item.content_hash, item.status]
             for item in sorted(evidence, key=lambda x: x.evidence_id)
@@ -134,6 +139,7 @@ class SqliteDecisionEvidenceHandoff:
                 "payload_hash": payload_hash(handoff_payload),
                 "previous_event_hash": payload_hash(previous) if previous else None,
                 "tenant_id": tenant.tenant_id,
+                "correlation_id": correlation_id,
                 "source_channel": "api",
             }
             document["audit_events"].append(event)
@@ -192,6 +198,10 @@ class PostgresDecisionEvidenceHandoff:
         if len(run_ids) != 1:
             raise DecisionEvidenceHandoffRejected("MIXED_RESEARCH_RUNS")
         run_id = next(iter(run_ids))
+        correlation_ids = {item.correlation_id for item in evidence}
+        if len(correlation_ids) != 1 or None in correlation_ids:
+            raise DecisionEvidenceHandoffRejected("CORRELATION_CONTEXT_REQUIRED")
+        correlation_id = next(iter(correlation_ids))
         handoff_payload = [
             [item.evidence_id, item.content_hash, item.status]
             for item in sorted(evidence, key=lambda item: item.evidence_id)
@@ -258,6 +268,7 @@ class PostgresDecisionEvidenceHandoff:
                 "payload_hash": payload_hash(handoff_payload),
                 "previous_event_hash": payload_hash(previous) if previous else None,
                 "tenant_id": tenant.tenant_id,
+                "correlation_id": correlation_id,
                 "source_channel": "api",
             }
             document["audit_events"].append(event)

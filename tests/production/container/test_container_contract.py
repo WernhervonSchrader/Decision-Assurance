@@ -12,6 +12,9 @@ def test_api_and_worker_images_are_non_root_and_health_checked() -> None:
         assert "PYTHONDONTWRITEBYTECODE=1" in dockerfile
         assert "DA_VERSION=0.5.0" in dockerfile
         assert "COPY --from=builder" in dockerfile
+        assert "/build/dist/*.whl /tmp/" in dockerfile
+        assert "/tmp/*.whl" in dockerfile  # noqa: S108 - Docker image, not host temp
+        assert "/tmp/decision_assurance.whl" not in dockerfile  # noqa: S108
     assert "HEALTHCHECK" in api
     assert "decision-assurance-api" in api
     assert "decision-assurance-worker" in worker
