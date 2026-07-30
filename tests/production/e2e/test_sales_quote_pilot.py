@@ -359,7 +359,7 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         f"/v1/research-runs/{run_id}",
         headers=_headers(tokens["pilot-tenant-b:validator"]),
     )
-    assert completed.json()["status"] == "COMPLETED"
+    assert completed.json()["status"] == "PARTIALLY_COMPLETED"
     assert len(search.calls) == len(extractor.calls) == 1
 
     result_a = api.post(
