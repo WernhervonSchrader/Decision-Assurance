@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from decision_assurance.intake.repository import SqliteIntakeRepository
+from decision_assurance.repositories.sqlite import SqliteDecisionRepository
 from decision_assurance.tenancy import TenantContext
 from decision_assurance.web_research.contracts import (
     FreshnessPolicy,
@@ -93,3 +95,29 @@ def test_budget_reservation_is_atomic_and_bounded(tmp_path) -> None:  # type: ig
     assert repo.reserve_budget(tenant, "run-1", limit=2) == 2
     with pytest.raises(ValueError, match="BUDGET_EXCEEDED"):
         repo.reserve_budget(tenant, "run-1", limit=2)
+
+
+def test_migration_upgrades_existing_v03_database_without_losing_data(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    database = tmp_path / "upgrade.db"
+    decisions = SqliteDecisionRepository(database)
+    intakes = SqliteIntakeRepository(database)
+    decisions.initialize()
+    intakes.initialize()
+    tenant = TenantContext("tenant-a")
+    with decisions._connect() as connection:  # noqa: SLF001 - migration verification
+        connection.execute(
+            "INSERT INTO decisions (tenant_id,decision_id,document_json) VALUES (?,?,?)",
+            (tenant.tenant_id, "D-existing", "{}"),
+        )
+
+    research = SqliteResearchRepository(database)
+    research.initialize()
+
+    with decisions._connect() as connection:  # noqa: SLF001 - migration verification
+        assert connection.execute(
+            "SELECT 1 FROM decisions WHERE tenant_id=? AND decision_id=?",
+            (tenant.tenant_id, "D-existing"),
+        ).fetchone()
+        assert connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_runs'"
+        ).fetchone()

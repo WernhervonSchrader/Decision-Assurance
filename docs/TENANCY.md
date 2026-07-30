@@ -10,3 +10,8 @@ suspension and restore are future administrative workflows and must remain
 tenant-scoped and audited. SQLite is the reference implementation; PostgreSQL
 RLS is required before a production multi-tenant deployment claim.
 
+Research runs, sources, snapshots, evidence, attempts, audit, budgets, idempotency and handoffs use
+tenant-composite primary, foreign and unique keys. Snapshot cache lookup includes the authenticated
+tenant. SQLite has no row-level security; production evolution requires PostgreSQL RLS,
+least-privilege roles and migration tests before claiming database-enforced isolation.
+

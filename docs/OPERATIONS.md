@@ -15,3 +15,8 @@ audit rows to conceal an incident.
 Operational logs, security logs, business events and audit records are distinct.
 Do not log bearer tokens, complete Decision Files or unnecessary personal data.
 
+Monitor Research status/reason-code counts, provider latency/rate limits, budget exhaustion, cache
+hit rate and partial runs without logging queries, extracted text, tokens or raw responses. Retry
+only after reviewing retryability and cost. Cancellation is logical; v0.4 has no queue or remote
+call revocation. Preserve tenant-scoped Research audit and handoff records during incidents.
+

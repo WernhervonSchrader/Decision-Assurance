@@ -32,7 +32,7 @@ def create_app(
     research_repository: SqliteResearchRepository | None = None,
     research_orchestrator: ResearchOrchestrator | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Decision Assurance API", version="0.3.0")
+    app = FastAPI(title="Decision Assurance API", version="0.4.0")
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository

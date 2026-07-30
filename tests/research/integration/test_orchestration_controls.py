@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -99,7 +99,7 @@ def response_for(url: str, text: str) -> ExtractionResponse:
     )
 
 
-def setup(tmp_path, search, extractor, *, budget: int = 10):  # type: ignore[no-untyped-def]
+def setup(tmp_path, search, extractor, *, budget: int = 10, clock=None):  # type: ignore[no-untyped-def]
     database = tmp_path / "orchestration.db"
     decisions = SqliteDecisionRepository(database)
     repository = SqliteResearchRepository(database)
@@ -118,7 +118,7 @@ def setup(tmp_path, search, extractor, *, budget: int = 10):  # type: ignore[no-
         ResearchEvidenceCompiler(),
         SqliteDecisionEvidenceHandoff(database),
         policy=ResearchPolicy(provider_budget=budget, max_attempts_per_operation=2),
-        clock=lambda: NOW,
+        clock=clock or (lambda: NOW),
     )
     request = ResearchRequest(
         document["decision_id"],
@@ -227,6 +227,38 @@ async def test_failed_search_can_be_retried_once_without_repeating_success(tmp_p
     assert completed.status is ResearchStatus.COMPLETED
     assert search.calls == 2
     assert completed.provider_cost_units == 4
+
+
+@pytest.mark.anyio
+async def test_retry_after_window_is_enforced_before_spending_budget(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    current = [NOW]
+    search = SequencedSearch(
+        [
+            ProviderError("fake-brave", "PROVIDER_RATE_LIMITED", True, 429, 30.0),
+            discovery(),
+        ]
+    )
+    extractor = SequencedExtractor(
+        {
+            "https://one.example/rule": [response_for("https://one.example/rule", "One " * 100)],
+            "https://two.example/rule": [response_for("https://two.example/rule", "Two " * 100)],
+        }
+    )
+    tenant, document, _, _, orchestrator, request = setup(
+        tmp_path, search, extractor, clock=lambda: current[0]
+    )
+    failed = await orchestrator.execute(
+        tenant, "actor-1", request, payload_hash(document), "correlation-create"
+    )
+    with pytest.raises(ValueError, match="PROVIDER_RETRY_AFTER_ACTIVE"):
+        await orchestrator.retry(tenant, "actor-2", failed.research_run_id, "correlation-too-early")
+    assert search.calls == 1
+    current[0] += timedelta(seconds=30)
+    completed = await orchestrator.retry(
+        tenant, "actor-2", failed.research_run_id, "correlation-retry"
+    )
+    assert completed.status is ResearchStatus.COMPLETED
+    assert search.calls == 2
 
 
 @pytest.mark.anyio

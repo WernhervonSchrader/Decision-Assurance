@@ -18,3 +18,8 @@ PostgreSQL plus tested RLS/migrations, secrets management, encrypted backups,
 monitoring and a rollback plan. v0.2 intentionally makes no production-readiness
 claim without these controls.
 
+Research providers are disabled safely when keys are absent. Configure keys in a secret manager,
+not source control, and use bounded timeout/content/cache/budget values. Synchronous provider calls
+need edge timeouts and capacity planning. Production use additionally requires egress policy,
+provider data-processing review, crawling/licensing approval and retention controls.
+

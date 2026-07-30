@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.org/schemas/research/research-run.schema.json",
+  "title": "Research Run v0.4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["research_run_id", "tenant_id", "actor_id", "request", "expected_document_hash", "semantic_fingerprint", "status", "created_at", "updated_at", "correlation_id", "sources", "snapshots", "evidence", "attempts", "errors", "audit_events", "provider_cost_units"],
+  "properties": {
+    "research_run_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "actor_id": {"type": "string", "minLength": 1},
+    "request": {"$ref": "research-request.schema.json"},
+    "expected_document_hash": {"type": "string"},
+    "semantic_fingerprint": {"type": "string"},
+    "status": {"enum": ["CREATED", "SEARCHING", "SOURCES_DISCOVERED", "EXTRACTING", "EVIDENCE_COMPILED", "COMPLETED", "PARTIALLY_COMPLETED", "FAILED", "CANCELLED"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "sources": {"type": "array", "items": {"$ref": "source-candidate.schema.json"}},
+    "snapshots": {"type": "array", "items": {"$ref": "source-snapshot.schema.json"}},
+    "evidence": {"type": "array", "items": {"$ref": "evidence-candidate.schema.json"}},
+    "attempts": {"type": "array", "items": {"type": "object"}},
+    "errors": {"type": "array", "items": {"$ref": "research-error.schema.json"}},
+    "audit_events": {"type": "array", "items": {"$ref": "research-audit-event.schema.json"}},
+    "provider_cost_units": {"type": "integer", "minimum": 0},
+    "compiled_decision_file_id": {"type": ["string", "null"]}
+  }
+}

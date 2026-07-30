@@ -1,0 +1,8 @@
+{
+  "policy_version": "research-policy-v1",
+  "primary_domains": ["example-regulator.invalid"],
+  "secondary_domains": ["example-standards-body.invalid"],
+  "supported_languages": ["de", "en"],
+  "minimum_content_characters": 200,
+  "notes": "Illustrative provider-neutral policy for dependency injection; .invalid domains never resolve."
+}

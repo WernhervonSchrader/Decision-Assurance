@@ -10,3 +10,7 @@ RFC 3339 UTC is used over the API; clients localize dates, numbers and currency.
 Content language is independent of interface locale. The model does not prevent
 future right-to-left presentation.
 
+Research keeps interface language (`Accept-Language`), query locale, preferred source languages,
+detected content language and any future tenant default separate. DE/EN messages are localized;
+stored reason codes, provider classifications, audit data and evidence statuses remain neutral.
+

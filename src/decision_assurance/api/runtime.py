@@ -58,6 +58,8 @@ def load_runtime(environment: dict[str, str] | None = None) -> FastAPI:
         provider_budget=_integer(values, "WEB_RESEARCH_PROVIDER_BUDGET", 100),
         cache_ttl_seconds=_integer(values, "WEB_RESEARCH_CACHE_TTL_SECONDS", 86_400),
         max_content_bytes=max_content_bytes,
+        max_search_results=_integer(values, "WEB_RESEARCH_MAX_RESULTS", 10),
+        max_extractions=_integer(values, "WEB_RESEARCH_MAX_EXTRACTIONS", 5),
     )
     research_orchestrator = ResearchOrchestrator(
         BraveSearchProvider(

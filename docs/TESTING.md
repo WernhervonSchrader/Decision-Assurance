@@ -1,4 +1,4 @@
-# Testing Strategy — API v0.2
+# Testing Strategy — Public Draft v0.4
 
 Controlled Intake v0.3 adds contract, extraction/provenance, verification, confirmation,
 compiler, SQLite isolation, CLI/API E2E, prompt-injection and metamorphic tests under
@@ -22,4 +22,8 @@ No browser UI exists in v0.2, so browser/device screenshots and traces are not
 applicable. CI retains pytest output and generated OpenAPI/build artifacts on
 failure. Tests contain no retry; deterministic data and fresh databases control
 flakiness.
+
+Web Research v0.4 adds unit, provider-contract, SQLite integration, security, schema and eight
+FastAPI E2E scenarios under `tests/research/`. All provider traffic is mocked or faked. Public and
+packaged schemas and OpenAPI are drift-checked; fresh and upgraded SQLite migrations are tested.
 

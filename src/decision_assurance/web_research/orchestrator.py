@@ -4,7 +4,7 @@ import hashlib
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ..audit import payload_hash
 from ..tenancy import TenantContext
@@ -56,12 +56,18 @@ class ResearchPolicy:
     cache_ttl_seconds: int = 86_400
     max_content_bytes: int = 1_000_000
     max_attempts_per_operation: int = 2
+    max_search_results: int = 10
+    max_extractions: int = 5
 
     def __post_init__(self) -> None:
         if not 1 <= self.provider_budget <= 10_000:
             raise ValueError("INVALID_PROVIDER_BUDGET")
         if not 1 <= self.max_attempts_per_operation <= 5:
             raise ValueError("INVALID_PROVIDER_ATTEMPT_LIMIT")
+        if not 1 <= self.max_search_results <= 20:
+            raise ValueError("INVALID_CONFIGURED_SEARCH_LIMIT")
+        if not 1 <= self.max_extractions <= min(self.max_search_results, 10):
+            raise ValueError("INVALID_CONFIGURED_EXTRACTION_LIMIT")
 
 
 class ResearchOrchestrator:
@@ -104,6 +110,10 @@ class ResearchOrchestrator:
         *,
         refresh_generation: str | None = None,
     ) -> ResearchRun:
+        if request.max_search_results > self._policy.max_search_results:
+            raise ValueError("SEARCH_LIMIT_EXCEEDS_CONFIGURATION")
+        if request.max_sources_to_extract > self._policy.max_extractions:
+            raise ValueError("EXTRACTION_LIMIT_EXCEEDS_CONFIGURATION")
         fingerprint = semantic_fingerprint(
             tenant.tenant_id,
             request,
@@ -153,6 +163,7 @@ class ResearchOrchestrator:
         correlation_id: str,
     ) -> ResearchRun:
         run = self._required(tenant, run_id)
+        self._enforce_retry_window(run)
         run.actor_id = actor_id
         run.correlation_id = correlation_id
         if not run.sources:
@@ -586,6 +597,24 @@ class ResearchOrchestrator:
         if run is None:
             raise KeyError("RESEARCH_RUN_NOT_FOUND")
         return run
+
+    def _enforce_retry_window(self, run: ResearchRun) -> None:
+        for item in reversed(run.errors):
+            if item.provider is None or item.provider.retry_after_seconds is None:
+                continue
+            failed_attempt = next(
+                (attempt for attempt in reversed(run.attempts) if attempt.status == "FAILED"),
+                None,
+            )
+            if failed_attempt is None:
+                return
+            occurred_at = datetime.fromisoformat(failed_attempt.occurred_at.replace("Z", "+00:00"))
+            if occurred_at.tzinfo is None:
+                occurred_at = occurred_at.replace(tzinfo=timezone.utc)
+            retry_at = occurred_at + timedelta(seconds=item.provider.retry_after_seconds)
+            if self._clock().astimezone(timezone.utc) < retry_at.astimezone(timezone.utc):
+                raise ValueError("PROVIDER_RETRY_AFTER_ACTIVE")
+            return
 
     @staticmethod
     def _provider_id(provider: object) -> str:
