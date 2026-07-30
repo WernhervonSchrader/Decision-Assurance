@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 import shutil
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier
 
 import psycopg
 import pytest
@@ -21,6 +23,8 @@ from decision_assurance.persistence.postgresql import (
 from decision_assurance.production.contracts import JobPolicy, JobStatus, ResearchJob, SecretValue
 from decision_assurance.tenancy import TenantContext
 from decision_assurance.web_research.contracts import ResearchRequest, ResearchRun, ResearchStatus
+from decision_assurance.web_research.postgresql_repository import PostgresResearchRepository
+from decision_assurance.web_research.repository import ResearchIdempotencyInProgress
 
 ROOT = Path(__file__).parents[3]
 MIGRATIONS = ROOT / "migrations" / "postgresql"
@@ -262,6 +266,131 @@ def test_stale_lease_recovery_and_cancellation_prevent_delivery(postgres_dsn: st
     assert repository.recover_stale(now="2026-07-30T10:00:06Z") == 1
     cancelled = repository.cancel(tenant, "job-cancel", now="2026-07-30T10:00:07Z")
     assert cancelled.status is JobStatus.CANCELLED
+
+
+def test_heartbeat_prevents_second_worker_claim_after_original_expiry(
+    postgres_dsn: str,
+) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'job-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'job-tenant'")
+        _seed_job_run(owner, "run-job-heartbeat")
+    repository = PostgresJobRepository(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn))),
+        JobPolicy(lease_seconds=5),
+    )
+    tenant = TenantContext("job-tenant")
+    repository.enqueue(tenant, _research_job("job-heartbeat", "run-job-heartbeat"))
+    claimed = repository.claim("worker-1", now="2026-07-30T10:00:00Z")
+    assert claimed is not None
+
+    repository.heartbeat(
+        tenant,
+        claimed.job.job_id,
+        claimed.lease_token,
+        now="2026-07-30T10:00:04Z",
+    )
+    assert repository.recover_stale(now="2026-07-30T10:00:06Z") == 0
+    assert repository.claim("worker-2", now="2026-07-30T10:00:06Z") is None
+    repository.complete(
+        tenant,
+        claimed.job.job_id,
+        claimed.lease_token,
+        partial=False,
+        now="2026-07-30T10:00:07Z",
+    )
+
+
+def test_two_workers_racing_for_one_job_have_exactly_one_lease(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'job-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'job-tenant'")
+        _seed_job_run(owner, "run-job-race")
+    repository = PostgresJobRepository(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    )
+    tenant = TenantContext("job-tenant")
+    repository.enqueue(tenant, _research_job("job-race", "run-job-race"))
+    barrier = Barrier(2)
+
+    def claim(worker_id: str) -> str | None:
+        barrier.wait()
+        claimed = repository.claim(worker_id, now="2026-07-30T10:00:00Z")
+        return None if claimed is None else claimed.job.job_id
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = (
+            pool.submit(claim, "worker-1"),
+            pool.submit(claim, "worker-2"),
+        )
+        outcomes = [future.result() for future in futures]
+
+    assert outcomes.count("job-race") == 1
+    assert outcomes.count(None) == 1
+
+
+def test_terminal_job_can_be_requeued_once_for_domain_approved_retry(
+    postgres_dsn: str,
+) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'job-tenant'")
+        owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'job-tenant'")
+        _seed_job_run(owner, "run-job-requeue")
+    repository = PostgresJobRepository(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    )
+    tenant = TenantContext("job-tenant")
+    repository.enqueue(tenant, _research_job("job-requeue", "run-job-requeue"))
+    claimed = repository.claim("worker-1", now="2026-07-30T10:00:00Z")
+    assert claimed is not None
+    repository.complete(
+        tenant,
+        claimed.job.job_id,
+        claimed.lease_token,
+        partial=True,
+        now="2026-07-30T10:00:01Z",
+    )
+
+    queued = repository.requeue(
+        tenant,
+        claimed.job.job_id,
+        "correlation-retry",
+        now="2026-07-30T10:00:02Z",
+    )
+    assert queued.status is JobStatus.QUEUED
+    assert queued.attempt_count == 0
+    retried = repository.claim("worker-2", now="2026-07-30T10:00:02Z")
+    assert retried is not None and retried.job.correlation_id == "correlation-retry"
+
+
+def test_concurrent_postgresql_idempotency_has_one_owner(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+        owner.execute("DELETE FROM research_idempotency WHERE tenant_id = 'atomic-tenant'")
+    repository = PostgresResearchRepository(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    )
+    tenant = TenantContext("atomic-tenant")
+    barrier = Barrier(2)
+
+    def reserve() -> str:
+        barrier.wait()
+        try:
+            result = repository.reserve_idempotency(
+                tenant,
+                "actor-1",
+                "mcp:research_start",
+                "same-key",
+                "sha256:" + "b" * 64,
+            )
+        except ResearchIdempotencyInProgress:
+            return "IN_PROGRESS"
+        return "OWNER" if result is None else "REPLAY"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = (pool.submit(reserve), pool.submit(reserve))
+        outcomes = sorted(future.result() for future in futures)
+
+    assert outcomes == ["IN_PROGRESS", "OWNER"]
 
 
 def test_worker_role_can_access_only_queue_owned_tables(postgres_dsn: str) -> None:

@@ -8,7 +8,12 @@ from ..persistence.postgresql import PostgresConnectionProvider
 from ..tenancy import TenantContext
 from .codec import run_from_data, to_data
 from .contracts import ContentRisk, ResearchRun, SourceSnapshot
-from .repository import ResearchIdempotencyConflict
+from .repository import (
+    IDEMPOTENCY_IN_PROGRESS_RESPONSE,
+    IDEMPOTENCY_IN_PROGRESS_STATUS,
+    ResearchIdempotencyConflict,
+    ResearchIdempotencyInProgress,
+)
 
 
 class PostgresResearchRepository:
@@ -337,6 +342,110 @@ class PostgresResearchRepository:
                     request_hash,
                     status_code,
                     Jsonb(response),
+                ),
+            )
+
+    def reserve_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> tuple[int, dict[str, Any]] | None:
+        with self._connections.tenant_connection(tenant) as connection:
+            inserted = connection.execute(
+                """
+                INSERT INTO research_idempotency (
+                    tenant_id, actor_id, operation, idempotency_key,
+                    request_hash, status_code, response_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (tenant_id, actor_id, operation, idempotency_key) DO NOTHING
+                """,
+                (
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
+                    Jsonb(IDEMPOTENCY_IN_PROGRESS_RESPONSE),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT request_hash, status_code, response_json FROM research_idempotency
+                WHERE tenant_id = %s AND actor_id = %s
+                  AND operation = %s AND idempotency_key = %s
+                """,
+                (tenant.tenant_id, actor_id, operation, key),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("IDEMPOTENCY_RESERVATION_FAILED")
+        if row["request_hash"] != request_hash:
+            raise ResearchIdempotencyConflict("IDEMPOTENCY_KEY_REUSED")
+        if inserted.rowcount == 1:
+            return None
+        if int(row["status_code"]) == IDEMPOTENCY_IN_PROGRESS_STATUS:
+            raise ResearchIdempotencyInProgress("IDEMPOTENCY_REQUEST_IN_PROGRESS")
+        return int(row["status_code"]), dict(row["response_json"])
+
+    def complete_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        status_code: int,
+        response: dict[str, Any],
+    ) -> None:
+        with self._connections.tenant_connection(tenant) as connection:
+            cursor = connection.execute(
+                """
+                UPDATE research_idempotency
+                SET status_code = %s, response_json = %s
+                WHERE tenant_id = %s AND actor_id = %s
+                  AND operation = %s AND idempotency_key = %s
+                  AND request_hash = %s AND status_code = %s
+                """,
+                (
+                    status_code,
+                    Jsonb(response),
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("IDEMPOTENCY_COMPLETION_FAILED")
+
+    def release_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> None:
+        with self._connections.tenant_connection(tenant) as connection:
+            connection.execute(
+                """
+                DELETE FROM research_idempotency
+                WHERE tenant_id = %s AND actor_id = %s
+                  AND operation = %s AND idempotency_key = %s
+                  AND request_hash = %s AND status_code = %s
+                """,
+                (
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
                 ),
             )
 

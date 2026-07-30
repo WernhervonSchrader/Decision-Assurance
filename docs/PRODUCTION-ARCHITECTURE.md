@@ -69,12 +69,14 @@ production profile because SQLite has no RLS.
 1. A validated request creates or reuses a tenant-bound Research Run.
 2. The same transaction creates one deterministic job and an audit event.
 3. The API returns `202` with stable run/job references.
-4. A Worker claims an available job with a lease and a worker identity.
+4. A Worker claims an available job with a lease and a worker identity, then renews that lease at
+   one third of its duration using a current UTC timestamp.
 5. Before each provider call it reserves budget atomically and checks tenant quotas, circuit state and
    egress policy.
 6. Successful attempts, partial failures and retry scheduling persist with audit in one transaction.
-7. A stale lease becomes claimable after recovery; duplicate delivery cannot duplicate cost,
-   evidence, audit or handoff.
+7. Cancellation or lease loss is checked before and after search, each extraction and later
+   persistence. A stale lease becomes claimable only after recovery; the prior Worker cannot
+   complete with its old token.
 8. Eligible evidence attaches only to an unchanged tenant-matching `DRAFT` Decision File as
    `UNVERIFIED`, `OUTDATED` or `CONFLICTING`.
 

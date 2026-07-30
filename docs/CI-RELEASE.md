@@ -4,13 +4,17 @@ Decision Assurance v0.5 treats publication as a computed result, not a manually 
 Every push and pull request runs formatting, lint, strict typing, unit/contract/E2E tests, Bandit,
 dependency audit, build and OpenAPI drift checks. Separate jobs exercise a real PostgreSQL 16
 service, forced tenant RLS, database roles and migrations; scan the complete Git history for
-secrets; build both production images and scan them for critical vulnerabilities; and restore a
+secrets; build all three production images and scan them for critical vulnerabilities; and restore a
 native PostgreSQL backup into a fresh database before checking schema, RLS, roles and audit order.
 
-The container job emits CycloneDX SBOMs for the API and Worker images. The release-evidence job runs
+The container job emits CycloneDX SBOMs for the API, Worker and MCP images. The release-evidence job runs
 only after every required job succeeds, builds the wheel and source distribution, downloads the
-SBOMs, creates `SHA256SUMS`, and computes `release-verification.json` against the public schema.
-These files are retained as CI artifacts; the workflow does not publish a package or image.
+SBOM and restore artifacts, and creates `SHA256SUMS`. It also reads the current GitHub Actions run
+and job results through the Actions API. Gate input is `PASS` only when repository, run, commit SHA,
+source-job result, step results and checksummed artifact content agree. Missing, stale, failed or
+commit-mismatched evidence becomes `BLOCK`. The resulting `release-verification.json`, raw workflow
+evidence and checksums are retained as CI artifacts; the workflow does not publish a package or
+image.
 
 ## Fail-closed governance
 

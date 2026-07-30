@@ -19,7 +19,7 @@ from ..production.ports import SecretProviderPort
 from ..production.secrets import FileSecretProvider
 from ..tenancy import TenantContext
 from ..web_research.contracts import ResearchRun, ResearchStatus
-from ..web_research.orchestrator import ResearchOrchestrator
+from ..web_research.orchestrator import ResearchExecutionCancelled, ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
 from .runtime import load_runtime
 
@@ -54,18 +54,39 @@ def load_worker(
         research = _required(repository, tenant, job.research_run_id)
         if cancelled():
             return False
-        result = asyncio.run(
-            orchestrator.execute(
-                tenant,
-                research.actor_id,
-                research.request,
-                research.expected_document_hash,
-                job.correlation_id,
-            )
-        )
+        try:
+            if research.status is ResearchStatus.CREATED:
+                operation = orchestrator.execute(
+                    tenant,
+                    research.actor_id,
+                    research.request,
+                    research.expected_document_hash,
+                    job.correlation_id,
+                    cancelled=cancelled,
+                )
+            else:
+                operation = orchestrator.retry(
+                    tenant,
+                    research.actor_id,
+                    research.research_run_id,
+                    job.correlation_id,
+                    cancelled=cancelled,
+                )
+            result = asyncio.run(operation)
+        except ResearchExecutionCancelled:
+            return False
         return result.status is ResearchStatus.PARTIALLY_COMPLETED
 
-    return ResearchWorker(jobs, process), jobs
+    heartbeat_interval = max(1.0, config.worker_policy.lease_seconds / 3)
+    return (
+        ResearchWorker(
+            jobs,
+            process,
+            clock=_now,
+            heartbeat_interval_seconds=heartbeat_interval,
+        ),
+        jobs,
+    )
 
 
 def _required(

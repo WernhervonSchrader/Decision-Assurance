@@ -36,9 +36,13 @@ overlap window; revoke it after successful verification.
 
 ## Worker recovery
 
-Confirm heartbeat loss, stop the old instance, then run stale-lease recovery. Conditional lease
-ownership guarantees that only the current token can complete a job. Investigate repeated dead
-letters before replay; cancellation must remain effective.
+The Worker renews a running lease every one third of its configured lease duration and uses a fresh
+UTC timestamp for every heartbeat, completion and failure write. Heartbeat rejection or an
+unavailable cancellation check is treated as lost ownership: the Worker stops before the next
+provider or persistence boundary and must not write a terminal job state. Confirm heartbeat loss,
+stop the old instance, then run stale-lease recovery. Conditional lease ownership guarantees that
+only the current token can complete a job. Investigate repeated dead letters before replay;
+cancellation must remain effective between search, each extraction, compilation and handoff.
 
 ## Tenant isolation or audit suspicion
 

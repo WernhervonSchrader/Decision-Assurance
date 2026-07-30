@@ -49,8 +49,10 @@ composite tenant keys, atomic budgets, bounded attempts and human-review markers
 between adapter validation and remote provider retrieval remain an upstream/provider risk.
 
 The asynchronous v0.5 boundary adds job theft, duplicate cost, stale leases and cross-tenant Worker
-privilege. Controls are hashed lease tokens, conditional transitions, atomic budget/job submission,
-bounded retries, cancellation, stale recovery and a database role limited to queue tables. Residual
-risk is provider-side duplicate charging after an ambiguous network failure; reconcile provider
-request IDs and stop on unexplained budget anomalies.
+privilege. Controls are hashed lease tokens, periodic current-time heartbeats, conditional
+transitions, atomic budget/job submission, provider-boundary cancellation, bounded retries, stale
+recovery and a database role limited to queue tables. Lease loss prevents later domain or terminal
+writes by the old Worker. Residual risk is an in-flight provider-side effect that cannot be recalled
+after the remote provider accepted it; reconcile provider request IDs and stop on unexplained budget
+anomalies.
 

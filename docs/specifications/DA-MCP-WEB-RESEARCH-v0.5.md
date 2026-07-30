@@ -53,7 +53,9 @@ runtime configuration.
   existing Research request. It returns the run and optional job identifiers.
 - `research_get` returns bounded status metadata, source/extraction states, conflicts and a
   conservative evidence-bundle draft. It does not return full extracted page text.
-- `research_retry` delegates to the existing retry lifecycle with the original request and limits.
+- `research_retry` validates through the existing retry lifecycle and, in the production profile,
+  atomically requeues the existing durable job with the original request and limits. Reference mode
+  may invoke the same orchestrator directly for local deterministic evaluation.
 - `research_cancel` delegates to the idempotent cancellation lifecycle and audit chain.
 - `research_handoff` invokes or confirms the existing compiler/handoff path; only eligible evidence
   is attached and statuses remain `UNVERIFIED`, `OUTDATED` or `CONFLICTING`.

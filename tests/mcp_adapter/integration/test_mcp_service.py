@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import anyio
 import pytest
 
 from decision_assurance.audit import payload_hash
@@ -15,6 +16,7 @@ from decision_assurance.mcp.contracts import (
     ResearchStartInput,
 )
 from decision_assurance.mcp.service import McpApplicationError, McpResearchService
+from decision_assurance.production.contracts import JobStatus, ResearchJob
 from decision_assurance.repositories.sqlite import SqliteDecisionRepository
 from decision_assurance.tenancy import TenantContext
 from decision_assurance.web_research.compiler import (
@@ -68,7 +70,11 @@ def start_input(document: dict, **overrides) -> ResearchStartInput:  # type: ign
 
 
 def setup_service(
-    tmp_path, *, first_text: str = "Regel ist erforderlich. ", second_text: str = "Weitere Regel. "
+    tmp_path,
+    *,
+    first_text: str = "Regel ist erforderlich. ",
+    second_text: str = "Weitere Regel. ",
+    search_provider=None,  # type: ignore[no-untyped-def]
 ):  # type: ignore[no-untyped-def]
     database = tmp_path / "mcp-service.db"
     decisions = SqliteDecisionRepository(database)
@@ -78,17 +84,16 @@ def setup_service(
     document = json.loads((ROOT / "examples/decision-cases/low-risk-pass.json").read_text())
     decisions.create_decision(TenantContext("tenant-a"), copy.deepcopy(document))
     decisions.create_decision(TenantContext("tenant-b"), copy.deepcopy(document))
-    search = FakeSearchProvider(
-        SearchResponse(
-            "fake-brave",
-            "v1",
-            NOW.isoformat(),
-            (
-                SearchResult("https://one.example/rule", "Primary One", "", 1, NOW.isoformat()),
-                SearchResult("https://two.example/rule", "Primary Two", "", 2, NOW.isoformat()),
-            ),
-        )
+    search_response = SearchResponse(
+        "fake-brave",
+        "v1",
+        NOW.isoformat(),
+        (
+            SearchResult("https://one.example/rule", "Primary One", "", 1, NOW.isoformat()),
+            SearchResult("https://two.example/rule", "Primary Two", "", 2, NOW.isoformat()),
+        ),
     )
+    search = search_provider or FakeSearchProvider(search_response)
     extractor = FakeContentExtractor(
         {
             "https://one.example/rule": ExtractionResponse(
@@ -144,6 +149,50 @@ def setup_service(
         extractor,
         orchestrator,
     )
+
+
+class BlockingSearch:
+    provider_id = "fake-brave"
+
+    def __init__(self, response: SearchResponse):
+        self.response = response
+        self.started = anyio.Event()
+        self.release = anyio.Event()
+        self.calls = 0
+
+    async def search(self, request):  # type: ignore[no-untyped-def]
+        del request
+        self.calls += 1
+        self.started.set()
+        await self.release.wait()
+        return self.response
+
+
+class FakeQueuedJobs:
+    def __init__(self):
+        self.calls: list[tuple[str, str, str]] = []
+
+    def requeue(
+        self,
+        tenant: TenantContext,
+        job_id: str,
+        correlation_id: str,
+        *,
+        now: str,
+    ) -> ResearchJob:
+        self.calls.append((tenant.tenant_id, job_id, correlation_id))
+        return ResearchJob(
+            job_id=job_id,
+            tenant_id=tenant.tenant_id,
+            research_run_id=job_id.removeprefix("job-"),
+            correlation_id=correlation_id,
+            payload_hash="sha256:" + "a" * 64,
+            status=JobStatus.QUEUED,
+            attempt_count=0,
+            available_at=now,
+            created_at=now,
+            updated_at=now,
+        )
 
 
 @pytest.mark.anyio
@@ -318,6 +367,69 @@ async def test_retry_reprocesses_only_failed_provider_step_and_replays(tmp_path)
         "https://two.example/rule",
         "https://one.example/rule",
     ]
+
+
+@pytest.mark.anyio
+async def test_production_retry_requeues_without_provider_call(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    service, decisions, research, document, _, extractor, orchestrator = setup_service(tmp_path)
+    failed_url = "https://one.example/rule"
+    extractor.responses[failed_url] = ExtractionResponse(
+        error=ProviderError("fake-firecrawl", "EXTRACTION_TIMEOUT", True)
+    )
+    started = await service.start(identity("tenant-a"), start_input(document))
+    assert started.result is not None and started.result.status == "PARTIALLY_COMPLETED"
+    provider_calls = len(extractor.calls)
+    jobs = FakeQueuedJobs()
+    queued_service = McpResearchService(
+        decisions,
+        research,
+        orchestrator,
+        jobs=jobs,  # type: ignore[arg-type]
+    )
+
+    response = await queued_service.retry(
+        identity("tenant-a", Role.VALIDATOR),
+        ResearchMutationInput(
+            research_run_id=started.result.research_run_id,
+            idempotency_key="queued-retry-1",
+        ),
+    )
+
+    assert response.result is not None and response.result.job_status == "QUEUED"
+    assert len(jobs.calls) == 1
+    assert len(extractor.calls) == provider_calls
+
+
+@pytest.mark.anyio
+async def test_concurrent_idempotency_allows_only_one_provider_execution(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    response = SearchResponse(
+        "fake-brave",
+        "v1",
+        NOW.isoformat(),
+        (SearchResult("https://one.example/rule", "Primary One", "", 1, NOW.isoformat()),),
+    )
+    search = BlockingSearch(response)
+    service, _, _, document, _, _, _ = setup_service(tmp_path, search_provider=search)
+    request = start_input(document, max_search_results=1, max_sources_to_extract=1)
+
+    completed = []
+
+    async def run_first() -> None:
+        completed.append(await service.start(identity("tenant-a"), request))
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(run_first)
+        with anyio.fail_after(1):
+            await search.started.wait()
+        with pytest.raises(McpApplicationError) as concurrent:
+            await service.start(identity("tenant-a"), request)
+        assert concurrent.value.reason_code == "IDEMPOTENCY_REQUEST_IN_PROGRESS"
+        search.release.set()
+    first = completed[0]
+    replay = await service.start(identity("tenant-a"), request)
+
+    assert first == replay
+    assert search.calls == 1
 
 
 def test_error_mapping_is_stable_and_localized() -> None:

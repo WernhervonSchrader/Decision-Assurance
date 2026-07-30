@@ -9,6 +9,14 @@ from .contracts import ClaimedJob, LeaseToken
 
 class JobRepository(Protocol):
     def enqueue(self, tenant: TenantContext, job: ResearchJob) -> ResearchJob: ...
+    def requeue(
+        self,
+        tenant: TenantContext,
+        job_id: str,
+        correlation_id: str,
+        *,
+        now: str,
+    ) -> ResearchJob: ...
     def claim(self, worker_id: str, *, now: str) -> ClaimedJob | None: ...
     def heartbeat(
         self, tenant: TenantContext, job_id: str, lease_token: LeaseToken, *, now: str

@@ -40,6 +40,13 @@ are the minimum of client request, mode cap and server Research policy. Retry re
 request and cannot change domains, SSRF policy, budget or limits. Outputs never include raw extracted
 page text, credentials or an assurance outcome.
 
+In the production profile both start and retry submit durable queue work; the MCP process never
+performs retry provider calls itself. Mutating MCP calls first reserve the tenant/actor/operation
+idempotency key atomically. A concurrent identical request receives
+`IDEMPOTENCY_REQUEST_IN_PROGRESS`; after completion it receives the stored response. Cancellation is
+checked before and after search, before and after each extraction, and before subsequent persistence
+or handoff work.
+
 ## Local PowerShell test flow
 
 ```powershell

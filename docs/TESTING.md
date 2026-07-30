@@ -29,7 +29,8 @@ packaged schemas and OpenAPI are drift-checked; fresh and upgraded SQLite migrat
 
 Production Foundation v0.5 adds real PostgreSQL integration and a controlled API/service E2E under
 `tests/production/`. CI provisions PostgreSQL 16, applies roles and checksummed migrations, exercises
-forced-RLS isolation and job recovery, and restores a native backup into a fresh database. The pilot
+forced-RLS isolation, two-Worker lease races, current-time heartbeat renewal, durable manual requeue,
+concurrent idempotency and job recovery, and restores a native backup into a fresh database. The pilot
 uses two tenants, locally signed OIDC identities, human and agent actors, a fixed clock, deterministic
 IDs and fake Brave/Firecrawl adapters. No live provider or production identity/database is used.
 API-only scope makes browser/device screenshots inapplicable; sanitized workflow evidence is retained.
@@ -38,5 +39,7 @@ The MCP v0.5 suite lives under `tests/mcp_adapter/`. It covers strict inputs and
 Verified/Deep limits, server-limit precedence, exact tool discovery, Streamable-HTTP authentication,
 RBAC, idempotency, tenant isolation, conservative DRAFT handoff, prompt injection, German Verified
 success, English Deep conflict and cross-tenant denial. All providers are deterministic fakes. The
-repository skill source is structurally checked and also validated with the official Skill Creator.
+suite also proves running cancellation between provider calls, production retry queueing and a
+single owner for concurrent idempotency keys. The repository skill source is structurally checked
+and also validated with the official Skill Creator.
 

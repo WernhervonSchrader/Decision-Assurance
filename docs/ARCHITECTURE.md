@@ -68,6 +68,11 @@ Configuration contains secret references only. Provider calls occur only in the 
 exact HTTPS egress policy. Logs contain allowlisted metadata, metrics use bounded labels, and
 readiness checks material dependencies. See [Production Architecture](PRODUCTION-ARCHITECTURE.md).
 
+Running jobs renew their lease independently of provider latency. Lease loss and logical
+cancellation are propagated into the Research orchestrator and checked at each provider and
+persistence boundary. The MCP production transport requeues the existing terminal job and does not
+execute retry providers inline.
+
 # Bounded MCP Web Research v0.5
 
 ADR-005 adds `decision_assurance.mcp` as a separate Streamable-HTTP process in the same distribution.

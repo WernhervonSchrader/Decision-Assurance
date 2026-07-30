@@ -75,6 +75,48 @@ class PostgresJobRepository:
                 self._append_event(connection, existing, "JOB_QUEUED", job.updated_at)
             return existing
 
+    def requeue(
+        self,
+        tenant: TenantContext,
+        job_id: str,
+        correlation_id: str,
+        *,
+        now: str,
+    ) -> ResearchJob:
+        """Atomically requeue one terminal job for an explicit domain-approved retry."""
+        with self._connections.tenant_connection(tenant) as connection:
+            row = connection.execute(
+                """
+                UPDATE research_jobs
+                SET status = 'QUEUED',
+                    correlation_id = %s,
+                    attempt_count = 0,
+                    available_at = %s::timestamptz,
+                    lease_token_hash = NULL,
+                    lease_expires_at = NULL,
+                    last_error_code = NULL,
+                    updated_at = %s::timestamptz
+                WHERE tenant_id = %s AND job_id = %s
+                  AND status IN ('COMPLETED', 'PARTIAL', 'FAILED', 'DEAD_LETTER')
+                RETURNING *
+                """,
+                (correlation_id, now, now, tenant.tenant_id, job_id),
+            ).fetchone()
+            if row is None:
+                exists = connection.execute(
+                    """
+                    SELECT 1 FROM research_jobs
+                    WHERE tenant_id = %s AND job_id = %s
+                    """,
+                    (tenant.tenant_id, job_id),
+                ).fetchone()
+                if exists is None:
+                    raise KeyError("JOB_NOT_FOUND")
+                raise ValueError("JOB_NOT_RETRYABLE")
+            job = self._row_to_job(row)
+            self._append_event(connection, job, "JOB_REQUEUED", now)
+            return job
+
     def submit(
         self, tenant: TenantContext, run: ResearchRun, job: ResearchJob
     ) -> SubmittedResearch:

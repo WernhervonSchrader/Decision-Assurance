@@ -45,6 +45,32 @@ class ResearchRepositoryPort(Protocol):
         self, tenant: TenantContext, canonical_url: str, *, current_time: str
     ) -> SourceSnapshot | None: ...
     def reserve_budget(self, tenant: TenantContext, run_id: str, *, limit: int) -> int: ...
+    def reserve_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> tuple[int, dict[str, Any]] | None: ...
+    def complete_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        status_code: int,
+        response: dict[str, Any],
+    ) -> None: ...
+    def release_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> None: ...
     def store_idempotency(
         self,
         tenant: TenantContext,

@@ -8,6 +8,12 @@
   image/Compose process.
 - Added the validated `conduct-assured-web-research` personal-skill source template for later,
   separately approved ChatGPT Work installation.
+- Hardened Worker execution with periodic current-time lease heartbeats and fail-closed cancellation
+  checks at every provider and persistence boundary.
+- Routed production MCP retries through the durable queue and added atomic MCP idempotency
+  reservation for concurrent duplicate requests.
+- Bound release gates to the current GitHub Actions run, commit, required successful steps and
+  checksummed package/SBOM/restore artifacts instead of preassigning `PASS`.
 
 - Added PostgreSQL adapters, tenant-composite keys, forced RLS, checksummed migrations and
   least-privilege runtime roles.

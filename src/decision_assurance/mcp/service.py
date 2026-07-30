@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 
 from ..audit import payload_hash
 from ..authorization import AuthorizationDenied, Permission, authorize
@@ -12,7 +13,10 @@ from ..web_research.contracts import FreshnessPolicy, ResearchRequest, ResearchR
 from ..web_research.lifecycle import ResearchTransitionRejected
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
-from ..web_research.repository import ResearchIdempotencyConflict
+from ..web_research.repository import (
+    ResearchIdempotencyConflict,
+    ResearchIdempotencyInProgress,
+)
 from ..web_research.service import ResearchSubmissionService
 from .contracts import (
     MCP_SCHEMA_VERSION,
@@ -65,9 +69,6 @@ class McpResearchService:
         correlation_id = str(uuid.uuid4())
         operation = "mcp:research_start"
         digest = payload_hash(request.model_dump(mode="json"))
-        replay = self._begin(identity, operation, request.idempotency_key, digest)
-        if replay is not None:
-            return replay
         document = self._decisions.get_decision(identity.tenant, request.target_id)
         if document is None:
             raise McpApplicationError("NOT_FOUND")
@@ -81,6 +82,9 @@ class McpResearchService:
             request.max_search_results,
             request.max_sources_to_extract,
         )
+        replay = self._begin(identity, operation, request.idempotency_key, digest)
+        if replay is not None:
+            return replay
         contract = ResearchRequest(
             decision_file_id=request.target_id,
             claim_refs=tuple(request.claim_refs),
@@ -119,7 +123,11 @@ class McpResearchService:
                 job_id = submitted.job.job_id
                 job_status = submitted.job.status.value
         except ValueError as error:
+            self._release(identity, operation, request.idempotency_key, digest)
             raise McpApplicationError("INVALID_REQUEST", self._safe_reason(error)) from error
+        except Exception:
+            self._release(identity, operation, request.idempotency_key, digest)
+            raise
         response = self._success(
             run,
             mode=request.mode,
@@ -139,6 +147,33 @@ class McpResearchService:
         self, identity: Identity, request: ResearchMutationInput
     ) -> ResearchToolResponse:
         self._require(identity, Permission.RESEARCH_RETRY)
+        if self._jobs is not None:
+            operation, digest, replay = self._mutation_begin(identity, request, "research_retry")
+            if replay is not None:
+                return replay
+            correlation_id = str(uuid.uuid4())
+            try:
+                run = self._orchestrator.validate_retry(identity.tenant, request.research_run_id)
+                job_id = "job-" + str(uuid.uuid5(uuid.NAMESPACE_URL, run.research_run_id))
+                job = self._jobs.requeue(
+                    identity.tenant,
+                    job_id,
+                    correlation_id,
+                    now=datetime.now(timezone.utc).isoformat(),
+                )
+            except (KeyError, ResearchTransitionRejected, ValueError) as error:
+                self._release(identity, operation, request.idempotency_key, digest)
+                raise McpApplicationError("CONFLICT", self._safe_reason(error)) from error
+            except Exception:
+                self._release(identity, operation, request.idempotency_key, digest)
+                raise
+            response = self._success(
+                run,
+                job_id=job.job_id,
+                job_status=job.status.value,
+            )
+            self._finish(identity, operation, request.idempotency_key, digest, response)
+            return response
         return await self._mutate_async(
             identity,
             request,
@@ -171,7 +206,11 @@ class McpResearchService:
                 except (KeyError, ValueError):
                     pass
         except (ResearchTransitionRejected, ValueError) as error:
+            self._release(identity, operation, request.idempotency_key, digest)
             raise McpApplicationError("CONFLICT", self._safe_reason(error)) from error
+        except Exception:
+            self._release(identity, operation, request.idempotency_key, digest)
+            raise
         response = self._success(run)
         self._finish(identity, operation, request.idempotency_key, digest, response)
         return response
@@ -190,7 +229,11 @@ class McpResearchService:
                 correlation_id,
             )
         except (ResearchTransitionRejected, ValueError) as error:
+            self._release(identity, operation, request.idempotency_key, digest)
             raise McpApplicationError("CONFLICT", self._safe_reason(error)) from error
+        except Exception:
+            self._release(identity, operation, request.idempotency_key, digest)
+            raise
         response = self._success(run)
         self._finish(identity, operation, request.idempotency_key, digest, response)
         return response
@@ -208,7 +251,11 @@ class McpResearchService:
         try:
             run = await operation_call(str(uuid.uuid4()))
         except (ResearchTransitionRejected, ValueError) as error:
+            self._release(identity, operation, request.idempotency_key, digest)
             raise McpApplicationError("CONFLICT", self._safe_reason(error)) from error
+        except Exception:
+            self._release(identity, operation, request.idempotency_key, digest)
+            raise
         response = self._success(run)
         self._finish(identity, operation, request.idempotency_key, digest, response)
         return response
@@ -235,14 +282,14 @@ class McpResearchService:
         digest: str,
     ) -> ResearchToolResponse | None:
         try:
-            replay = self._research.get_idempotency(
+            replay = self._research.reserve_idempotency(
                 identity.tenant, identity.actor_id, operation, key, digest
             )
         except ResearchIdempotencyConflict as error:
             raise McpApplicationError("CONFLICT", "IDEMPOTENCY_KEY_REUSED") from error
-        if replay is None:
-            return None
-        return ResearchToolResponse.model_validate(replay[1])
+        except ResearchIdempotencyInProgress as error:
+            raise McpApplicationError("CONFLICT", "IDEMPOTENCY_REQUEST_IN_PROGRESS") from error
+        return None if replay is None else ResearchToolResponse.model_validate(replay[1])
 
     def _finish(
         self,
@@ -252,7 +299,7 @@ class McpResearchService:
         digest: str,
         response: ResearchToolResponse,
     ) -> None:
-        self._research.store_idempotency(
+        self._research.complete_idempotency(
             identity.tenant,
             identity.actor_id,
             operation,
@@ -260,6 +307,21 @@ class McpResearchService:
             digest,
             200,
             response.model_dump(mode="json"),
+        )
+
+    def _release(
+        self,
+        identity: Identity,
+        operation: str,
+        key: str,
+        digest: str,
+    ) -> None:
+        self._research.release_idempotency(
+            identity.tenant,
+            identity.actor_id,
+            operation,
+            key,
+            digest,
         )
 
     @staticmethod
@@ -358,7 +420,7 @@ class McpResearchService:
         return McpResearchService.error_response(McpApplicationError("INTERNAL_ERROR"), locale)
 
     @staticmethod
-    def _safe_reason(error: ValueError) -> str:
+    def _safe_reason(error: Exception) -> str:
         value = str(error)
         if value and len(value) <= 128 and value.replace("_", "").isalnum():
             return value

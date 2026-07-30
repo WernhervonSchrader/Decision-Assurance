@@ -20,6 +20,10 @@ _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
             JobStatus.DEAD_LETTER,
         }
     ),
+    JobStatus.COMPLETED: frozenset({JobStatus.QUEUED}),
+    JobStatus.PARTIAL: frozenset({JobStatus.QUEUED}),
+    JobStatus.FAILED: frozenset({JobStatus.QUEUED}),
+    JobStatus.DEAD_LETTER: frozenset({JobStatus.QUEUED}),
 }
 
 

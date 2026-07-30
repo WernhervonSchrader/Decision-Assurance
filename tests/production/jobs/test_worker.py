@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from threading import Event
 
 from decision_assurance.jobs.contracts import ClaimedJob, LeaseToken
 from decision_assurance.jobs.worker import (
@@ -48,7 +49,7 @@ class FakeJobs:
         partial: bool,
         now: str,
     ) -> None:
-        self.calls.append(("complete", partial))
+        self.calls.append(("complete", (partial, now)))
 
     def fail(
         self,
@@ -60,7 +61,17 @@ class FakeJobs:
         retryable: bool,
         now: str,
     ) -> None:
-        self.calls.append(("fail", (reason_code, retryable)))
+        self.calls.append(("fail", (reason_code, retryable, now)))
+
+    def heartbeat(
+        self,
+        tenant: TenantContext,
+        job_id: str,
+        lease_token: LeaseToken,
+        *,
+        now: str,
+    ) -> None:
+        self.calls.append(("heartbeat", now))
 
     def is_cancelled(self, tenant: TenantContext, job_id: str) -> bool:
         return False
@@ -83,21 +94,25 @@ def test_idle_worker_does_not_invoke_processor() -> None:
 
 def test_success_partial_retryable_and_poison_failures_are_distinct() -> None:
     cases = (
-        (lambda job, cancelled: False, ("complete", False)),
-        (lambda job, cancelled: True, ("complete", True)),
+        (lambda job, cancelled: False, ("complete", (False, "2026-07-30T10:00:09Z"))),
+        (lambda job, cancelled: True, ("complete", (True, "2026-07-30T10:00:09Z"))),
         (
             lambda job, cancelled: (_ for _ in ()).throw(RetryableJobError("PROVIDER_TIMEOUT")),
-            ("fail", ("PROVIDER_TIMEOUT", True)),
+            ("fail", ("PROVIDER_TIMEOUT", True, "2026-07-30T10:00:09Z")),
         ),
         (
             lambda job, cancelled: (_ for _ in ()).throw(NonRetryableJobError("POISONED_CONTENT")),
-            ("fail", ("POISONED_CONTENT", False)),
+            ("fail", ("POISONED_CONTENT", False, "2026-07-30T10:00:09Z")),
         ),
     )
     for processor, expected in cases:
         claimed = ClaimedJob(_job(), LeaseToken("lease-secret"))
         repository = FakeJobs(claimed)
-        worker = ResearchWorker(repository, processor)
+        worker = ResearchWorker(
+            repository,
+            processor,
+            clock=lambda: "2026-07-30T10:00:09Z",
+        )
 
         assert worker.run_once("worker-1", now="2026-07-30T10:00:00Z") is True
         assert repository.calls[-1] == expected
@@ -122,3 +137,60 @@ def test_cancelled_delivery_never_invokes_processor() -> None:
 
     assert worker.run_once("worker-1", now="2026-07-30T10:00:00Z") is True
     assert calls == 0
+
+
+def test_long_processing_heartbeats_and_completes_with_current_time() -> None:
+    repository = FakeJobs(ClaimedJob(_job(), LeaseToken("lease-secret")))
+    heartbeat_seen = Event()
+
+    def heartbeat(*args, **kwargs):  # type: ignore[no-untyped-def]
+        del args, kwargs
+        repository.calls.append(("heartbeat", "2026-07-30T10:00:05Z"))
+        heartbeat_seen.set()
+
+    repository.heartbeat = heartbeat  # type: ignore[method-assign]
+
+    def processor(job: ResearchJob, cancelled) -> bool:  # type: ignore[no-untyped-def]
+        del job
+        assert heartbeat_seen.wait(1)
+        assert not cancelled()
+        return False
+
+    worker = ResearchWorker(
+        repository,
+        processor,
+        clock=lambda: "2026-07-30T10:00:05Z",
+        heartbeat_interval_seconds=0.01,
+    )
+
+    assert worker.run_once("worker-1", now="2026-07-30T10:00:00Z")
+    assert ("heartbeat", "2026-07-30T10:00:05Z") in repository.calls
+    assert repository.calls[-1] == ("complete", (False, "2026-07-30T10:00:05Z"))
+
+
+def test_lease_loss_stops_processing_without_terminal_write() -> None:
+    repository = FakeJobs(ClaimedJob(_job(), LeaseToken("lease-secret")))
+
+    def heartbeat(*args, **kwargs):  # type: ignore[no-untyped-def]
+        del args, kwargs
+        raise PermissionError("LEASE_LOST")
+
+    repository.heartbeat = heartbeat  # type: ignore[method-assign]
+
+    def processor(job: ResearchJob, cancelled) -> bool:  # type: ignore[no-untyped-def]
+        del job
+        for _ in range(100):
+            if cancelled():
+                return False
+            Event().wait(0.01)
+        raise AssertionError("lease loss was not observed")
+
+    worker = ResearchWorker(
+        repository,
+        processor,
+        clock=lambda: "2026-07-30T10:00:05Z",
+        heartbeat_interval_seconds=0.01,
+    )
+
+    assert worker.run_once("worker-1", now="2026-07-30T10:00:00Z")
+    assert not any(name in {"complete", "fail"} for name, _ in repository.calls)

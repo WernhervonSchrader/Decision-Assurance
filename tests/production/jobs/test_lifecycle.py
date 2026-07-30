@@ -16,6 +16,10 @@ from decision_assurance.production.contracts import JobPolicy, JobStatus
         (JobStatus.RUNNING, JobStatus.DEAD_LETTER),
         (JobStatus.QUEUED, JobStatus.CANCELLED),
         (JobStatus.RUNNING, JobStatus.CANCELLED),
+        (JobStatus.COMPLETED, JobStatus.QUEUED),
+        (JobStatus.PARTIAL, JobStatus.QUEUED),
+        (JobStatus.FAILED, JobStatus.QUEUED),
+        (JobStatus.DEAD_LETTER, JobStatus.QUEUED),
     ],
 )
 def test_allowed_job_transitions(source: JobStatus, target: JobStatus) -> None:
