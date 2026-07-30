@@ -310,6 +310,7 @@ class ResearchRun:
 @dataclass(frozen=True, slots=True)
 class DecisionEvidence:
     evidence_id: str
+    research_run_id: str
     claim_refs: tuple[str, ...]
     source_ref: str
     status: str

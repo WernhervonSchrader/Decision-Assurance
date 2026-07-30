@@ -78,6 +78,15 @@ class PublicUrlPolicy:
         self._allowed = tuple(normalize_domain(item) for item in allowed_domains)
         self._blocked = tuple(normalize_domain(item) for item in blocked_domains)
 
+    def for_domains(
+        self, *, allowed_domains: tuple[str, ...], blocked_domains: tuple[str, ...]
+    ) -> PublicUrlPolicy:
+        return PublicUrlPolicy(
+            self._resolver,
+            allowed_domains=allowed_domains,
+            blocked_domains=blocked_domains,
+        )
+
     def validate(self, value: str) -> SafeUrl:
         parsed = urlsplit(value)
         if parsed.scheme.casefold() != "https":
