@@ -34,3 +34,9 @@ uses two tenants, locally signed OIDC identities, human and agent actors, a fixe
 IDs and fake Brave/Firecrawl adapters. No live provider or production identity/database is used.
 API-only scope makes browser/device screenshots inapplicable; sanitized workflow evidence is retained.
 
+The MCP v0.5 suite lives under `tests/mcp_adapter/`. It covers strict inputs and schemas, Quick/
+Verified/Deep limits, server-limit precedence, exact tool discovery, Streamable-HTTP authentication,
+RBAC, idempotency, tenant isolation, conservative DRAFT handoff, prompt injection, German Verified
+success, English Deep conflict and cross-tenant denial. All providers are deterministic fakes. The
+repository skill source is structurally checked and also validated with the official Skill Creator.
+

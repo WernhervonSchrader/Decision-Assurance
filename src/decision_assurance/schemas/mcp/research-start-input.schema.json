@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.example/schemas/mcp/research-start-input.schema.json",
+  "title": "Decision Assurance MCP research_start input",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "0.5.0", "default": "0.5.0"},
+    "decision_file_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+    "case_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+    "claim_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 256}
+    },
+    "query": {"type": "string", "minLength": 1, "maxLength": 400},
+    "locale": {"type": "string", "minLength": 2, "maxLength": 35},
+    "preferred_languages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {"type": "string", "minLength": 2, "maxLength": 35}
+    },
+    "mode": {"enum": ["QUICK", "VERIFIED", "DEEP"]},
+    "maximum_age_days": {"type": "integer", "minimum": 1, "maximum": 3650, "default": 365},
+    "allowed_domains": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {"type": "string", "minLength": 1, "maxLength": 253}
+    },
+    "blocked_domains": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {"type": "string", "minLength": 1, "maxLength": 253}
+    },
+    "max_search_results": {"type": ["integer", "null"], "minimum": 1, "maximum": 20},
+    "max_sources_to_extract": {"type": ["integer", "null"], "minimum": 1, "maximum": 10},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 128}
+  },
+  "required": [
+    "claim_refs",
+    "query",
+    "locale",
+    "preferred_languages",
+    "mode",
+    "idempotency_key"
+  ],
+  "oneOf": [
+    {
+      "required": ["decision_file_id"],
+      "properties": {
+        "decision_file_id": {"type": "string"},
+        "case_id": {"type": "null"}
+      }
+    },
+    {
+      "required": ["case_id"],
+      "properties": {
+        "decision_file_id": {"type": "null"},
+        "case_id": {"type": "string"}
+      }
+    }
+  ]
+}

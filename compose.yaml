@@ -116,6 +116,44 @@ services:
           cpus: "1.0"
           memory: 512M
 
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+      args:
+        DA_VERSION: "0.5.0"
+        DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+        DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
+    environment:
+      DA_CONFIG_PATH: /app/config/production.example.json
+      DA_SECRET_DIRECTORY: /run/secrets
+      DA_DATABASE_ROLE: decision_assurance_application
+      DA_MCP_HOST: 0.0.0.0
+      DA_MCP_PORT: "8001"
+      DA_MCP_ISSUER_URL: https://identity.example.com
+      DA_MCP_RESOURCE_SERVER_URL: http://localhost:8001
+      DA_MCP_ALLOWED_HOSTS: localhost:8001,127.0.0.1:8001
+    secrets:
+      - source: database-dsn
+        target: decision-assurance-database-dsn
+      - decision-assurance-brave-api-key
+      - decision-assurance-firecrawl-api-key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8001:8001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
 volumes:
   postgres-data:
 

@@ -104,6 +104,11 @@ class ResearchOrchestrator:
         self._circuit = circuit_breaker or NoOpProviderCircuitBreaker()
         self._clock = clock
 
+    @property
+    def policy(self) -> ResearchPolicy:
+        """Expose immutable configured caps to bounded application adapters."""
+        return self._policy
+
     async def execute(
         self,
         tenant: TenantContext,
@@ -248,6 +253,39 @@ class ResearchOrchestrator:
             reason_codes=("RESEARCH_CANCELLED",),
             payload={"run_id": run_id},
         )
+        self._repository.save(tenant, run)
+        return run
+
+    def handoff(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        run_id: str,
+        correlation_id: str,
+    ) -> ResearchRun:
+        """Apply the existing conservative handoff, converging on prior success."""
+        run = self._required(tenant, run_id)
+        if run.compiled_decision_file_id is not None:
+            return run
+        if run.status not in {
+            ResearchStatus.EVIDENCE_COMPILED,
+            ResearchStatus.COMPLETED,
+            ResearchStatus.PARTIALLY_COMPLETED,
+        }:
+            raise ValueError("RESEARCH_NOT_READY_FOR_HANDOFF")
+        compiled = self._compiler.compile(run)
+        if not compiled:
+            raise ValueError("NO_USABLE_EVIDENCE")
+        run.actor_id = actor_id
+        run.correlation_id = correlation_id
+        updated = self._handoff.attach(
+            tenant,
+            run.request.decision_file_id,
+            run.expected_document_hash,
+            compiled,
+        )
+        run.expected_document_hash = payload_hash(updated)
+        run.compiled_decision_file_id = run.request.decision_file_id
         self._repository.save(tenant, run)
         return run
 

@@ -24,3 +24,9 @@ credential, redirect, domain, MIME, size, active-content, secret-redaction and p
 controls before conservative handoff. Provider credentials and raw responses are not persisted as
 Research errors or returned by the API. See [Web Research Security](web-research/security.md).
 
+The MCP resource server authenticates before every tool call, derives tenant only from verified
+identity claims, applies central RBAC and enables inbound Host/Origin validation against DNS
+rebinding. Tool schemas contain no tenant or provider-key field. Outputs omit page bodies and
+assurance outcomes; internal failures return generic localized errors with correlation IDs. MCP does
+not weaken provider SSRF, redirect, DNS, scheme, port, body, timeout, rate, budget or retry controls.
+

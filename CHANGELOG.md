@@ -2,6 +2,13 @@
 
 ## 0.5.0 — Public Draft
 
+- Added a bounded, separately runnable MCP Web Research adapter with exactly five authenticated,
+  tenant-scoped tools, central mode/server limits, stable structured outputs and conservative handoff.
+- Added public/packaged MCP schemas, protocol/RBAC/isolation/security E2E coverage and a non-root MCP
+  image/Compose process.
+- Added the validated `conduct-assured-web-research` personal-skill source template for later,
+  separately approved ChatGPT Work installation.
+
 - Added PostgreSQL adapters, tenant-composite keys, forced RLS, checksummed migrations and
   least-privilege runtime roles.
 - Added production OIDC/JWKS, strict claim mapping and human-only approval controls.

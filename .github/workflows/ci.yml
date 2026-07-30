@@ -116,6 +116,7 @@ jobs:
         run: |
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.api -t decision-assurance-api:"$GITHUB_SHA" .
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.worker -t decision-assurance-worker:"$GITHUB_SHA" .
+          docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.mcp -t decision-assurance-mcp:"$GITHUB_SHA" .
       - name: Smoke immutable non-root runtimes
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-api:"$GITHUB_SHA")" = "10001:10001"

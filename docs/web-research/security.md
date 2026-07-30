@@ -15,3 +15,8 @@ Provider bodies and credentials are not stored in errors or returned by the API.
 responsible for legal retrieval authority, licensing, site terms, privacy and retention schedules.
 Lexical prompt-injection and contradiction detection is conservative, not complete; it fails
 toward human review but is not a substitute for content security review.
+
+MCP clients cannot provide tenant IDs or provider configuration. Bearer authentication precedes
+each tool call, central permissions precede object access, mutations require idempotency keys, and
+server/mode limits always cap client requests. Tool output contains source/evidence metadata but not
+extracted page bodies or secrets. No arbitrary URL, crawl, shell or filesystem tool is registered.

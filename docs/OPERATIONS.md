@@ -20,6 +20,14 @@ Keep the Engine and existing evidence readable. Allow bounded retries to enter `
 increase tenant budgets automatically. Pause new Research submission when oldest-job age or dead
 letters exceed the pilot limit. Resume after a controlled synthetic request succeeds.
 
+## MCP authentication or tool failure
+
+Keep MCP out of readiness when OIDC metadata, exact Host/Origin policy, PostgreSQL, Worker or schema
+compatibility fails. Compare correlation IDs with protected API/Worker logs without recording bearer
+tokens or tool payloads. A missing role remains a denial, not an operations override. If tool
+discovery exposes anything beyond the five approved tools, remove the process from service and treat
+it as a release-security incident.
+
 ## Secret rotation
 
 Publish the new reference version, invalidate controlled caches, restart affected processes and

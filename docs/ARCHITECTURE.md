@@ -67,3 +67,10 @@ domain work. Migration credentials are unavailable to both runtimes.
 Configuration contains secret references only. Provider calls occur only in the Worker and pass an
 exact HTTPS egress policy. Logs contain allowlisted metadata, metrics use bounded labels, and
 readiness checks material dependencies. See [Production Architecture](PRODUCTION-ARCHITECTURE.md).
+
+# Bounded MCP Web Research v0.5
+
+ADR-005 adds `decision_assurance.mcp` as a separate Streamable-HTTP process in the same distribution.
+The transport authenticates and delegates to one application service; the service reuses existing
+Decision/Research repositories, RBAC, submission/orchestration, compiler and handoff ports. It owns
+no provider logic and exposes exactly five bounded tools. See [MCP Web Research](MCP-WEB-RESEARCH.md).

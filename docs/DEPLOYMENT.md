@@ -15,8 +15,8 @@ real credentials or regulated data.
 
 ## Production images
 
-`Dockerfile.api` and `Dockerfile.worker` build the same immutable v0.5 wheel in separate non-root
-images. Supply `DA_COMMIT_SHA` and `DA_BUILD_TIMESTAMP` as build arguments. The runtime filesystem is
+`Dockerfile.api`, `Dockerfile.worker` and `Dockerfile.mcp` build the same immutable v0.5 wheel in
+separate non-root images. Supply `DA_COMMIT_SHA` and `DA_BUILD_TIMESTAMP` as build arguments. The runtime filesystem is
 read-only compatible; only `/tmp` is a small `noexec,nosuid` tmpfs. Terminate TLS/HSTS and enforce
 request/rate limits at a maintained edge proxy.
 
@@ -37,6 +37,13 @@ docker compose up --build
 Create PostgreSQL login roles outside the application and grant each exactly one group role from
 `migrations/postgresql/roles.sql`. The bootstrap PostgreSQL superuser is not an API, Worker or steady
 state migration credential. Verify `/version`, `/health/live` and `/health/ready` before traffic.
+
+MCP listens on port 8001 and `/mcp`. Production configuration must explicitly set issuer URL,
+external HTTPS resource-server URL and exact allowed Host/Origin values; startup fails closed when
+they are missing. The edge must forward bearer authentication without logging it. MCP has no public
+unauthenticated health tool; probe process/readiness internally and verify authenticated protocol
+initialization synthetically. Detailed rollout and ChatGPT Work steps are in
+[MCP Web Research](MCP-WEB-RESEARCH.md).
 
 Rollback selects the prior immutable image only when its expected schema is compatible. Database
 changes are forward-only: apply a reviewed compensating migration or restore a verified backup into
