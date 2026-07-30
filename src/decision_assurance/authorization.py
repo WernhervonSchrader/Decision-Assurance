@@ -74,7 +74,23 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.RESEARCH_AUDIT_READ,
         }
     ),
+    Role.REVIEWER: frozenset(
+        {
+            Permission.DECISION_READ,
+            Permission.REPORT_READ,
+            Permission.INTAKE_READ,
+            Permission.RESEARCH_READ,
+            Permission.RESEARCH_AUDIT_READ,
+        }
+    ),
     Role.TENANT_ADMIN: frozenset(Permission),
+    Role.SYSTEM_ADMINISTRATOR: frozenset(
+        {
+            Permission.REPORT_READ,
+            Permission.AUDIT_READ,
+            Permission.RESEARCH_AUDIT_READ,
+        }
+    ),
 }
 
 
