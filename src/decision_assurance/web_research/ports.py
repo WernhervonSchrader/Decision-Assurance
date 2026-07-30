@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from ..tenancy import TenantContext
 from .contracts import (
@@ -12,6 +12,7 @@ from .contracts import (
     ResearchRun,
     SearchQuery,
     SearchResponse,
+    SourceSnapshot,
 )
 
 
@@ -23,10 +24,71 @@ class ContentExtractorPort(Protocol):
     async def extract(self, request: ExtractionRequest) -> ExtractionResponse: ...
 
 
+class ProviderCircuitPort(Protocol):
+    def before_call(self, tenant_id: str, provider_id: str) -> None: ...
+    def record_success(self, tenant_id: str, provider_id: str) -> None: ...
+    def record_failure(self, tenant_id: str, provider_id: str, *, retryable: bool) -> None: ...
+
+
 class ResearchRepositoryPort(Protocol):
     def create_or_get(self, tenant: TenantContext, run: ResearchRun) -> ResearchRun: ...
     def get(self, tenant: TenantContext, run_id: str) -> ResearchRun | None: ...
     def save(self, tenant: TenantContext, run: ResearchRun) -> None: ...
+    def list_sources(
+        self, tenant: TenantContext, run_id: str, *, limit: int, offset: int
+    ) -> list[dict[str, Any]]: ...
+    def list_evidence(
+        self, tenant: TenantContext, run_id: str, *, limit: int, offset: int
+    ) -> list[dict[str, Any]]: ...
+    def list_audit(self, tenant: TenantContext, run_id: str) -> list[dict[str, Any]]: ...
+    def get_snapshot(
+        self, tenant: TenantContext, canonical_url: str, *, current_time: str
+    ) -> SourceSnapshot | None: ...
+    def reserve_budget(self, tenant: TenantContext, run_id: str, *, limit: int) -> int: ...
+    def reserve_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> tuple[int, dict[str, Any]] | None: ...
+    def complete_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        status_code: int,
+        response: dict[str, Any],
+    ) -> None: ...
+    def release_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> None: ...
+    def store_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        status_code: int,
+        response: dict[str, Any],
+    ) -> None: ...
+    def get_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> tuple[int, dict[str, Any]] | None: ...
 
 
 class EvidenceCompilerPort(Protocol):

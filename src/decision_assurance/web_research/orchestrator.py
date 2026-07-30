@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from ..audit import payload_hash
 from ..tenancy import TenantContext
 from .audit import apply_transition
+from .circuit_breaker import NoOpProviderCircuitBreaker, ProviderCircuitOpen
 from .conflicts import mark_conflicting_evidence
 from .contracts import (
     EvidenceCandidate,
@@ -27,25 +28,36 @@ from .contracts import (
 )
 from .evidence_policy import EvidencePolicy
 from .idempotency import semantic_fingerprint
+from .lifecycle import ResearchTransitionRejected
 from .metrics import NoOpResearchMetrics
 from .normalization import EvidenceNormalizationRejected, EvidenceNormalizer
 from .ports import (
     ContentExtractorPort,
     DecisionEvidenceHandoffPort,
     EvidenceCompilerPort,
+    ProviderCircuitPort,
     ResearchMetricsPort,
+    ResearchRepositoryPort,
     SearchProviderPort,
 )
 from .providers.errors import ProviderRequestFailed
-from .repository import SqliteResearchRepository
 from .selection import SourceSelectionPolicy
 from .url_policy import PublicUrlPolicy, UrlPolicyRejected
 
 Clock = Callable[[], datetime]
+CancellationCheck = Callable[[], bool]
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _never_cancelled() -> bool:
+    return False
+
+
+class ResearchExecutionCancelled(RuntimeError):
+    """Stop work after cancellation or loss of exclusive job ownership."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +87,7 @@ class ResearchOrchestrator:
         self,
         search_provider: SearchProviderPort,
         content_extractor: ContentExtractorPort,
-        repository: SqliteResearchRepository,
+        repository: ResearchRepositoryPort,
         url_policy: PublicUrlPolicy,
         normalizer: EvidenceNormalizer,
         evidence_policy: EvidencePolicy,
@@ -85,6 +97,7 @@ class ResearchOrchestrator:
         policy: ResearchPolicy = ResearchPolicy(),
         selection_policy: SourceSelectionPolicy | None = None,
         metrics: ResearchMetricsPort | None = None,
+        circuit_breaker: ProviderCircuitPort | None = None,
         clock: Clock = _utc_now,
     ):
         self._search = search_provider
@@ -98,9 +111,81 @@ class ResearchOrchestrator:
         self._policy = policy
         self._selection = selection_policy or SourceSelectionPolicy()
         self._metrics = metrics or NoOpResearchMetrics()
+        self._circuit = circuit_breaker or NoOpProviderCircuitBreaker()
         self._clock = clock
 
+    @property
+    def policy(self) -> ResearchPolicy:
+        """Expose immutable configured caps to bounded application adapters."""
+        return self._policy
+
     async def execute(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        request: ResearchRequest,
+        expected_document_hash: str,
+        correlation_id: str,
+        *,
+        refresh_generation: str | None = None,
+        cancelled: CancellationCheck = _never_cancelled,
+    ) -> ResearchRun:
+        self._ensure_active(cancelled)
+        run = self.prepare(
+            tenant,
+            actor_id,
+            request,
+            expected_document_hash,
+            correlation_id,
+            refresh_generation=refresh_generation,
+        )
+        if run.audit_events or run.status is not ResearchStatus.CREATED:
+            self._metrics.increment("research.semantic_replay")
+            return run
+
+        self._ensure_active(cancelled)
+        apply_transition(
+            run,
+            ResearchStatus.SEARCHING,
+            occurred_at=self._time(),
+            actor_id=actor_id,
+            reason_codes=("SEARCH_STARTED",),
+            payload={"query_hash": hashlib.sha256(request.query.encode()).hexdigest()},
+        )
+        self._repository.save(tenant, run)
+        if not await self._discover(tenant, run, actor_id, cancelled):
+            return run
+        self._ensure_active(cancelled)
+        self._start_extraction(tenant, run, actor_id, retry=False)
+        return await self._extract_and_finalize(
+            tenant,
+            run,
+            actor_id,
+            retry_only=False,
+            cancelled=cancelled,
+        )
+
+    def prepare(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        request: ResearchRequest,
+        expected_document_hash: str,
+        correlation_id: str,
+        *,
+        refresh_generation: str | None = None,
+    ) -> ResearchRun:
+        proposed = self.propose(
+            tenant,
+            actor_id,
+            request,
+            expected_document_hash,
+            correlation_id,
+            refresh_generation=refresh_generation,
+        )
+        return self._repository.create_or_get(tenant, proposed)
+
+    def propose(
         self,
         tenant: TenantContext,
         actor_id: str,
@@ -124,7 +209,7 @@ class ResearchOrchestrator:
         )
         run_id = "research-" + str(uuid.uuid5(uuid.NAMESPACE_URL, fingerprint))
         now = self._time()
-        proposed = ResearchRun(
+        return ResearchRun(
             run_id,
             tenant.tenant_id,
             actor_id,
@@ -136,24 +221,6 @@ class ResearchOrchestrator:
             now,
             correlation_id,
         )
-        run = self._repository.create_or_get(tenant, proposed)
-        if run.audit_events or run.status is not ResearchStatus.CREATED:
-            self._metrics.increment("research.semantic_replay")
-            return run
-
-        apply_transition(
-            run,
-            ResearchStatus.SEARCHING,
-            occurred_at=self._time(),
-            actor_id=actor_id,
-            reason_codes=("SEARCH_STARTED",),
-            payload={"query_hash": hashlib.sha256(request.query.encode()).hexdigest()},
-        )
-        self._repository.save(tenant, run)
-        if not await self._discover(tenant, run, actor_id):
-            return run
-        self._start_extraction(tenant, run, actor_id, retry=False)
-        return await self._extract_and_finalize(tenant, run, actor_id, retry_only=False)
 
     async def retry(
         self,
@@ -161,9 +228,11 @@ class ResearchOrchestrator:
         actor_id: str,
         run_id: str,
         correlation_id: str,
+        *,
+        cancelled: CancellationCheck = _never_cancelled,
     ) -> ResearchRun:
-        run = self._required(tenant, run_id)
-        self._enforce_retry_window(run)
+        self._ensure_active(cancelled)
+        run = self.validate_retry(tenant, run_id)
         run.actor_id = actor_id
         run.correlation_id = correlation_id
         if not run.sources:
@@ -177,14 +246,31 @@ class ResearchOrchestrator:
                 retry=True,
             )
             self._repository.save(tenant, run)
-            if not await self._discover(tenant, run, actor_id):
+            if not await self._discover(tenant, run, actor_id, cancelled):
                 return run
+            self._ensure_active(cancelled)
             self._start_extraction(tenant, run, actor_id, retry=False)
             retry_only = False
         else:
             self._start_extraction(tenant, run, actor_id, retry=True)
             retry_only = True
-        return await self._extract_and_finalize(tenant, run, actor_id, retry_only=retry_only)
+        return await self._extract_and_finalize(
+            tenant,
+            run,
+            actor_id,
+            retry_only=retry_only,
+            cancelled=cancelled,
+        )
+
+    def validate_retry(self, tenant: TenantContext, run_id: str) -> ResearchRun:
+        """Validate retry eligibility without invoking a provider or mutating state."""
+        run = self._required(tenant, run_id)
+        if run.status not in {ResearchStatus.FAILED, ResearchStatus.PARTIALLY_COMPLETED}:
+            raise ResearchTransitionRejected(
+                f"RESEARCH_TRANSITION_NOT_ALLOWED:{run.status.value}:RETRY"
+            )
+        self._enforce_retry_window(run)
+        return run
 
     def cancel(
         self,
@@ -209,14 +295,63 @@ class ResearchOrchestrator:
         self._repository.save(tenant, run)
         return run
 
-    async def _discover(self, tenant: TenantContext, run: ResearchRun, actor_id: str) -> bool:
+    def handoff(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        run_id: str,
+        correlation_id: str,
+    ) -> ResearchRun:
+        """Apply the existing conservative handoff, converging on prior success."""
+        run = self._required(tenant, run_id)
+        if run.compiled_decision_file_id is not None:
+            return run
+        if run.status not in {
+            ResearchStatus.EVIDENCE_COMPILED,
+            ResearchStatus.COMPLETED,
+            ResearchStatus.PARTIALLY_COMPLETED,
+        }:
+            raise ValueError("RESEARCH_NOT_READY_FOR_HANDOFF")
+        compiled = self._compiler.compile(run)
+        if not compiled:
+            raise ValueError("NO_USABLE_EVIDENCE")
+        run.actor_id = actor_id
+        run.correlation_id = correlation_id
+        updated = self._handoff.attach(
+            tenant,
+            run.request.decision_file_id,
+            run.expected_document_hash,
+            compiled,
+        )
+        run.expected_document_hash = payload_hash(updated)
+        run.compiled_decision_file_id = run.request.decision_file_id
+        self._repository.save(tenant, run)
+        return run
+
+    async def _discover(
+        self,
+        tenant: TenantContext,
+        run: ResearchRun,
+        actor_id: str,
+        cancelled: CancellationCheck,
+    ) -> bool:
+        self._ensure_active(cancelled)
         if not self._can_attempt(run, "search", None):
             self._record_error(
                 run, ProviderError(self._provider_id(self._search), "RETRY_LIMIT_EXCEEDED", False)
             )
             self._fail_run(tenant, run, actor_id, "RETRY_LIMIT_EXCEEDED")
             return False
+        provider_id = self._provider_id(self._search)
         try:
+            self._circuit.before_call(tenant.tenant_id, provider_id)
+        except ProviderCircuitOpen:
+            provider_failure = ProviderError(provider_id, "PROVIDER_CIRCUIT_OPEN", True)
+            self._record_error(run, provider_failure)
+            self._fail_run(tenant, run, actor_id, provider_failure.reason_code)
+            return False
+        try:
+            self._ensure_active(cancelled)
             self._reserve(run, tenant, "search", None)
         except ValueError as budget_failure:
             if str(budget_failure) != "BUDGET_EXCEEDED":
@@ -225,6 +360,7 @@ class ResearchOrchestrator:
             self._fail_run(tenant, run, actor_id, "BUDGET_EXCEEDED")
             return False
         try:
+            self._ensure_active(cancelled)
             response = await self._search.search(
                 SearchQuery(
                     run.request.query,
@@ -235,11 +371,17 @@ class ResearchOrchestrator:
                 )
             )
         except ProviderRequestFailed as failure:
+            self._ensure_active(cancelled)
+            self._circuit.record_failure(
+                tenant.tenant_id, provider_id, retryable=failure.error.retryable
+            )
             self._fail_attempt(run, failure.error)
             self._record_error(run, failure.error)
             self._fail_run(tenant, run, actor_id, failure.error.reason_code)
             return False
         except Exception:
+            self._ensure_active(cancelled)
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=True)
             provider_failure = ProviderError(
                 self._provider_id(self._search), "PROVIDER_UNAVAILABLE", True
             )
@@ -247,6 +389,8 @@ class ResearchOrchestrator:
             self._record_error(run, provider_failure)
             self._fail_run(tenant, run, actor_id, provider_failure.reason_code)
             return False
+        self._ensure_active(cancelled)
+        self._circuit.record_success(tenant.tenant_id, provider_id)
         self._succeed_attempt(run)
         self._store_discovery(run, response)
         apply_transition(
@@ -328,7 +472,9 @@ class ResearchOrchestrator:
         actor_id: str,
         *,
         retry_only: bool,
+        cancelled: CancellationCheck,
     ) -> ResearchRun:
+        self._ensure_active(cancelled)
         policy = self._url_policy.for_domains(
             allowed_domains=run.request.allowed_domains,
             blocked_domains=run.request.blocked_domains,
@@ -347,9 +493,11 @@ class ResearchOrchestrator:
                     item.reason_codes = ("SOURCE_LIMIT_REACHED",)
         seen_hashes = {item.content_hash for item in run.snapshots}
         for source in candidates:
-            snapshot = await self._obtain_snapshot(tenant, run, source, policy)
+            self._ensure_active(cancelled)
+            snapshot = await self._obtain_snapshot(tenant, run, source, policy, cancelled)
             if snapshot is None:
                 continue
+            self._ensure_active(cancelled)
             if snapshot.content_hash in seen_hashes:
                 source.status = "DUPLICATE_CONTENT"
                 source.reason_codes = ("CONTENT_DUPLICATE",)
@@ -394,6 +542,7 @@ class ResearchOrchestrator:
                 )
             source.status = "EXTRACTED" if assessment.usable_for_decision else "REVIEW_REQUIRED"
 
+        self._ensure_active(cancelled)
         if not run.snapshots:
             self._fail_run(tenant, run, actor_id, "NO_CONTENT_EXTRACTED")
             return run
@@ -409,6 +558,7 @@ class ResearchOrchestrator:
         compiled = self._compiler.compile(run)
         handoff_failed = False
         if compiled:
+            self._ensure_active(cancelled)
             try:
                 updated = self._handoff.attach(
                     tenant,
@@ -429,6 +579,7 @@ class ResearchOrchestrator:
                     reason = "EVIDENCE_HANDOFF_REJECTED"
                 run.errors.append(ResearchError(reason))
                 handoff_failed = True
+        self._ensure_active(cancelled)
         partial_statuses = {"BLOCKED", "FAILED", "REJECTED", "REVIEW_REQUIRED"}
         partial = handoff_failed or any(item.status in partial_statuses for item in run.sources)
         apply_transition(
@@ -449,7 +600,9 @@ class ResearchOrchestrator:
         run: ResearchRun,
         source: SourceCandidate,
         policy: PublicUrlPolicy,
+        cancelled: CancellationCheck,
     ) -> SourceSnapshot | None:
+        self._ensure_active(cancelled)
         cached = None
         if not run.request.force_refresh:
             cached = self._repository.get_snapshot(
@@ -473,7 +626,17 @@ class ResearchOrchestrator:
                 source.source_id,
             )
             return None
+        provider_id = self._provider_id(self._extractor)
         try:
+            self._circuit.before_call(tenant.tenant_id, provider_id)
+        except ProviderCircuitOpen:
+            provider_failure = ProviderError(provider_id, "PROVIDER_CIRCUIT_OPEN", True)
+            source.status = "FAILED"
+            source.reason_codes = (provider_failure.reason_code,)
+            self._record_error(run, provider_failure, source.source_id)
+            return None
+        try:
+            self._ensure_active(cancelled)
             self._reserve(run, tenant, "extract", source.source_id)
         except ValueError as budget_failure:
             if str(budget_failure) != "BUDGET_EXCEEDED":
@@ -485,6 +648,7 @@ class ResearchOrchestrator:
             )
             return None
         try:
+            self._ensure_active(cancelled)
             extraction = await self._extractor.extract(
                 ExtractionRequest(
                     source.source_id,
@@ -495,6 +659,8 @@ class ResearchOrchestrator:
                 )
             )
         except Exception:
+            self._ensure_active(cancelled)
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=True)
             provider_failure = ProviderError(
                 self._provider_id(self._extractor), "PROVIDER_UNAVAILABLE", True
             )
@@ -503,13 +669,18 @@ class ResearchOrchestrator:
             source.reason_codes = (provider_failure.reason_code,)
             self._record_error(run, provider_failure, source.source_id)
             return None
+        self._ensure_active(cancelled)
         if extraction.error:
+            self._circuit.record_failure(
+                tenant.tenant_id, provider_id, retryable=extraction.error.retryable
+            )
             self._fail_attempt(run, extraction.error)
             source.status = "FAILED"
             source.reason_codes = (extraction.error.reason_code,)
             self._record_error(run, extraction.error, source.source_id)
             return None
         if extraction.content is None:
+            self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=False)
             provider_failure = ProviderError(
                 self._provider_id(self._extractor), "EMPTY_EXTRACTION_RESPONSE", False
             )
@@ -531,6 +702,7 @@ class ResearchOrchestrator:
             self._fail_attempt(run, normalization_failure)
             self._record_error(run, normalization_failure, source.source_id)
             return None
+        self._circuit.record_success(tenant.tenant_id, provider_id)
         self._succeed_attempt(run)
         return snapshot
 
@@ -623,6 +795,11 @@ class ResearchOrchestrator:
 
     def _time(self) -> str:
         return self._clock().astimezone(timezone.utc).isoformat()
+
+    @staticmethod
+    def _ensure_active(cancelled: CancellationCheck) -> None:
+        if cancelled():
+            raise ResearchExecutionCancelled("RESEARCH_EXECUTION_CANCELLED")
 
     @staticmethod
     def _source_id(run_id: str, url: str) -> str:

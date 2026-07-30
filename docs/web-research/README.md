@@ -17,3 +17,8 @@ authenticated request → Brave discovery → source selection → URL safety �
 See [architecture](architecture.md), [security](security.md),
 [provider configuration](provider-configuration.md), [evidence contract](evidence-contract.md),
 and [testing](testing.md).
+
+v0.5 additionally provides a bounded MCP adapter in the same Python distribution. It reuses this
+domain and exposes only `research_start`, `research_get`, `research_retry`, `research_cancel` and
+`research_handoff`; it is not a second Research implementation. See
+[MCP Web Research](../MCP-WEB-RESEARCH.md).

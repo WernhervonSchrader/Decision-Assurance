@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.example/schemas/mcp/research-tool-response.schema.json",
+  "title": "Decision Assurance MCP Research tool response",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "0.5.0"},
+    "ok": {"type": "boolean"},
+    "correlation_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "result": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "research_run_id": {"type": "string"},
+        "decision_file_id": {"type": "string"},
+        "status": {"type": "string"},
+        "mode": {"type": ["string", "null"], "enum": ["QUICK", "VERIFIED", "DEEP", null]},
+        "result_kind": {
+          "type": ["string", "null"],
+          "enum": [
+            "RESEARCH_ANSWER",
+            "EVIDENCE_BUNDLE",
+            "EVIDENCE_BUNDLE_WITH_CONFLICT_ANALYSIS",
+            null
+          ]
+        },
+        "created_at": {"type": "string"},
+        "updated_at": {"type": "string"},
+        "correlation_id": {"type": "string"},
+        "audit_event_ids": {"type": "array", "items": {"type": "string"}},
+        "source_count": {"type": "integer", "minimum": 0},
+        "evidence_count": {"type": "integer", "minimum": 0},
+        "provider_cost_units": {"type": "integer", "minimum": 0},
+        "compiled_decision_file_id": {"type": ["string", "null"]},
+        "requires_human_review": {"type": "boolean"},
+        "sources": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {"type": "string"},
+              "canonical_url": {"type": "string"},
+              "domain": {"type": "string"},
+              "title": {"type": "string"},
+              "rank": {"type": "integer", "minimum": 1},
+              "extraction_status": {"type": "string"},
+              "reason_codes": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": [
+              "source_id",
+              "canonical_url",
+              "domain",
+              "title",
+              "rank",
+              "extraction_status",
+              "reason_codes"
+            ]
+          }
+        },
+        "evidence_bundle_draft": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "evidence_id": {"type": "string"},
+              "claim_refs": {"type": "array", "items": {"type": "string"}},
+              "source_id": {"type": "string"},
+              "snapshot_id": {"type": "string"},
+              "content_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "freshness_status": {"type": "string"},
+              "conflict_status": {"type": "string"},
+              "usable_for_decision": {"type": "boolean"},
+              "requires_human_review": {"type": "boolean"},
+              "prompt_injection_suspected": {"type": "boolean"},
+              "reason_codes": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": [
+              "evidence_id",
+              "claim_refs",
+              "source_id",
+              "snapshot_id",
+              "content_hash",
+              "freshness_status",
+              "conflict_status",
+              "usable_for_decision",
+              "requires_human_review",
+              "prompt_injection_suspected",
+              "reason_codes"
+            ]
+          }
+        },
+        "conflict_evidence_ids": {"type": "array", "items": {"type": "string"}},
+        "error_codes": {"type": "array", "items": {"type": "string"}},
+        "job_id": {"type": ["string", "null"]},
+        "job_status": {"type": ["string", "null"]}
+      },
+      "required": [
+        "research_run_id",
+        "decision_file_id",
+        "status",
+        "mode",
+        "result_kind",
+        "created_at",
+        "updated_at",
+        "correlation_id",
+        "audit_event_ids",
+        "source_count",
+        "evidence_count",
+        "provider_cost_units",
+        "compiled_decision_file_id",
+        "requires_human_review",
+        "sources",
+        "evidence_bundle_draft",
+        "conflict_evidence_ids",
+        "error_codes",
+        "job_id",
+        "job_status"
+      ]
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {"type": "string", "minLength": 1, "maxLength": 64},
+        "message": {"type": "string", "minLength": 1, "maxLength": 300},
+        "reason_code": {"type": ["string", "null"], "minLength": 1, "maxLength": 128}
+      },
+      "required": ["code", "message", "reason_code"]
+    }
+  },
+  "required": ["schema_version", "ok", "correlation_id", "result", "error"],
+  "allOf": [
+    {
+      "if": {"properties": {"ok": {"const": true}}},
+      "then": {"properties": {"result": {"type": "object"}, "error": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"ok": {"const": false}}},
+      "then": {"properties": {"result": {"type": "null"}, "error": {"type": "object"}}}
+    }
+  ]
+}

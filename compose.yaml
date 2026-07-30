@@ -1,0 +1,172 @@
+name: decision-assurance-v05
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: decision_assurance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-bootstrap-password
+    secrets:
+      - postgres-bootstrap-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations/postgresql/roles.sql:/docker-entrypoint-initdb.d/001-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d decision_assurance"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      args:
+        DA_VERSION: "0.5.0"
+        DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+        DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
+    command: ["decision-assurance-migrate"]
+    entrypoint: []
+    environment:
+      DA_SECRET_DIRECTORY: /run/secrets
+      DA_DATABASE_DSN_SECRET_REF: database-dsn-migration
+      DA_DATABASE_ROLE: decision_assurance_migration
+    secrets:
+      - database-dsn-migration
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      args:
+        DA_VERSION: "0.5.0"
+        DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+        DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
+    environment:
+      DA_CONFIG_PATH: /app/config/production.example.json
+      DA_SECRET_DIRECTORY: /run/secrets
+      DA_DATABASE_ROLE: decision_assurance_application
+      DA_HOST: 0.0.0.0
+      DA_PORT: "8000"
+    secrets:
+      - source: database-dsn
+        target: decision-assurance-database-dsn
+      - decision-assurance-brave-api-key
+      - decision-assurance-firecrawl-api-key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        DA_VERSION: "0.5.0"
+        DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+        DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
+    environment:
+      DA_CONFIG_PATH: /app/config/production.example.json
+      DA_SECRET_DIRECTORY: /run/secrets
+      DA_DATABASE_ROLE: decision_assurance_worker
+      DA_WORKER_ID: compose-worker-1
+    secrets:
+      - source: database-dsn
+        target: decision-assurance-database-dsn
+      - decision-assurance-worker-database-dsn
+      - decision-assurance-brave-api-key
+      - decision-assurance-firecrawl-api-key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+      args:
+        DA_VERSION: "0.5.0"
+        DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+        DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
+    environment:
+      DA_CONFIG_PATH: /app/config/production.example.json
+      DA_SECRET_DIRECTORY: /run/secrets
+      DA_DATABASE_ROLE: decision_assurance_application
+      DA_MCP_HOST: 0.0.0.0
+      DA_MCP_PORT: "8001"
+      DA_MCP_ISSUER_URL: https://identity.example.com
+      DA_MCP_RESOURCE_SERVER_URL: http://localhost:8001
+      DA_MCP_ALLOWED_HOSTS: localhost:8001,127.0.0.1:8001
+    secrets:
+      - source: database-dsn
+        target: decision-assurance-database-dsn
+      - decision-assurance-brave-api-key
+      - decision-assurance-firecrawl-api-key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8001:8001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+volumes:
+  postgres-data:
+
+secrets:
+  postgres-bootstrap-password:
+    file: ./.secrets/postgres-bootstrap-password
+  database-dsn-migration:
+    file: ./.secrets/database-dsn-migration
+  database-dsn:
+    file: ./.secrets/database-dsn
+  decision-assurance-worker-database-dsn:
+    file: ./.secrets/decision-assurance-worker-database-dsn
+  decision-assurance-brave-api-key:
+    file: ./.secrets/decision-assurance-brave-api-key
+  decision-assurance-firecrawl-api-key:
+    file: ./.secrets/decision-assurance-firecrawl-api-key

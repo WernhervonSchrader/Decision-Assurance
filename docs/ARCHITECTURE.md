@@ -56,3 +56,26 @@ Web Research owns provider-neutral contracts, lifecycle, ports, policies, audit 
 tables in the shared database. Brave discovers; Firecrawl extracts; the compiler alone translates
 eligible candidates to Decision evidence. Only the existing engine evaluates that Decision File.
 See [the detailed architecture](web-research/architecture.md) and ADR-003.
+
+# Production Foundation v0.5
+
+The production profile separates API and Worker processes over one PostgreSQL database. OIDC
+establishes the tenant; repositories set transaction-local tenant context and PostgreSQL forces RLS.
+The Worker has a queue-only cross-tenant role and uses a tenant-scoped application connection for
+domain work. Migration credentials are unavailable to both runtimes.
+
+Configuration contains secret references only. Provider calls occur only in the Worker and pass an
+exact HTTPS egress policy. Logs contain allowlisted metadata, metrics use bounded labels, and
+readiness checks material dependencies. See [Production Architecture](PRODUCTION-ARCHITECTURE.md).
+
+Running jobs renew their lease independently of provider latency. Lease loss and logical
+cancellation are propagated into the Research orchestrator and checked at each provider and
+persistence boundary. The MCP production transport requeues the existing terminal job and does not
+execute retry providers inline.
+
+# Bounded MCP Web Research v0.5
+
+ADR-005 adds `decision_assurance.mcp` as a separate Streamable-HTTP process in the same distribution.
+The transport authenticates and delegates to one application service; the service reuses existing
+Decision/Research repositories, RBAC, submission/orchestration, compiler and handoff ports. It owns
+no provider logic and exposes exactly five bounded tools. See [MCP Web Research](MCP-WEB-RESEARCH.md).

@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.5.0",
+  "profile_id": "sales-quote-review-controlled-pilot",
+  "use_case": "Sales Quote Review",
+  "maximum_users": 25,
+  "maximum_tenants": 3,
+  "maximum_research_budget": 100,
+  "maximum_research_concurrency": 2,
+  "supported_locales": ["de", "en"],
+  "supported_providers": ["brave-search", "firecrawl"],
+  "allowed_data_classes": ["business-contact", "quote", "public-web-evidence"],
+  "retention_days": 30,
+  "feature_flags": ["controlled-intake", "async-web-research", "human-approval"],
+  "escalation_process": "Stop automated processing and notify the pilot owner and security contact.",
+  "stop_criteria": [
+    "tenant-isolation-failure",
+    "unbounded-provider-cost",
+    "audit-integrity-failure",
+    "secret-disclosure"
+  ],
+  "human_approval_required": true
+}

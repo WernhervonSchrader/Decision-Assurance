@@ -25,7 +25,11 @@ from decision_assurance.web_research.contracts import (
 )
 from decision_assurance.web_research.evidence_policy import EvidencePolicy
 from decision_assurance.web_research.normalization import EvidenceNormalizer
-from decision_assurance.web_research.orchestrator import ResearchOrchestrator, ResearchPolicy
+from decision_assurance.web_research.orchestrator import (
+    ResearchExecutionCancelled,
+    ResearchOrchestrator,
+    ResearchPolicy,
+)
 from decision_assurance.web_research.providers.errors import ProviderRequestFailed
 from decision_assurance.web_research.repository import SqliteResearchRepository
 from decision_assurance.web_research.url_policy import PublicUrlPolicy
@@ -81,6 +85,17 @@ class SequencedExtractor:
         self.calls.append(request.url)
         values = self.responses[request.url]
         return values.pop(0) if len(values) > 1 else values[0]
+
+
+class CancellingExtractor(SequencedExtractor):
+    def __init__(self, responses, cancel):  # type: ignore[no-untyped-def]
+        super().__init__(responses)
+        self.cancel = cancel
+
+    async def extract(self, request):  # type: ignore[no-untyped-def]
+        result = await super().extract(request)
+        self.cancel()
+        return result
 
 
 def response_for(url: str, text: str) -> ExtractionResponse:
@@ -293,3 +308,53 @@ async def test_cancel_is_idempotent_and_terminal_runs_cannot_be_cancelled(tmp_pa
     assert len(replay.audit_events) == len(cancelled.audit_events)
     with pytest.raises(ValueError, match="RESEARCH_TRANSITION_NOT_ALLOWED"):
         await orchestrator.retry(tenant, "actor-2", failed.research_run_id, "retry-after-cancel")
+
+
+@pytest.mark.anyio
+async def test_running_cancel_stops_before_next_provider_or_persistence(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    cancelled = [False]
+    cancel_hook = [lambda: None]
+    extractor = CancellingExtractor(
+        {
+            "https://one.example/rule": [response_for("https://one.example/rule", "One " * 100)],
+            "https://two.example/rule": [response_for("https://two.example/rule", "Two " * 100)],
+        },
+        lambda: cancel_hook[0](),
+    )
+    tenant, document, _, repository, orchestrator, request = setup(
+        tmp_path, Search(discovery()), extractor
+    )
+    prepared = orchestrator.prepare(
+        tenant,
+        "actor-1",
+        request,
+        payload_hash(document),
+        "correlation-create",
+    )
+
+    def cancel_running() -> None:
+        if cancelled[0]:
+            return
+        cancelled[0] = True
+        orchestrator.cancel(
+            tenant,
+            "actor-2",
+            prepared.research_run_id,
+            "correlation-cancel",
+        )
+
+    cancel_hook[0] = cancel_running
+    with pytest.raises(ResearchExecutionCancelled):
+        await orchestrator.execute(
+            tenant,
+            "actor-1",
+            request,
+            payload_hash(document),
+            "correlation-create",
+            cancelled=lambda: cancelled[0],
+        )
+
+    assert extractor.calls == ["https://one.example/rule"]
+    stored = repository.get(tenant, prepared.research_run_id)
+    assert stored is not None and stored.status is ResearchStatus.CANCELLED
+    assert stored.snapshots == [] and stored.evidence == []

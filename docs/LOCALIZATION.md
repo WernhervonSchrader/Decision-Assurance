@@ -14,3 +14,7 @@ Research keeps interface language (`Accept-Language`), query locale, preferred s
 detected content language and any future tenant default separate. DE/EN messages are localized;
 stored reason codes, provider classifications, audit data and evidence statuses remain neutral.
 
+The v0.5 pilot verifies German quote Intake, an English Research source, German error output and
+English fallback for unsupported interface languages. PostgreSQL, jobs and release evidence retain
+locale-neutral codes and RFC 3339 UTC timestamps. There is no browser UI in this milestone.
+

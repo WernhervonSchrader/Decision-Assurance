@@ -15,18 +15,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install --upgrade "pip>=26.1.2"
-      - run: python -m pip install -e ".[dev]"
-      - run: ruff format --check src tests
-      - run: ruff check src tests
-      - run: mypy src
-      - run: python -m pytest -q
-      - run: decision-assurance benchmark tests/gold/manifest.json
-      - run: python -m pytest tests/intake/benchmark -q
-      - run: bandit -q -r src -s B105
-      - run: pip-audit
-      - run: python -m build
-      - run: decision-assurance-openapi /tmp/openapi-v0.4.json && diff -u docs/openapi-v0.4.json /tmp/openapi-v0.4.json
+      - name: Upgrade package installer
+        run: python -m pip install --upgrade "pip>=26.1.2"
+      - name: Install project
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff format
+        run: ruff format --check src tests
+      - name: Ruff lint
+        run: ruff check src tests
+      - name: Mypy strict
+        run: mypy src
+      - name: Non-PostgreSQL test suite
+        run: python -m pytest -q -m "not postgresql"
+      - name: Gold benchmark
+        run: decision-assurance benchmark tests/gold/manifest.json
+      - name: Intake benchmark
+        run: python -m pytest tests/intake/benchmark -q
+      - name: Bandit static analysis
+        run: bandit -q -r src -s B105
+      - name: Dependency vulnerability audit
+        run: pip-audit
+      - name: Build Python packages
+        run: python -m build
+      - name: OpenAPI v0.4 contract
+        run: decision-assurance-openapi /tmp/openapi-v0.4.json && diff -u docs/openapi-v0.4.json /tmp/openapi-v0.4.json
+      - name: OpenAPI v0.5 contract
+        run: decision-assurance-openapi --api-version 0.5.0 /tmp/openapi-v0.5.json && diff -u docs/openapi-v0.5.json /tmp/openapi-v0.5.json
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -36,12 +50,209 @@ jobs:
             benchmarks/intake
             .pytest_cache
 
+  postgresql:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: decision_assurance
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d decision_assurance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DA_TEST_POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/decision_assurance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Upgrade package installer
+        run: python -m pip install --upgrade "pip>=26.1.2"
+      - name: Install project
+        run: python -m pip install -e ".[dev]"
+      - name: PostgreSQL integration and E2E
+        run: python -m pytest -m postgresql -q
+
+  restore-verification:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: decision_assurance
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d decision_assurance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade "pip>=26.1.2"
+      - run: python -m pip install -e ".[dev]"
+      - name: Install roles and schema
+        run: |
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -f migrations/postgresql/roles.sql
+          python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://postgres:postgres@localhost:5432/decision_assurance'))).migrate()"
+      - name: Backup and restore into a fresh database
+        run: |
+          pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner --no-privileges --file=/tmp/decision-assurance.dump
+          createdb -h localhost -U postgres decision_assurance_restore
+          pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --no-privileges --exit-on-error /tmp/decision-assurance.dump
+          DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restore-verification
+          path: /tmp/restore-verification.json
+          if-no-files-found: warn
+
+  container-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production images
+        env:
+          BUILD_TIMESTAMP: "2026-07-30T00:00:00Z"
+        run: |
+          docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.api -t decision-assurance-api:"$GITHUB_SHA" .
+          docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.worker -t decision-assurance-worker:"$GITHUB_SHA" .
+          docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.mcp -t decision-assurance-mcp:"$GITHUB_SHA" .
+      - name: Smoke immutable non-root runtimes
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-api:"$GITHUB_SHA")" = "10001:10001"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-worker:"$GITHUB_SHA")" = "10001:10001"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-mcp:"$GITHUB_SHA")" = "10001:10001"
+          docker run --rm --entrypoint python decision-assurance-api:"$GITHUB_SHA" -c "import decision_assurance; assert decision_assurance.__version__ == '0.5.0'"
+          docker run --rm --entrypoint python decision-assurance-worker:"$GITHUB_SHA" -c "from decision_assurance.api.worker_runtime import load_worker; assert callable(load_worker)"
+          docker run --rm --entrypoint python decision-assurance-mcp:"$GITHUB_SHA" -c "from decision_assurance.mcp.runtime import load_mcp_runtime; assert callable(load_mcp_runtime)"
+      - name: Scan API image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-api:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan Worker image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-worker:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan MCP image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-mcp:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Create API CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-api:${{ github.sha }}
+          format: cyclonedx
+          output: api.sbom.cdx.json
+          exit-code: "0"
+      - name: Create Worker CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-worker:${{ github.sha }}
+          format: cyclonedx
+          output: worker.sbom.cdx.json
+          exit-code: "0"
+      - name: Create MCP CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-mcp:${{ github.sha }}
+          format: cyclonedx
+          output: mcp.sbom.cdx.json
+          exit-code: "0"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: supply-chain-evidence
+          path: "*.sbom.cdx.json"
+          if-no-files-found: warn
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-evidence:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: [verify, postgresql, restore-verification, container-security, secret-scan]
+    env:
+      DA_EVIDENCE_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade "pip>=26.1.2"
+      - run: python -m pip install -e ".[dev]"
+      - uses: actions/download-artifact@v4
+        with:
+          name: supply-chain-evidence
+          path: release-artifacts/sbom
+      - uses: actions/download-artifact@v4
+        with:
+          name: restore-verification
+          path: release-artifacts/restore
+      - name: Build and checksum release artifacts
+        run: |
+          python -m build --outdir release-artifacts/packages
+          python -m scripts.release.checksums release-artifacts release-evidence/SHA256SUMS
+      - name: Fetch commit-bound workflow evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > release-evidence/workflow-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > release-evidence/workflow-jobs.json
+      - name: Compute release verification report
+        run: |
+          python -m scripts.release.ci_gate_input release-evidence/gate-results.json \
+            --workflow-run release-evidence/workflow-run.json \
+            --workflow-jobs release-evidence/workflow-jobs.json \
+            --artifact-root release-artifacts \
+            --checksums release-evidence/SHA256SUMS \
+            --commit-sha "$DA_EVIDENCE_COMMIT_SHA" \
+            --repository "$GITHUB_REPOSITORY"
+          python -m json.tool release-evidence/gate-results.json
+          python -m scripts.release.generate_report --input release-evidence/gate-results.json --output release-evidence/release-verification.json --commit-sha "$DA_EVIDENCE_COMMIT_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-${{ env.DA_EVIDENCE_COMMIT_SHA }}
+          path: |
+            release-artifacts
+            release-evidence
+          if-no-files-found: error

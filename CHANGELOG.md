@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 — Public Draft
+
+- Added a bounded, separately runnable MCP Web Research adapter with exactly five authenticated,
+  tenant-scoped tools, central mode/server limits, stable structured outputs and conservative handoff.
+- Added public/packaged MCP schemas, protocol/RBAC/isolation/security E2E coverage and a non-root MCP
+  image/Compose process.
+- Added the validated `conduct-assured-web-research` personal-skill source template for later,
+  separately approved ChatGPT Work installation.
+- Hardened Worker execution with periodic current-time lease heartbeats and fail-closed cancellation
+  checks at every provider and persistence boundary.
+- Routed production MCP retries through the durable queue and added atomic MCP idempotency
+  reservation for concurrent duplicate requests.
+- Bound release gates to the current GitHub Actions run, commit, required successful steps and
+  checksummed package/SBOM/restore artifacts instead of preassigning `PASS`.
+
+- Added PostgreSQL adapters, tenant-composite keys, forced RLS, checksummed migrations and
+  least-privilege runtime roles.
+- Added production OIDC/JWKS, strict claim mapping and human-only approval controls.
+- Added durable asynchronous Research jobs with atomic submission, leases, retries, cancellation,
+  dead-letter state, concurrency limits and stale-lease recovery.
+- Added typed production configuration, external secrets, exact HTTPS egress, redacted telemetry,
+  readiness and immutable build metadata.
+- Added non-root images, backup/restore verification, SBOM and critical vulnerability scanning,
+  checksums and computed release governance.
+- Added a controlled two-tenant Sales Quote Review pilot with local OIDC and fake providers.
+
 ## 0.4.0 — Public Draft
 
 - Added a provider-neutral Web Research domain with isolated lifecycle, ports, policies and tables.

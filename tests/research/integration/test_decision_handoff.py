@@ -35,6 +35,7 @@ def evidence() -> tuple[DecisionEvidence, ...]:
             status="UNVERIFIED",
             observed_at="2026-07-29T00:00:00+00:00",
             content_hash="sha256:" + "a" * 64,
+            correlation_id="correlation-1",
         ),
     )
 
@@ -95,6 +96,7 @@ def test_handoff_is_draft_claim_and_cas_bound_and_never_verifies(tmp_path) -> No
                 status="UNVERIFIED",
                 observed_at="2026-07-29T00:00:00+00:00",
                 content_hash="sha256:" + "b" * 64,
+                correlation_id="correlation-1",
             ),
         )
         handoff.attach(

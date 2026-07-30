@@ -14,6 +14,14 @@ class ResearchIdempotencyConflict(ValueError):
     pass
 
 
+class ResearchIdempotencyInProgress(RuntimeError):
+    pass
+
+
+IDEMPOTENCY_IN_PROGRESS_STATUS = 102
+IDEMPOTENCY_IN_PROGRESS_RESPONSE = {"state": "IN_PROGRESS"}
+
+
 class SqliteResearchRepository:
     """Research-owned SQLite tables; every relationship is tenant scoped."""
 
@@ -279,6 +287,96 @@ class SqliteResearchRepository:
                     request_hash,
                     status_code,
                     self._serialize(response),
+                ),
+            )
+
+    def reserve_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> tuple[int, dict[str, Any]] | None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "INSERT OR IGNORE INTO research_idempotency "
+                "(tenant_id,actor_id,operation,idempotency_key,request_hash,status_code,response_json) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
+                    self._serialize(IDEMPOTENCY_IN_PROGRESS_RESPONSE),
+                ),
+            )
+            row = connection.execute(
+                "SELECT request_hash,status_code,response_json FROM research_idempotency "
+                "WHERE tenant_id=? AND actor_id=? AND operation=? AND idempotency_key=?",
+                (tenant.tenant_id, actor_id, operation, key),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("IDEMPOTENCY_RESERVATION_FAILED")
+        if row["request_hash"] != request_hash:
+            raise ResearchIdempotencyConflict("IDEMPOTENCY_KEY_REUSED")
+        if cursor.rowcount == 1:
+            return None
+        if int(row["status_code"]) == IDEMPOTENCY_IN_PROGRESS_STATUS:
+            raise ResearchIdempotencyInProgress("IDEMPOTENCY_REQUEST_IN_PROGRESS")
+        return int(row["status_code"]), cast(dict[str, Any], json.loads(row["response_json"]))
+
+    def complete_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+        status_code: int,
+        response: dict[str, Any],
+    ) -> None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE research_idempotency SET status_code=?,response_json=? "
+                "WHERE tenant_id=? AND actor_id=? AND operation=? AND idempotency_key=? "
+                "AND request_hash=? AND status_code=?",
+                (
+                    status_code,
+                    self._serialize(response),
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("IDEMPOTENCY_COMPLETION_FAILED")
+
+    def release_idempotency(
+        self,
+        tenant: TenantContext,
+        actor_id: str,
+        operation: str,
+        key: str,
+        request_hash: str,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM research_idempotency "
+                "WHERE tenant_id=? AND actor_id=? AND operation=? AND idempotency_key=? "
+                "AND request_hash=? AND status_code=?",
+                (
+                    tenant.tenant_id,
+                    actor_id,
+                    operation,
+                    key,
+                    request_hash,
+                    IDEMPOTENCY_IN_PROGRESS_STATUS,
                 ),
             )
 

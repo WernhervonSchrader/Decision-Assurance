@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.example/schemas/production/research-job.schema.json",
+  "title": "Research Job v0.5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "tenant_id", "research_run_id", "correlation_id", "payload_hash", "status", "attempt_count", "available_at", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": {"const": "0.5.0"},
+    "job_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "research_run_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "correlation_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "payload_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "status": {"enum": ["QUEUED", "RUNNING", "RETRY_WAIT", "COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DEAD_LETTER"]},
+    "attempt_count": {"type": "integer", "minimum": 0, "maximum": 20},
+    "available_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "lease_expires_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

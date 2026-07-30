@@ -13,7 +13,9 @@ class Role(str, Enum):
     VALIDATOR = "VALIDATOR"
     APPROVER = "APPROVER"
     AUDITOR = "AUDITOR"
+    REVIEWER = "REVIEWER"
     TENANT_ADMIN = "TENANT_ADMIN"
+    SYSTEM_ADMINISTRATOR = "SYSTEM_ADMINISTRATOR"
 
 
 class ActorKind(str, Enum):
@@ -28,10 +30,16 @@ class Identity:
     tenant: TenantContext
     role: Role
     kind: ActorKind
+    organization_id: str | None = None
+    groups: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.actor_id.strip():
             raise ValueError("INVALID_ACTOR_ID")
+        if self.organization_id is not None and not self.organization_id.strip():
+            raise ValueError("INVALID_ORGANIZATION_ID")
+        if any(not item.strip() for item in self.groups):
+            raise ValueError("INVALID_IDENTITY_GROUP")
 
 
 class Authenticator(Protocol):

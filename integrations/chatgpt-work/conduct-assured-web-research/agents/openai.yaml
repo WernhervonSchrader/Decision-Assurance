@@ -1,0 +1,4 @@
+interface:
+  display_name: "Conduct Assured Web Research"
+  short_description: "Bounded web research for Decision Assurance evidence"
+  default_prompt: "Use $conduct-assured-web-research to build a source-linked, conservative Decision Assurance evidence bundle."

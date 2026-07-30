@@ -18,3 +18,8 @@ run. `force_refresh` additionally requires an administrator-authorized refresh g
 
 There is no queue or worker in v0.4. Provider calls execute inside the API request. The ports and
 tenant-owned tables permit later extraction to a separately deployed service.
+
+The v0.5 production profile now supplies a PostgreSQL-backed Worker. ADR-005 adds an MCP process in
+the same distribution; it maps five tool contracts to existing application/domain services and does
+not call Brave or Firecrawl directly. Production `research_start` submits a durable job. The MCP
+transport and personal skill contain no Research business rules.

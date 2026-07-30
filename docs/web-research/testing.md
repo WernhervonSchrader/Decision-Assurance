@@ -9,3 +9,8 @@ DRAFT-only handoff, two tenants, DE/EN, schema parity and eight approved API E2E
 CI runs pytest, both existing benchmarks, Ruff, strict mypy, Bandit, `pip-audit`, package build,
 schema/migration checks, secret scanning and deterministic OpenAPI v0.4 drift detection. Real
 provider-account testing is explicit operator-owned work outside the standard suite.
+
+MCP adapter tests additionally cover official protocol discovery and bearer enforcement, strict
+tool input/output contracts, role/tenant attacks, server-limit precedence, mutation replay, DE
+Verified handoff, EN Deep conflicts and prompt-injection non-handoff. They use the same fake provider
+ports and no live keys.

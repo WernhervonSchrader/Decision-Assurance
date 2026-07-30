@@ -11,7 +11,9 @@ from ...repositories.protocols import DecisionRepository
 from ...web_research.contracts import ResearchRun
 from ...web_research.lifecycle import ResearchTransitionRejected
 from ...web_research.orchestrator import ResearchOrchestrator
-from ...web_research.repository import ResearchIdempotencyConflict, SqliteResearchRepository
+from ...web_research.ports import ResearchRepositoryPort
+from ...web_research.repository import ResearchIdempotencyConflict
+from ...web_research.service import ResearchSubmissionService
 from ..dependencies import get_identity, require, require_idempotency_key
 from ..errors import ApiError
 from ..research_schemas import EmptyResearchAction, ResearchRequestBody
@@ -19,12 +21,19 @@ from ..research_schemas import EmptyResearchAction, ResearchRequestBody
 router = APIRouter(prefix="/v1/research-runs", tags=["research"])
 
 
-def _research(request: Request) -> SqliteResearchRepository:
-    return cast(SqliteResearchRepository, request.app.state.research_repository)
+def _research(request: Request) -> ResearchRepositoryPort:
+    return cast(ResearchRepositoryPort, request.app.state.research_repository)
 
 
 def _orchestrator(request: Request) -> ResearchOrchestrator:
     return cast(ResearchOrchestrator, request.app.state.research_orchestrator)
+
+
+def _submission(request: Request) -> ResearchSubmissionService | None:
+    return cast(
+        ResearchSubmissionService | None,
+        getattr(request.app.state, "research_submission_service", None),
+    )
 
 
 def _decisions(request: Request) -> DecisionRepository:
@@ -122,18 +131,35 @@ async def create_research_run(
     if not set(body.claim_refs).issubset(claim_ids):
         raise ApiError(422, "INVALID_REQUEST", {"reason_code": "CLAIM_REFERENCE_NOT_FOUND"})
     try:
-        run = await _orchestrator(request).execute(
-            identity.tenant,
-            identity.actor_id,
-            body.to_contract(),
-            payload_hash(document),
-            request.state.correlation_id,
-            refresh_generation=body.refresh_generation,
-        )
+        submission = _submission(request)
+        if submission is not None:
+            queued = submission.submit(
+                identity.tenant,
+                identity.actor_id,
+                body.to_contract(),
+                payload_hash(document),
+                request.state.correlation_id,
+                refresh_generation=body.refresh_generation,
+            )
+            run = queued.run
+        else:
+            run = await _orchestrator(request).execute(
+                identity.tenant,
+                identity.actor_id,
+                body.to_contract(),
+                payload_hash(document),
+                request.state.correlation_id,
+                refresh_generation=body.refresh_generation,
+            )
     except ValueError as error:
         raise ApiError(422, "INVALID_REQUEST", {"reason_code": str(error)}) from error
     result = _summary(run)
-    _finish(request, identity, operation, key, digest, 201, result)
+    status = 202 if submission is not None else 201
+    if submission is not None:
+        result["job_id"] = queued.job.job_id
+        result["job_status"] = queued.job.status.value
+        response.status_code = status
+    _finish(request, identity, operation, key, digest, status, result)
     return result
 
 
