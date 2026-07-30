@@ -34,6 +34,16 @@
     "research-extract.eu.example",
     "research-search.eu.example"
   ],
+  "provider_egress": [
+    {
+      "host": "research-extract.eu.example",
+      "processing_location": "DE"
+    },
+    {
+      "host": "research-search.eu.example",
+      "processing_location": "DE"
+    }
+  ],
   "worker": {
     "max_attempts": 5,
     "lease_seconds": 60,

@@ -12,11 +12,12 @@ tenant-owned persisted state.
   `src/decision_assurance/production/config.py`,
   `tests/production/configuration/test_operating_profiles.py`.
 - Interfaces: `OperatingMode`; `DataResidencyPolicy`; `RuntimeConfig.operating_mode` and
-  `RuntimeConfig.data_residency`.
+  `RuntimeConfig.data_residency`; `ProviderEgress`; `RuntimeConfig.validate_provider_urls`.
 - Data: immutable tuples for storage, processing, backup, support and external processing country
   codes; HTTPS evidence references.
 - First tests: valid local/EU profiles; missing mode; non-EU location; incomplete location set;
-  remote local support; invalid evidence URL; unknown fields.
+  remote local support; invalid evidence URL; unknown fields; provider location/allowlist/runtime URL
+  mismatch; tenant-specific provider configuration.
 - Implementation: parse strict mappings, normalize country codes to uppercase and validate by mode.
 - Commands: `python -m pytest tests/production/configuration/test_operating_profiles.py -q`;
   `ruff check src tests`; `mypy src`.
@@ -30,8 +31,8 @@ tenant-owned persisted state.
   `tests/production/e2e/test_operating_profiles.py`, `.env.example`.
 - Interfaces: existing `load_runtime`; fake external secret and OIDC adapters at test boundary.
 - Tests: load each repository fixture, construct production app, assert PostgreSQL/OIDC/shared
-  modules, run authenticated DE/EN health/error probes where applicable, and prove tenant/mode cannot
-  be supplied by request input.
+  modules, run authenticated DE/EN health/error probes where applicable, prove tenant/mode cannot be
+  supplied by request input, and prove residency conflicts fail before secrets/adapters.
 - Commands: targeted E2E plus `pytest -m "not postgresql" -q`.
 - Expected: both fixtures construct the same runtime types; unsafe variants fail before construction.
 - Commit: `feat(deployment): add local and EU managed profiles`.
@@ -71,4 +72,3 @@ tenant-owned persisted state.
 - Push `feature/operating-profiles-v0.6` with tracking and open a Draft PR against `main`.
 - PR body: what/why, local and EU-managed impact, threat controls, test evidence, operational limits.
 - Do not mark ready, merge or deploy in this plan.
-

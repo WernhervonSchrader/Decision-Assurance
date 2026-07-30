@@ -16,7 +16,7 @@ def _base(mode: str) -> dict[str, object]:
             "processing_locations": ["local"],
             "backup_locations": ["local"],
             "support_access_locations": ["local"],
-            "external_processing_locations": [],
+            "external_processing_locations": ["local"],
             "evidence_refs": [],
         }
     else:
@@ -47,6 +47,12 @@ def _base(mode: str) -> dict[str, object]:
             "algorithms": ["RS256"],
         },
         "egress_allowed_hosts": ["provider.example"],
+        "provider_egress": [
+            {
+                "host": "provider.example",
+                "processing_location": "local" if mode == "local" else "DE",
+            }
+        ],
         "worker": {},
     }
 
@@ -122,3 +128,87 @@ def test_operating_profile_rejects_unknown_fields() -> None:
     with pytest.raises(ValueError, match="UNKNOWN_DATA_RESIDENCY_FIELD"):
         RuntimeConfig.from_mapping(raw)
 
+
+def test_local_profile_accepts_only_local_provider_processing() -> None:
+    config = RuntimeConfig.from_mapping(_base("local"))
+
+    config.validate_provider_urls(("https://provider.example/search",))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        (
+            lambda raw: raw["data_residency"].update(  # type: ignore[union-attr]
+                {"external_processing_locations": []}
+            ),
+            "PROVIDER_PROCESSING_LOCATION_UNDECLARED",
+        ),
+        (
+            lambda raw: raw["provider_egress"][0].update(  # type: ignore[index,union-attr]
+                {"processing_location": "US"}
+            ),
+            "LOCAL_PROVIDER_PROCESSING_REQUIRED",
+        ),
+        (
+            lambda raw: raw.update({"egress_allowed_hosts": ["other.example"]}),
+            "PROVIDER_EGRESS_ALLOWLIST_MISMATCH",
+        ),
+        (
+            lambda raw: raw["provider_egress"][0].update(  # type: ignore[index,union-attr]
+                {"tenant_id": "tenant-a"}
+            ),
+            "UNKNOWN_PROVIDER_EGRESS_FIELD",
+        ),
+    ],
+)
+def test_local_profile_rejects_undeclared_external_or_tenant_specific_egress(
+    mutation,
+    reason: str,  # type: ignore[no-untyped-def]
+) -> None:
+    raw = deepcopy(_base("local"))
+    mutation(raw)
+
+    with pytest.raises(ValueError, match=reason):
+        RuntimeConfig.from_mapping(raw)
+
+
+def test_eu_managed_accepts_declared_eu_provider() -> None:
+    config = RuntimeConfig.from_mapping(_base("eu-managed"))
+
+    config.validate_provider_urls(("https://provider.example/search",))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        (
+            lambda raw: raw["provider_egress"][0].update(  # type: ignore[index,union-attr]
+                {"processing_location": "US"}
+            ),
+            "EU_PROVIDER_PROCESSING_REQUIRED",
+        ),
+        (
+            lambda raw: raw["provider_egress"][0].update(  # type: ignore[index,union-attr]
+                {"processing_location": "IE"}
+            ),
+            "PROVIDER_PROCESSING_LOCATION_UNDECLARED",
+        ),
+    ],
+)
+def test_eu_managed_rejects_provider_outside_allowed_or_declared_regions(
+    mutation,
+    reason: str,  # type: ignore[no-untyped-def]
+) -> None:
+    raw = deepcopy(_base("eu-managed"))
+    mutation(raw)
+
+    with pytest.raises(ValueError, match=reason):
+        RuntimeConfig.from_mapping(raw)
+
+
+def test_runtime_rejects_actual_provider_url_not_declared_by_profile() -> None:
+    config = RuntimeConfig.from_mapping(_base("eu-managed"))
+
+    with pytest.raises(ValueError, match="PROVIDER_EGRESS_UNDECLARED"):
+        config.validate_provider_urls(("https://undeclared.example/search",))

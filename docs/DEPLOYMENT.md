@@ -1,5 +1,74 @@
 # Deployment
 
+## Supported production paths
+
+Use one repository profile as a reviewed starting point:
+
+- `config/deployment/local.example.json`: self-managed PostgreSQL, OIDC, secrets, backup and support
+  access within the operator's local boundary. Override both Research base URLs to hosts on the
+  declared allowlist. This is distinct from the SQLite development runtime.
+- `config/deployment/eu-managed.example.json`: managed services with declared EU member-country
+  locations for storage, processing, backup, support and external processing. Replace the example
+  HTTPS evidence references with owned, review-dated residency and subprocessor evidence.
+
+Both modes use the same images and database schema. Configuration is deployment authority and must
+be delivered read-only. A missing/unknown mode, missing location category, non-EU managed location,
+remote local core location or missing EU evidence prevents startup. Profile acceptance is not GDPR
+certification or proof of a provider's actual processing location.
+
+| Control | `local` | `eu-managed` |
+| --- | --- | --- |
+| Data and application processing | storage, processing and backups are exactly `local` | every storage, processing and backup location is an EU ISO country code |
+| Provider egress | each allowlisted host is self-hosted in and declared as `local` | each allowlisted host has one declared EU processing country and HTTPS evidence |
+| Identity | production OIDC with exact HTTPS issuer/audience/JWKS and signed tenant/role claims inside the operator boundary | the same OIDC contract, with identity/support locations included in the EU deployment review |
+| PostgreSQL | PostgreSQL 16, forced RLS, separate migration/application/Worker credentials, encrypted local storage and backups | the same schema and roles on an EU-located managed service with encrypted backups/PITR |
+| Retention and deletion | operator applies the approved tenant schedule to live data, jobs, audit and local backups | operator applies the same tenant schedule to primary, replica, backup and provider copies in the declared countries |
+| Export and restore | tenant-scoped export to an access-controlled local destination; restore only to a fresh local target | tenant-scoped export and fresh-target restore remain inside declared EU locations |
+| Incident response | isolate local egress, revoke local credentials, preserve local evidence and test two-tenant RLS | additionally block non-EU routes/support, preserve provider evidence and assess cross-border exposure |
+
+`provider_egress` is mandatory for production and staging. Each entry contains exactly `host` and
+`processing_location`. Its host set must equal `egress_allowed_hosts`, and the effective
+`BRAVE_SEARCH_BASE_URL` and `FIRECRAWL_BASE_URL` host set must equal the declaration. Do not label a
+public SaaS hostname `local`; operate it locally or select a profile and region backed by reviewed
+provider evidence. A mismatch fails before secrets, database, OIDC or provider adapters initialize.
+
+Before rollout, record configuration hash, image digest, tenant set, OIDC issuer, secret owner,
+database/backup locations, support countries, external processor countries, evidence owner/review
+date, retention policy and rollback target. Deployment order is migration -> API/Worker/MCP ->
+readiness -> two-tenant DE/EN smoke tests -> traffic. Rollback uses prior compatible images and the
+same operating profile; it may not silently change jurisdiction.
+
+## Retention, tenant export and deletion gate
+
+Before admitting personal or regulated data, the deployment owner must approve a per-tenant record
+covering data classes, legal basis, live retention, audit retention, provider retention, backup
+expiry, legal hold, export authorization and deletion verification. The current application has no
+general tenant export/deletion API. Until a reviewed, tenant-scoped and audited operational workflow
+exists, any request requiring automated export, erasure, suspension or legal hold is unsupported and
+the production admission decision is `BLOCK`.
+
+An approved manual procedure must use a dedicated least-privilege role, establish exactly one tenant
+context, produce an encrypted manifest with counts and hashes, require two-person approval, and
+verify that no other tenant is present. Deletion must cover primary rows, jobs, cached evidence,
+provider-held copies and backup expiry; audit records are retained or pseudonymized only under the
+approved legal schedule. Never delete shared backups in place. Record the deletion tombstone and
+allow the immutable backup to expire, preventing restoration after the erasure deadline through a
+documented suppression/re-deletion control.
+
+## Profile change and incident gate
+
+Operating mode is immutable for a running release. A mode, country, provider-host or processing-site
+change is a new reviewed deployment: update evidence, rotate affected credentials, run configuration
+contracts, two-tenant DE/EN smoke tests and a fresh restore drill before traffic. Runtime fallback to
+another mode, region, SQLite, static identity, environment secrets or undeclared provider is
+forbidden.
+
+On suspected residency drift, disable Research submission and provider egress, keep the API out of
+readiness when a core dependency is affected, preserve configuration hashes and provider/access
+logs, revoke exposed credentials, identify tenants and data classes, and follow the notification and
+regulatory assessment owned by the deployment operator. Resume only after corrected configuration,
+evidence review and all release gates pass.
+
 ## Local reference profile
 
 The loopback-only SQLite/static-token profile remains for deterministic development and tests:

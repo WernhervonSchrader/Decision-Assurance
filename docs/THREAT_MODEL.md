@@ -18,10 +18,32 @@ future identity provider.
 | Oversized/DoS input | high / medium | body, page and string limits; timeouts at deployment boundary | throttle/block source; distributed DoS external |
 | Secret/token disclosure | low / high | header/body redaction; no secrets in repo; generic errors | rotate/revoke; operator logging mistakes remain |
 | Supply-chain compromise | low / high | bounded dependencies, pinned Trivy action, SBOM, dependency/secret/container scans and checksums | block release and rebuild; zero-day risk remains |
+| Undeclared provider processing | medium / critical | exact `provider_egress` host/location mapping, residency membership and runtime URL equality before secret resolution | block startup; disable egress and review provider/config evidence; operator/provider misstatement remains |
+| Non-EU provider in EU-managed | medium / critical | EU country allowlist for every external-processing declaration and provider mapping | reject configuration; revoke route/key and assess exposure; provider control-plane behavior remains external evidence |
+| Remote processing labeled local | medium / critical | local accepts only `local`; supplied local profiles use operator-owned endpoints | stop Research and investigate endpoint ownership; a malicious operator can falsify evidence |
+| Tenant-selected jurisdiction | low / critical | deployment-only immutable profile; unknown provider fields including `tenant_id` rejected; request schemas contain no mode/region | reject and alert; compromised deployment authority remains trusted |
+| Residency/config tampering | low / high | read-only reviewed config, exact allowlist equality and configuration hash in release evidence | remove from readiness, rotate credentials and redeploy reviewed config; host/CI administrator remains privileged |
+| Regional outage or denial of service | medium / high | bounded retry, approved in-profile backup/restore and no automatic cross-region fallback | degraded operation or reviewed in-boundary recovery; correlated regional failure remains |
 
 OIDC, PostgreSQL RLS, redacted observability and release gates are implemented. Rollout remains
 blocked until the deployment owner supplies managed identity/database/secrets, edge controls,
 monitoring/on-call, retention/deletion and regulatory evidence described in Production Readiness.
+
+## Operating Profiles v0.6 trust boundaries
+
+Assets added by v0.6 are the reviewed configuration, residency declarations, provider host/location
+mappings, external evidence references and deployment audit evidence. Entry points are configuration
+delivery and the two provider base-URL environment overrides. The config parser, runtime startup,
+HTTPS egress allowlist, DNS/provider boundary and operator control plane are distinct trust
+boundaries. Tenant boundaries remain OIDC identity plus forced PostgreSQL RLS; residency is global
+deployment policy and cannot grant cross-tenant access.
+
+Detection uses startup reason codes, readiness, configuration hashes, provider access logs, DNS and
+support-access review, two-tenant probes and periodic evidence review. Response is fail-closed:
+disable provider egress and new Research jobs, preserve audit/configuration evidence, identify
+affected tenants and jurisdictions, rotate credentials, correct the profile and repeat release and
+restore verification. There is no automatic fallback to another provider, country or operating
+mode.
 
 ## Controlled Intake v0.3 extension
 

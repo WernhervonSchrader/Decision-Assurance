@@ -83,3 +83,31 @@ def test_operating_profile_builds_the_same_fail_closed_runtime(
     assert role_checks == [True]
     assert "canary-value" not in repr(app.state)
 
+
+def test_provider_residency_conflict_fails_before_secret_or_adapter_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret_resolutions: list[str] = []
+
+    class TrackingSecrets(FakeExternalSecrets):
+        def resolve(self, reference: SecretReference) -> SecretValue:
+            secret_resolutions.append(reference.name)
+            return super().resolve(reference)
+
+    monkeypatch.setattr(
+        PostgresConnectionProvider,
+        "assert_safe_application_role",
+        lambda self: pytest.fail("database adapter must not be constructed"),
+    )
+
+    with pytest.raises(ValueError, match="PROVIDER_EGRESS_UNDECLARED"):
+        load_runtime(
+            {
+                "DA_CONFIG_PATH": str(ROOT / "config" / "deployment" / "eu-managed.example.json"),
+                "BRAVE_SEARCH_BASE_URL": "https://undeclared-provider.example",
+                "FIRECRAWL_BASE_URL": "https://research-extract.eu.example",
+            },
+            external_secrets=TrackingSecrets(),
+        )
+
+    assert secret_resolutions == []

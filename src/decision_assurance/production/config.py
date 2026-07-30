@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .contracts import (
     AuthenticationMode,
@@ -58,6 +59,7 @@ _RESIDENCY_FIELDS = frozenset(
         "evidence_refs",
     }
 )
+_PROVIDER_EGRESS_FIELDS = frozenset({"host", "processing_location"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +93,8 @@ class DataResidencyPolicy:
         if mode is OperatingMode.LOCAL:
             if any(locations != ("local",) for locations in required):
                 raise ValueError("LOCAL_DATA_BOUNDARY_REQUIRED")
+            if any(location != "local" for location in self.external_processing_locations):
+                raise ValueError("LOCAL_PROVIDER_PROCESSING_REQUIRED")
             return
         all_locations = (
             *self.storage_locations,
@@ -108,6 +112,12 @@ class DataResidencyPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderEgress:
+    host: str
+    processing_location: str
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     profile: EnvironmentProfile
     operating_mode: OperatingMode | None
@@ -119,6 +129,7 @@ class RuntimeConfig:
     worker_database_dsn_secret: SecretReference
     oidc: OidcRuntimeConfig | None
     egress_allowed_hosts: tuple[str, ...]
+    provider_egress: tuple[ProviderEgress, ...]
     worker_policy: JobPolicy
 
     def __post_init__(self) -> None:
@@ -136,6 +147,45 @@ class RuntimeConfig:
                 raise ValueError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
             if not self.egress_allowed_hosts:
                 raise ValueError("EGRESS_ALLOWLIST_REQUIRED")
+            if not self.provider_egress:
+                raise ValueError("PROVIDER_EGRESS_REQUIRED")
+            provider_hosts = tuple(item.host for item in self.provider_egress)
+            if len(set(provider_hosts)) != len(provider_hosts):
+                raise ValueError("DUPLICATE_PROVIDER_EGRESS_HOST")
+            if set(provider_hosts) != {
+                host.casefold().rstrip(".") for host in self.egress_allowed_hosts
+            }:
+                raise ValueError("PROVIDER_EGRESS_ALLOWLIST_MISMATCH")
+            for provider in self.provider_egress:
+                if (
+                    self.operating_mode is OperatingMode.LOCAL
+                    and provider.processing_location != "local"
+                ):
+                    raise ValueError("LOCAL_PROVIDER_PROCESSING_REQUIRED")
+                if (
+                    self.operating_mode is OperatingMode.EU_MANAGED
+                    and provider.processing_location not in _EU_COUNTRY_CODES
+                ):
+                    raise ValueError("EU_PROVIDER_PROCESSING_REQUIRED")
+                if (
+                    provider.processing_location
+                    not in self.data_residency.external_processing_locations
+                ):
+                    raise ValueError("PROVIDER_PROCESSING_LOCATION_UNDECLARED")
+
+    def validate_provider_urls(self, urls: tuple[str, ...]) -> None:
+        declared = {item.host for item in self.provider_egress}
+        actual: set[str] = set()
+        for url in urls:
+            try:
+                host = (urlsplit(url).hostname or "").casefold().rstrip(".")
+            except ValueError:
+                raise ValueError("PROVIDER_EGRESS_UNDECLARED") from None
+            if not host or host not in declared:
+                raise ValueError("PROVIDER_EGRESS_UNDECLARED")
+            actual.add(host)
+        if actual != declared:
+            raise ValueError("PROVIDER_EGRESS_RUNTIME_MISMATCH")
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> RuntimeConfig:
@@ -193,6 +243,7 @@ class RuntimeConfig:
             ),
             oidc=oidc,
             egress_allowed_hosts=tuple(hosts),
+            provider_egress=_provider_egress(raw.get("provider_egress", [])),
             worker_policy=JobPolicy(
                 max_attempts=int(worker.get("max_attempts", 5)),
                 lease_seconds=int(worker.get("lease_seconds", 60)),
@@ -266,6 +317,26 @@ def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
     if any(not item for item in normalized) or len(set(normalized)) != len(normalized):
         raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
     return normalized
+
+
+def _provider_egress(raw: object) -> tuple[ProviderEgress, ...]:
+    if not isinstance(raw, list):
+        raise ValueError("INVALID_PROVIDER_EGRESS")
+    providers: list[ProviderEgress] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise ValueError("INVALID_PROVIDER_EGRESS")
+        if set(item).difference(_PROVIDER_EGRESS_FIELDS):
+            raise ValueError("UNKNOWN_PROVIDER_EGRESS_FIELD")
+        host = _required(item, "host").casefold().rstrip(".")
+        location = _required(item, "processing_location")
+        providers.append(
+            ProviderEgress(
+                host=host,
+                processing_location=location if location == "local" else location.upper(),
+            )
+        )
+    return tuple(providers)
 
 
 def _reject_literal_secrets(raw: Mapping[str, Any]) -> None:

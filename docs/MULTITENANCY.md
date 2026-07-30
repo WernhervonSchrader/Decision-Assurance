@@ -13,3 +13,17 @@ cache, audit, evidence and idempotency isolation. SQLite is development-only.
 Cross-tenant administration, export, deletion, suspension and legal hold are not pilot features.
 They require explicit authorization, tenant-scoped audit and a reviewed retention workflow before
 real regulated data is admitted.
+
+Operating Profiles v0.6 are deployment-wide immutable policy, never tenant configuration. OIDC still
+establishes tenant identity; provider host/location, country declarations and mode are absent from
+API and MCP schemas. Unknown fields such as `tenant_id` in provider egress configuration fail
+startup. One tenant therefore cannot choose a different provider, country, secret, cache namespace,
+job route, backup or support boundary.
+
+Retention, export and deletion schedules may differ by tenant only through a separately authorized
+operator workflow. An export must establish one transaction-local tenant context, verify that every
+record and manifest entry has that tenant ID, and use a destination allowed by the active profile.
+Deletion must preserve isolation and cover tenant-owned domain, Intake, Research, job, cache and
+provider data plus documented backup expiry. Cross-tenant bulk export/deletion and administrative
+bypass remain unsupported and are a production `BLOCK` until explicit authorization, audit and
+two-tenant negative tests exist.

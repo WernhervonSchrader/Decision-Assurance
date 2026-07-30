@@ -20,7 +20,7 @@ def _production() -> dict[str, object]:
             "processing_locations": ["local"],
             "backup_locations": ["local"],
             "support_access_locations": ["local"],
-            "external_processing_locations": [],
+            "external_processing_locations": ["local"],
             "evidence_refs": [],
         },
         "database_backend": "postgresql",
@@ -34,7 +34,8 @@ def _production() -> dict[str, object]:
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
         },
-        "egress_allowed_hosts": ["api.search.brave.com", "api.firecrawl.dev"],
+        "egress_allowed_hosts": ["provider.example"],
+        "provider_egress": [{"host": "provider.example", "processing_location": "local"}],
         "worker": {"max_attempts": 5, "lease_seconds": 60},
     }
 
@@ -57,6 +58,7 @@ def test_valid_production_profile_is_typed_and_contains_only_secret_reference() 
         (("database_dsn_secret",), "", "INVALID_SECRET_REFERENCE"),
         (("oidc", "issuer"), "http://identity.example", "INVALID_OIDC"),
         (("egress_allowed_hosts",), [], "EGRESS_ALLOWLIST_REQUIRED"),
+        (("provider_egress",), [], "PROVIDER_EGRESS_REQUIRED"),
     ],
 )
 def test_production_rejects_unsafe_fallbacks(

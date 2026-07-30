@@ -64,6 +64,27 @@ explicitly granted operational paths.
 SQLite adapters continue to include tenant predicates and composite keys, but cannot satisfy the
 production profile because SQLite has no RLS.
 
+## Deployment-mode boundary
+
+The same immutable images support two production modes. `local` keeps primary data, application
+computation, backups, support access and configured provider processing inside the self-managed
+`local` boundary. `eu-managed` requires explicit EU member-country declarations for storage,
+application processing, backups, support access and every configured external provider plus HTTPS
+evidence references. Mode and residency are loaded from operator-controlled configuration before
+database, identity, provider or job adapters are constructed. They are never accepted from API/MCP
+payloads and never replace tenant context.
+
+`provider_egress` binds each provider hostname to one processing location. Its normalized host set
+must exactly equal `egress_allowed_hosts`; each location must occur in
+`external_processing_locations`; local accepts only `local`; EU-managed accepts only EU country
+codes. At runtime the effective Brave and Firecrawl base URLs must resolve to exactly that declared
+host set and pass the HTTPS public-host allowlist. A missing declaration, unused allowlisted host,
+undeclared runtime host or region mismatch fails before secret resolution, PostgreSQL, OIDC or
+provider construction. Country declarations remain deployment-wide and cannot vary by tenant.
+
+Configuration validates declared intent; provider contracts, DPAs, subprocessor inventories,
+control-plane access and independent attestations establish whether the declaration is true.
+
 ## Asynchronous research flow
 
 1. A validated request creates or reuses a tenant-bound Research Run.

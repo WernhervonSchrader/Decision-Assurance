@@ -140,6 +140,13 @@ def _load_configured_runtime(
     external_secrets: SecretProviderPort | None,
     oidc_http_client: httpx.Client | None,
 ) -> FastAPI:
+    brave_url = values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com")
+    firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
+    config.validate_provider_urls((brave_url, firecrawl_url))
+    egress = HttpsEgressAllowlist(config.egress_allowed_hosts)
+    runtime_tenant = TenantContext("runtime-validation")
+    brave_base = egress.validate(runtime_tenant, brave_url).rstrip("/")
+    firecrawl_base = egress.validate(runtime_tenant, firecrawl_url).rstrip("/")
     if config.secret_provider.value == "external":
         if external_secrets is None:
             raise RuntimeError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
@@ -163,16 +170,6 @@ def _load_configured_runtime(
         jwks_uri=config.oidc.jwks_uri,
         http_client=oidc_client,
     )
-    egress = HttpsEgressAllowlist(config.egress_allowed_hosts)
-    runtime_tenant = TenantContext("runtime-validation")
-    brave_base = egress.validate(
-        runtime_tenant,
-        values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com"),
-    ).rstrip("/")
-    firecrawl_base = egress.validate(
-        runtime_tenant,
-        values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev"),
-    ).rstrip("/")
     brave_key = secrets.resolve(
         SecretReference(
             values.get("DA_BRAVE_API_KEY_SECRET_REF", "decision-assurance-brave-api-key")

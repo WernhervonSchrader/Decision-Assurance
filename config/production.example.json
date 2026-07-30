@@ -6,7 +6,7 @@
     "processing_locations": ["local"],
     "backup_locations": ["local"],
     "support_access_locations": ["local"],
-    "external_processing_locations": [],
+    "external_processing_locations": ["local"],
     "evidence_refs": []
   },
   "database_backend": "postgresql",
@@ -28,8 +28,18 @@
     "clock_skew_seconds": 30
   },
   "egress_allowed_hosts": [
-    "api.firecrawl.dev",
-    "api.search.brave.com"
+    "research-extract.local.example",
+    "research-search.local.example"
+  ],
+  "provider_egress": [
+    {
+      "host": "research-extract.local.example",
+      "processing_location": "local"
+    },
+    {
+      "host": "research-search.local.example",
+      "processing_location": "local"
+    }
   ],
   "worker": {
     "max_attempts": 5,

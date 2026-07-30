@@ -39,7 +39,7 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "processing_locations": ["local"],
             "backup_locations": ["local"],
             "support_access_locations": ["local"],
-            "external_processing_locations": [],
+            "external_processing_locations": ["local"],
             "evidence_refs": [],
         },
         "database_backend": "postgresql",
@@ -53,7 +53,8 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
         },
-        "egress_allowed_hosts": ["api.search.brave.com", "api.firecrawl.dev"],
+        "egress_allowed_hosts": ["provider.example"],
+        "provider_egress": [{"host": "provider.example", "processing_location": "local"}],
         "worker": {},
     }
     path = tmp_path / "production.json"
@@ -64,6 +65,8 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "DA_CONFIG_PATH": str(path),
             "DA_BRAVE_API_KEY_SECRET_REF": "brave-key",
             "DA_FIRECRAWL_API_KEY_SECRET_REF": "firecrawl-key",
+            "BRAVE_SEARCH_BASE_URL": "https://provider.example",
+            "FIRECRAWL_BASE_URL": "https://provider.example",
             "DA_VERSION": "0.5.0",
             "DA_COMMIT_SHA": "a" * 40,
             "DA_BUILD_TIMESTAMP": "2026-07-30T10:00:00Z",

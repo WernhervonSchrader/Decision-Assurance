@@ -68,6 +68,11 @@ Configuration contains secret references only. Provider calls occur only in the 
 exact HTTPS egress policy. Logs contain allowlisted metadata, metrics use bounded labels, and
 readiness checks material dependencies. See [Production Architecture](PRODUCTION-ARCHITECTURE.md).
 
+Operating Profiles v0.6 add one immutable deployment-mode and residency policy shared by every
+tenant. Provider host/location declarations must exactly match the technical egress allowlist and
+the effective runtime provider URLs before any privileged adapter is constructed. This prevents a
+tenant request, environment override or stale allowlist from silently changing jurisdiction.
+
 Running jobs renew their lease independently of provider latency. Lease loss and logical
 cancellation are propagated into the Research orchestrator and checked at each provider and
 persistence boundary. The MCP production transport requeues the existing terminal job and does not

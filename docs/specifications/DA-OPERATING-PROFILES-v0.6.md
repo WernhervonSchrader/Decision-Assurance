@@ -46,6 +46,7 @@ Assumptions:
 | OP-14 | Material E2E covers both profiles without production dependencies | `tests/production/e2e/test_operating_profiles.py` | deterministic runtime assembly for two tenants/locales/roles | both modes construct fail-closed production apps |
 | OP-15 | CI keeps formatting, types, unit/integration/E2E, PostgreSQL, scans, build and migration gates | `.github/workflows/ci.yml` and existing release mapping | CI run | all mandatory gates pass |
 | OP-16 | Tenant export/deletion/retention and backup/restore remain operator-owned per mode | deployment/operations/backup docs | runbook review and restore job | explicit mode-specific procedures |
+| OP-17 | Declared provider processing, technical allowlist and effective provider URLs agree before adapter construction | `production/config.py`, `api/runtime.py`, profile fixtures | positive/negative config and runtime E2E | undeclared or region-incompatible egress fails before secrets |
 
 ## C. Proposed architecture
 
@@ -83,6 +84,10 @@ secret provider.
 External dependencies remain PostgreSQL, OIDC, secret storage and optional Research providers. An
 EU-managed deployment may enable a provider only when its declared processing location is EU and
 its evidence is recorded; technical configuration does not replace DPA/SCC/legal assessment.
+Each provider host has one explicit processing location; the provider host set must equal both the
+technical egress allowlist and effective runtime provider URL host set. Local provider processing is
+`local`; EU-managed provider processing uses a declared EU country. Validation precedes secret,
+database, identity and provider adapter construction.
 
 ## D. Threat model
 
@@ -121,4 +126,5 @@ models and migrations do not change.
 9. Full non-PostgreSQL and PostgreSQL suites plus CI security/release gates pass.
 10. Documentation distinguishes interface locale, tenant locale, content language, audit codes and
     localized audit display, and documents retention/export/deletion/restore per mode.
-
+11. Provider host/location declarations, the HTTPS allowlist and actual provider URLs agree exactly;
+    missing, tenant-specific or region-incompatible configuration fails before privileged adapters.
