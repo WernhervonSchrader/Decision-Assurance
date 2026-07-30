@@ -249,6 +249,7 @@ jobs:
               --checksums release-evidence/SHA256SUMS \
               --commit-sha "$GITHUB_SHA" \
               --repository "$GITHUB_REPOSITORY"
+            python -m json.tool release-evidence/gate-results.json
             if python -m scripts.release.generate_report --input release-evidence/gate-results.json --output release-evidence/release-verification.json --commit-sha "$GITHUB_SHA"; then
               exit 0
             fi
