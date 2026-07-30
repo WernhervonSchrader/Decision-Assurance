@@ -43,6 +43,20 @@ class SqliteResearchRepository:
             ).fetchone()
             if row:
                 return run_from_data(json.loads(row["run_json"]))
+            # A successful handoff advances the stored Decision File hash. A
+            # byte-identical repeat of the research request must still converge
+            # to that run when the current document is exactly its handoff result.
+            prior_rows = connection.execute(
+                "SELECT run_json FROM research_runs WHERE tenant_id=? AND decision_file_id=?",
+                (tenant.tenant_id, run.request.decision_file_id),
+            ).fetchall()
+            for prior_row in prior_rows:
+                prior = run_from_data(json.loads(prior_row["run_json"]))
+                if (
+                    prior.request == run.request
+                    and prior.expected_document_hash == run.expected_document_hash
+                ):
+                    return prior
             connection.execute(
                 "INSERT INTO research_runs "
                 "(tenant_id,research_run_id,decision_file_id,semantic_fingerprint,status,run_json,created_at,updated_at) "

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from ..audit import payload_hash
 from ..tenancy import TenantContext
 from .audit import apply_transition
+from .conflicts import mark_conflicting_evidence
 from .contracts import (
     EvidenceCandidate,
     ExtractionRequest,
@@ -393,6 +394,7 @@ class ResearchOrchestrator:
             reason_codes=("EVIDENCE_CANDIDATES_COMPILED",),
             payload={"count": len(run.evidence)},
         )
+        mark_conflicting_evidence(run)
         compiled = self._compiler.compile(run)
         handoff_failed = False
         if compiled:
