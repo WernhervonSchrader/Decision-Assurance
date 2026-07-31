@@ -51,3 +51,12 @@ def test_only_example_keycloak_secrets_are_tracked() -> None:
     gitleaks = Path(".gitleaks.toml").read_text(encoding="utf-8")
     for name in expected:
         assert name.removesuffix(".example") in gitleaks
+
+
+def test_ci_secrets_are_read_only_for_the_non_root_keycloak_process() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert (
+        "chmod 0444 .secrets/keycloak-admin-username "
+        ".secrets/keycloak-admin-password .secrets/keycloak-db-password"
+    ) in workflow
+    assert "logs --no-color keycloak" in workflow

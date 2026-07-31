@@ -239,8 +239,13 @@ jobs:
           printf '%s' 'keycloak-ci-admin' > .secrets/keycloak-admin-username
           openssl rand -hex 32 > .secrets/keycloak-admin-password
           openssl rand -hex 32 > .secrets/keycloak-db-password
+          chmod 0444 .secrets/keycloak-admin-username .secrets/keycloak-admin-password .secrets/keycloak-db-password
       - name: Start isolated Keycloak and PostgreSQL 16
-        run: docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait --wait-timeout 180
+        run: |
+          if ! docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait --wait-timeout 180; then
+            docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml logs --no-color keycloak
+            exit 1
+          fi
       - name: Verify Keycloak non-root runtime
         run: |
           test "$(docker inspect --format '{{.Config.User}}' decision-assurance-keycloak-local-keycloak-1)" = "1000:0"
