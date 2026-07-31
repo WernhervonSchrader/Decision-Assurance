@@ -7,8 +7,3 @@ description = "Provider credentials must never be committed from .secrets"
 regex = '''(?s).+'''
 path = '''(?i)\.secrets[\\/](OPENAI_API_KEY|FIRECRAWL_API_KEY|keycloak-admin-username|keycloak-admin-password|keycloak-db-password)$'''
 tags = ["key", "provider", "secret-file"]
-
-[[allowlists]]
-description = "Static Keycloak PostgreSQL service URL is not a credential"
-regexTarget = "line"
-regexes = ['''^\s*KC_DB_URL:\s+jdbc:postgresql://keycloak-postgres:5432/keycloak\s*$''']
