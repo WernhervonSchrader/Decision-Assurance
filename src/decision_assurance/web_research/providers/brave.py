@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from ...production.egress import EgressRejected, ResidencyEgressGuard
 from ..contracts import ProviderError, SearchQuery, SearchResponse, SearchResult
 from .errors import ProviderRequestFailed
 
@@ -31,6 +32,7 @@ class BraveSearchProvider:
         timeout_seconds: float = 10.0,
         client: httpx.AsyncClient | None = None,
         clock: Clock = _utc_now,
+        egress_guard: ResidencyEgressGuard | None = None,
     ):
         parsed = urlsplit(base_url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
@@ -42,6 +44,7 @@ class BraveSearchProvider:
         self._timeout = timeout_seconds
         self._client = client
         self._clock = clock
+        self._egress_guard = egress_guard or ResidencyEgressGuard(lambda: None)
 
     async def search(self, request: SearchQuery) -> SearchResponse:
         self._validate(request)
@@ -65,8 +68,13 @@ class BraveSearchProvider:
             follow_redirects=False,
         )
         try:
+            request_url = self._egress_guard.authorize_current(
+                provider=self.provider_id,
+                connector=self.provider_version,
+                url=f"{self._base_url}/res/v1/web/search",
+            )
             response = await client.get(
-                f"{self._base_url}/res/v1/web/search",
+                request_url,
                 params=params,
                 headers=headers,
                 timeout=self._timeout,
@@ -75,6 +83,8 @@ class BraveSearchProvider:
             self._fail("SEARCH_TIMEOUT", True)
         except httpx.HTTPError:
             self._fail("PROVIDER_UNAVAILABLE", True)
+        except EgressRejected as error:
+            self._fail(error.reason_code, False)
         finally:
             if owns_client:
                 await client.aclose()

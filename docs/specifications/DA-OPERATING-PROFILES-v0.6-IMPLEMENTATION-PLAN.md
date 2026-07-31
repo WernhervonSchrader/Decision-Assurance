@@ -72,3 +72,15 @@ tenant-owned persisted state.
 - Push `feature/operating-profiles-v0.6` with tracking and open a Draft PR against `main`.
 - PR body: what/why, local and EU-managed impact, threat controls, test evidence, operational limits.
 - Do not mark ready, merge or deploy in this plan.
+
+### 6. Request-time residency remediation
+
+- Paths: `production/egress.py`, `production/config.py`, Brave/Firecrawl adapters, research audit
+  contract/codec/schema, orchestrator and focused residency tests.
+- Interfaces: central `ResidencyEgressGuard`, request context binding, structured provider attestation
+  and secret-free `research.egress-decision` event.
+- Tests: configuration drift after startup, evidence missing/unverified/expired, host/location and
+  tenant mismatch, audit failure, Brave/Firecrawl zero-call-on-block and persisted event integrity.
+- Verification: Ruff, strict Mypy, provider/feature tests, complete non-PostgreSQL suite and
+  PostgreSQL/security/release gates.
+- Commit: `fix(egress): enforce request-time residency decisions`.

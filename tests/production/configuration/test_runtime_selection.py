@@ -54,7 +54,29 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "algorithms": ["RS256"],
         },
         "egress_allowed_hosts": ["provider.example"],
-        "provider_egress": [{"host": "provider.example", "processing_location": "local"}],
+        "provider_egress": [
+            {
+                "provider": "brave-search",
+                "service": "web-search-v1",
+                "host": "provider.example",
+                "processing_location": "local",
+                "confirmed_processing_locations": [],
+                "tenant_ids": ["*"],
+                "attestation": {
+                    "evidence_id": "pending",
+                    "evidence_type": "OPERATOR_SELF_DECLARATION",
+                    "evidence_ref": "https://invalid.example/pending",
+                    "issuer": "operator",
+                    "issued_at": "2026-01-01T00:00:00Z",
+                    "valid_from": "2026-01-01T00:00:00Z",
+                    "expires_at": "2027-01-01T00:00:00Z",
+                    "verification_status": "UNVERIFIED",
+                    "verified_at": None,
+                    "verified_by": None,
+                    "document_hash": None,
+                },
+            }
+        ],
         "worker": {},
     }
     path = tmp_path / "production.json"

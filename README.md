@@ -75,9 +75,12 @@ Production deployments choose exactly one operating profile. `local` is self-man
 OIDC and external-secret infrastructure inside the operator boundary; it is not the SQLite reference
 runtime. `eu-managed` additionally requires explicit EU country codes for storage, processing,
 backup, support and external processing plus HTTPS residency/subprocessor evidence references.
-Every configured provider host has one explicit processing location. Its host must exactly match the
-runtime egress allowlist and the actual Brave/Firecrawl base URLs; undeclared, tenant-selected or
-profile-incompatible provider egress stops startup before secrets or adapters are resolved.
+Every configured provider host has a requested processing location plus a structured attestation. Its
+host must exactly match the runtime egress allowlist and actual Brave/Firecrawl base URLs. Startup
+validation is supplemented by a request-time guard; missing, unverified, expired, tenant-incompatible
+or profile-incompatible evidence blocks immediately before network access and records a secret-free
+decision event. The supplied Brave/Firecrawl profile entries remain blocked until independently
+verified evidence is supplied.
 
 The MCP adapter is a separate process from the REST API and exposes stateless Streamable HTTP at
 `http://127.0.0.1:8001/mcp` in local reference mode:

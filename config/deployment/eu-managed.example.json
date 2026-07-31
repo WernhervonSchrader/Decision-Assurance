@@ -36,12 +36,46 @@
   ],
   "provider_egress": [
     {
+      "provider": "firecrawl",
+      "service": "scrape-v2",
       "host": "research-extract.eu.example",
-      "processing_location": "DE"
+      "processing_location": "DE",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "eu-firecrawl-attestation-pending",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "https://invalid.example/evidence-not-verified",
+        "issuer": "operator",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
     },
     {
+      "provider": "brave-search",
+      "service": "web-search-v1",
       "host": "research-search.eu.example",
-      "processing_location": "DE"
+      "processing_location": "DE",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "eu-brave-attestation-pending",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "https://invalid.example/evidence-not-verified",
+        "issuer": "operator",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
     }
   ],
   "worker": {

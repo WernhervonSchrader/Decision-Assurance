@@ -59,7 +59,41 @@ _RESIDENCY_FIELDS = frozenset(
         "evidence_refs",
     }
 )
-_PROVIDER_EGRESS_FIELDS = frozenset({"host", "processing_location"})
+_PROVIDER_EGRESS_FIELDS = frozenset(
+    {
+        "provider",
+        "service",
+        "host",
+        "processing_location",
+        "confirmed_processing_locations",
+        "tenant_ids",
+        "attestation",
+    }
+)
+_ATTESTATION_FIELDS = frozenset(
+    {
+        "evidence_id",
+        "evidence_type",
+        "evidence_ref",
+        "issuer",
+        "issued_at",
+        "valid_from",
+        "expires_at",
+        "verification_status",
+        "verified_at",
+        "verified_by",
+        "document_hash",
+    }
+)
+_EVIDENCE_TYPES = frozenset(
+    {
+        "DPA",
+        "SIGNED_PROVIDER_ATTESTATION",
+        "TECHNICAL_PROVIDER_CONFIGURATION",
+        "OPERATOR_SELF_DECLARATION",
+    }
+)
+_VERIFICATION_STATUSES = frozenset({"VERIFIED", "UNVERIFIED", "EXPIRED", "REVOKED"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,9 +146,29 @@ class DataResidencyPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderAttestation:
+    evidence_id: str
+    evidence_type: str
+    evidence_ref: str
+    issuer: str
+    issued_at: str
+    valid_from: str
+    expires_at: str
+    verification_status: str
+    verified_at: str | None
+    verified_by: str | None
+    document_hash: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderEgress:
+    provider: str
+    service: str
     host: str
     processing_location: str
+    confirmed_processing_locations: tuple[str, ...]
+    tenant_ids: tuple[str, ...]
+    attestation: ProviderAttestation
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,6 +333,13 @@ def _required(raw: Mapping[str, Any], key: str) -> str:
     return value
 
 
+def _required_nonempty(raw: Mapping[str, Any], key: str) -> str:
+    value = _required(raw, key).strip()
+    if not value:
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value
+
+
 def _optional(raw: Mapping[str, Any], key: str) -> str | None:
     value = raw.get(key)
     if value is None:
@@ -328,15 +389,64 @@ def _provider_egress(raw: object) -> tuple[ProviderEgress, ...]:
             raise ValueError("INVALID_PROVIDER_EGRESS")
         if set(item).difference(_PROVIDER_EGRESS_FIELDS):
             raise ValueError("UNKNOWN_PROVIDER_EGRESS_FIELD")
-        host = _required(item, "host").casefold().rstrip(".")
-        location = _required(item, "processing_location")
+        attestation_raw = item.get("attestation")
+        if not isinstance(attestation_raw, Mapping):
+            raise ValueError("PROVIDER_ATTESTATION_REQUIRED")
+        if set(attestation_raw).difference(_ATTESTATION_FIELDS):
+            raise ValueError("UNKNOWN_PROVIDER_ATTESTATION_FIELD")
+        host = _required_nonempty(item, "host").casefold().rstrip(".")
+        location = _required_nonempty(item, "processing_location")
+        confirmed_locations = _locations(item, "confirmed_processing_locations")
+        provider = _required_nonempty(item, "provider")
+        service = _required_nonempty(item, "service")
+        tenant_ids = _string_tuple(item, "tenant_ids")
+        if not tenant_ids:
+            raise ValueError("PROVIDER_TENANT_SCOPE_REQUIRED")
+        evidence_type = _required_nonempty(attestation_raw, "evidence_type")
+        if evidence_type not in _EVIDENCE_TYPES:
+            raise ValueError("INVALID_PROVIDER_EVIDENCE_TYPE")
+        verification_status = _required_nonempty(attestation_raw, "verification_status")
+        if verification_status not in _VERIFICATION_STATUSES:
+            raise ValueError("INVALID_PROVIDER_VERIFICATION_STATUS")
+        evidence_ref = _required_nonempty(attestation_raw, "evidence_ref")
+        issuer = _required_nonempty(attestation_raw, "issuer")
+        issued_at = _required_nonempty(attestation_raw, "issued_at")
+        valid_from = _required_nonempty(attestation_raw, "valid_from")
+        expires_at = _required_nonempty(attestation_raw, "expires_at")
+        evidence_id = _required_nonempty(attestation_raw, "evidence_id")
         providers.append(
             ProviderEgress(
+                provider=provider,
+                service=service,
                 host=host,
                 processing_location=location if location == "local" else location.upper(),
+                confirmed_processing_locations=confirmed_locations,
+                tenant_ids=tenant_ids,
+                attestation=ProviderAttestation(
+                    evidence_id=evidence_id,
+                    evidence_type=evidence_type,
+                    evidence_ref=evidence_ref,
+                    issuer=issuer,
+                    issued_at=issued_at,
+                    valid_from=valid_from,
+                    expires_at=expires_at,
+                    verification_status=verification_status,
+                    verified_at=_optional_string(attestation_raw, "verified_at"),
+                    verified_by=_optional_string(attestation_raw, "verified_by"),
+                    document_hash=_optional_string(attestation_raw, "document_hash"),
+                ),
             )
         )
     return tuple(providers)
+
+
+def _optional_string(raw: Mapping[str, Any], key: str) -> str | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value.strip()
 
 
 def _reject_literal_secrets(raw: Mapping[str, Any]) -> None:

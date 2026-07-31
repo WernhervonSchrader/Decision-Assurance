@@ -23,7 +23,7 @@ from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
 from ..production.contracts import AuthenticationMode, BuildMetadata, HealthStatus, SecretReference
-from ..production.egress import HttpsEgressAllowlist
+from ..production.egress import HttpsEgressAllowlist, ResidencyEgressGuard
 from ..production.ports import SecretProviderPort
 from ..production.secrets import EnvironmentSecretProvider
 from ..repositories.sqlite import SqliteDecisionRepository
@@ -189,13 +189,23 @@ def _load_configured_runtime(
         max_search_results=_integer(values, "WEB_RESEARCH_MAX_RESULTS", 10),
         max_extractions=_integer(values, "WEB_RESEARCH_MAX_EXTRACTIONS", 5),
     )
+    config_path_value = values.get("DA_CONFIG_PATH")
+    if not config_path_value:
+        raise RuntimeError("DA_CONFIG_PATH is required for configured runtime")
+    config_path = Path(config_path_value)
+    residency_guard = ResidencyEgressGuard(lambda: load_config(config_path, values))
     orchestrator = ResearchOrchestrator(
-        BraveSearchProvider(api_key=brave_key.value, base_url=brave_base),
+        BraveSearchProvider(
+            api_key=brave_key.value,
+            base_url=brave_base,
+            egress_guard=residency_guard,
+        ),
         FirecrawlContentExtractor(
             api_key=firecrawl_key.value,
             url_policy=url_policy,
             base_url=firecrawl_base,
             max_content_bytes=max_content_bytes,
+            egress_guard=residency_guard,
         ),
         persistence.research,
         url_policy,

@@ -17,10 +17,12 @@ See [Threat Model](THREAT_MODEL.md).
 
 Operating Profiles v0.6 treat deployment mode, residency and provider egress as one privileged
 configuration boundary. `local` accepts only `local` core and provider processing; `eu-managed`
-accepts only EU country codes and requires HTTPS evidence. Every provider host must be declared once,
-match the exact HTTPS allowlist and match the effective runtime provider URLs. Validation occurs
-before secrets, PostgreSQL, OIDC or provider construction. Profile and provider fields never appear
-in tenant request schemas, so a tenant cannot select a weaker region or shared credential path.
+accepts only EU country codes. Every provider entry has a structured attestation; HTTPS references
+alone are not proof, and `OPERATOR_SELF_DECLARATION` never authorizes restrictive production egress.
+Startup validation is separate from a central request-time guard that runs immediately before every
+Brave/Firecrawl network call, re-reads policy and tenant scope, and persists an allow/block event.
+Profile and provider fields never appear in tenant request schemas, so a tenant cannot select a weaker
+region or shared credential path.
 
 Configuration proves consistency of declared intent, not physical residency. Deployment owners must
 verify contracts, DPA/subprocessors, DNS/endpoint ownership, control-plane and support access,

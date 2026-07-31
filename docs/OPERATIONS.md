@@ -8,14 +8,22 @@ or unnecessary personal data.
 
 For every rollout, compare the reviewed config hash with the deployed read-only file. Confirm exactly
 one mode, complete storage/processing/backup/support/external-processing locations, exact
-`provider_egress`/allowlist host equality, provider-location membership, OIDC issuer/audience/JWKS,
-separate PostgreSQL roles, retention owner and restore target. `local` requires every core and
-provider location to be `local`; `eu-managed` requires EU country codes and current HTTPS residency
-and subprocessor evidence. Run two-tenant DE/EN smoke tests after migrations and before traffic.
+`provider_egress`/allowlist host equality, provider-location membership, structured attestation status,
+OIDC issuer/audience/JWKS, separate PostgreSQL roles, retention owner and restore target. `local`
+requires every core and provider location to be `local`; `eu-managed` requires EU country codes and
+current HTTPS residency and subprocessor evidence. Run two-tenant DE/EN smoke tests after migrations
+and before traffic.
 
 Missing or contradictory residency, provider, identity, database or secret configuration is not a
 degraded mode. Keep API, Worker and MCP out of readiness; do not fall back to SQLite, static tokens,
 environment secrets, another provider, region or operating mode.
+
+The startup check is not the final egress boundary. The request-time guard must emit a persisted
+`research.egress-decision` event immediately before every provider request. Review `ALLOWED` events
+against the current profile, tenant, host, requested location and evidence ID/status. Review
+`BLOCKED` reason codes such as `EGRESS_EVIDENCE_UNVERIFIED`, `EGRESS_EVIDENCE_EXPIRED`,
+`EGRESS_TENANT_MISMATCH` and `EGRESS_AUDIT_FAILED`. If the event cannot be persisted, the request is
+blocked and the provider route is treated as unavailable.
 
 The SQLite reference profile is not a production datastore. If it is used for local evaluation,
 back it up only from a quiesced process or through a SQLite-consistent backup, verify

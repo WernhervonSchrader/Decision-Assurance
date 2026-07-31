@@ -283,6 +283,16 @@ class ResearchAuditEvent:
     correlation_id: str
     payload_hash: str
     previous_event_hash: str | None
+    schema_version: str = "research-audit-v1"
+    decision: str | None = None
+    operating_profile: str | None = None
+    policy_version: str | None = None
+    provider: str | None = None
+    connector: str | None = None
+    target_host: str | None = None
+    requested_processing_location: str | None = None
+    evidence_id: str | None = None
+    evidence_status: str | None = None
 
 
 @dataclass(slots=True)

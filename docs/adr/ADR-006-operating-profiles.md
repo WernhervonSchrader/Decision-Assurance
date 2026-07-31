@@ -35,11 +35,14 @@ Choose C. Production and staging select exactly one immutable `local` or `eu-man
 `local` requires storage, application processing, backup, support and provider processing to be
 `local`. `eu-managed` requires EU ISO country codes and HTTPS residency/subprocessor evidence.
 
-Each `provider_egress` item contains exactly `host` and `processing_location`. Provider hosts must be
-unique; their normalized set must equal `egress_allowed_hosts`; every processing location must occur
-in `external_processing_locations`. The actual Brave and Firecrawl base URL host set must equal the
-declaration and pass the existing HTTPS public-host policy. A mismatch fails before secrets,
-PostgreSQL, OIDC or provider adapters. Unknown fields, including tenant selectors, fail closed.
+Each `provider_egress` item contains provider/service, host, requested `processing_location`, confirmed
+processing locations, tenant scope and a structured attestation. Provider hosts must be unique; their
+normalized set must equal `egress_allowed_hosts`; every requested processing location must occur in
+`external_processing_locations`. The actual Brave and Firecrawl base URL host set must equal the
+declaration and pass the existing HTTPS public-host policy. Startup validation is supplemented by a
+central request-time guard immediately before every network call. It requires an in-date verified DPA,
+signed provider attestation or verifiable technical provider configuration bound to provider and host;
+operator self-declarations never authorize restrictive profiles. Unknown fields fail closed.
 
 Both profiles use the same images, schema, OIDC claim contract, centralized authorization, tenant
 context, PostgreSQL forced RLS, stable audit codes and DE/EN localization. There is no runtime
@@ -51,8 +54,9 @@ fallback between profiles, regions, providers, database or identity modes.
   not dynamic tenant settings.
 - Supplied local profiles require operator-owned local provider endpoints; public SaaS providers may
   be used only with an accurately declared, evidence-backed compatible profile.
-- Configuration detects contradictions but cannot prove provider behavior, DPA terms, support access
-  or actual physical location; those remain operator evidence and periodic review duties.
+- Configuration and the request-time guard enforce evidence identity, validity and verification status,
+  but cannot create provider behavior, DPA terms, support access or actual physical location; those
+  remain operator evidence and periodic review duties.
 - General automated tenant export, deletion, legal hold and cross-tenant administration remain
   unimplemented. Deployments needing them are blocked until tenant-scoped authorization, audit and
   negative tests exist.
@@ -64,5 +68,7 @@ fallback between profiles, regions, providers, database or identity modes.
 
 Configuration and E2E regression tests cover valid local and EU providers, missing residency,
 undeclared processing, prohibited regions, allowlist/URL mismatch, unknown tenant-specific fields and
-failure before secrets/adapters. Existing two-tenant PostgreSQL, OIDC, authorization, localization,
+failure before secrets/adapters. Request-time regression tests cover changed configuration, missing/
+expired/unverified evidence, host and tenant mismatch, audit failure and zero network calls on block.
+Existing two-tenant PostgreSQL, OIDC, authorization, localization,
 backup/restore and security gates remain mandatory release evidence.

@@ -19,18 +19,28 @@ certification or proof of a provider's actual processing location.
 | Control | `local` | `eu-managed` |
 | --- | --- | --- |
 | Data and application processing | storage, processing and backups are exactly `local` | every storage, processing and backup location is an EU ISO country code |
-| Provider egress | each allowlisted host is self-hosted in and declared as `local` | each allowlisted host has one declared EU processing country and HTTPS evidence |
+| Provider egress | each allowlisted host is declared `local`, but Brave/Firecrawl remain blocked until a verified attestation is supplied | each allowlisted host has one declared EU processing country; Brave/Firecrawl remain blocked until a verified attestation is supplied |
 | Identity | production OIDC with exact HTTPS issuer/audience/JWKS and signed tenant/role claims inside the operator boundary | the same OIDC contract, with identity/support locations included in the EU deployment review |
 | PostgreSQL | PostgreSQL 16, forced RLS, separate migration/application/Worker credentials, encrypted local storage and backups | the same schema and roles on an EU-located managed service with encrypted backups/PITR |
 | Retention and deletion | operator applies the approved tenant schedule to live data, jobs, audit and local backups | operator applies the same tenant schedule to primary, replica, backup and provider copies in the declared countries |
 | Export and restore | tenant-scoped export to an access-controlled local destination; restore only to a fresh local target | tenant-scoped export and fresh-target restore remain inside declared EU locations |
 | Incident response | isolate local egress, revoke local credentials, preserve local evidence and test two-tenant RLS | additionally block non-EU routes/support, preserve provider evidence and assess cross-border exposure |
 
-`provider_egress` is mandatory for production and staging. Each entry contains exactly `host` and
-`processing_location`. Its host set must equal `egress_allowed_hosts`, and the effective
-`BRAVE_SEARCH_BASE_URL` and `FIRECRAWL_BASE_URL` host set must equal the declaration. Do not label a
-public SaaS hostname `local`; operate it locally or select a profile and region backed by reviewed
-provider evidence. A mismatch fails before secrets, database, OIDC or provider adapters initialize.
+`provider_egress` is mandatory for production and staging. Each entry contains provider/service,
+host, requested `processing_location`, tenant scope, confirmed processing locations and a structured
+attestation. Its host set must equal `egress_allowed_hosts`, and the effective
+`BRAVE_SEARCH_BASE_URL`/`FIRECRAWL_BASE_URL` host set must equal the declaration. Startup validation
+is only an early check: the central request-time guard runs immediately before every external request.
+`DPA`, signed provider attestations and verifiable technical provider configuration are admissible;
+operator self-declarations are not. Until an attestation is independently verified and in date,
+Brave and Firecrawl are fail-closed blocked. Do not label a public SaaS hostname `local`.
+
+Each decision persists a secret-free `research.egress-decision` event with schema version,
+`ALLOWED`/`BLOCKED`, tenant, actor/correlation, profile/policy, provider, host, requested location,
+evidence identity/status and one reason code. Stable block codes include
+`EGRESS_LOCATION_NOT_ALLOWED`, `EGRESS_EVIDENCE_MISSING`, `EGRESS_EVIDENCE_UNVERIFIED`,
+`EGRESS_EVIDENCE_EXPIRED`, `EGRESS_HOST_MISMATCH`, `EGRESS_TENANT_MISMATCH`,
+`EGRESS_CONFIGURATION_CHANGED` and `EGRESS_AUDIT_FAILED`.
 
 Before rollout, record configuration hash, image digest, tenant set, OIDC issuer, secret owner,
 database/backup locations, support countries, external processor countries, evidence owner/review

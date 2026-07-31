@@ -49,8 +49,25 @@ def _base(mode: str) -> dict[str, object]:
         "egress_allowed_hosts": ["provider.example"],
         "provider_egress": [
             {
+                "provider": "provider",
+                "service": "search",
                 "host": "provider.example",
                 "processing_location": "local" if mode == "local" else "DE",
+                "confirmed_processing_locations": [],
+                "tenant_ids": ["*"],
+                "attestation": {
+                    "evidence_id": "provider-attestation",
+                    "evidence_type": "OPERATOR_SELF_DECLARATION",
+                    "evidence_ref": "https://evidence.example/provider",
+                    "issuer": "operator",
+                    "issued_at": "2026-01-01T00:00:00Z",
+                    "valid_from": "2026-01-01T00:00:00Z",
+                    "expires_at": "2027-01-01T00:00:00Z",
+                    "verification_status": "UNVERIFIED",
+                    "verified_at": None,
+                    "verified_by": None,
+                    "document_hash": None,
+                },
             }
         ],
         "worker": {},

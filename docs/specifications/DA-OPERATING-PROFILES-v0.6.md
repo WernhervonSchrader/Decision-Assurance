@@ -128,3 +128,23 @@ models and migrations do not change.
     localized audit display, and documents retention/export/deletion/restore per mode.
 11. Provider host/location declarations, the HTTPS allowlist and actual provider URLs agree exactly;
     missing, tenant-specific or region-incompatible configuration fails before privileged adapters.
+
+## Request-time enforcement addendum
+
+Startup validation is an early configuration check, not the residency boundary. Every Brave and
+Firecrawl request passes through the central request-time `ResidencyEgressGuard`, which re-reads the
+current operating profile and policy, tenant scope, concrete host, provider/connector, requested
+location and structured attestation immediately before the transport call. A configuration or policy
+change therefore applies to the next request; missing, unverified, expired or contradictory evidence
+fails closed without opening a socket.
+
+`provider_egress` attestation evidence is structured as provider/service, host binding, confirmed
+locations, evidence class/reference, issuer, issue/validity window, verification status and verifier.
+Only DPA, signed provider attestation and verifiable technical provider configuration can authorize a
+restrictive profile. Operator self-declaration is an explicit pending state and never authorizes
+Brave or Firecrawl. The code enforces the evidence contract but cannot establish the underlying legal
+or contractual fact.
+
+Each decision is persisted as a secret-free `research.egress-decision` event with schema version,
+decision, tenant/correlation, profile/policy, provider/host, requested location, evidence identity and
+stable reason code. Failure to persist the mandatory event blocks the request.

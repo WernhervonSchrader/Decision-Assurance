@@ -52,6 +52,10 @@ violations. Provider-residency regression tests prove:
 - local provider hosts are declared as `local` and EU-managed provider hosts use declared EU codes;
 - provider hosts and the HTTPS allowlist have identical normalized sets;
 - every provider processing location occurs in `external_processing_locations`;
+- request-time guard re-reads the profile and policy after a configuration change;
+- missing, unverified, expired or mismatched provider evidence fails before the transport call;
+- Brave and Firecrawl block without a network call and persist secret-free `ALLOWED`/`BLOCKED`
+  egress events;
 - undeclared runtime URLs, extra allowlisted hosts, region conflicts and tenant-specific provider
   fields fail closed;
 - those runtime conflicts fail before secret resolution or database/OIDC/provider construction.

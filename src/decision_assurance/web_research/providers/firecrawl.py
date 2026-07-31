@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from ...production.egress import EgressRejected, ResidencyEgressGuard
 from ..contracts import (
     ExtractedContent,
     ExtractionRequest,
@@ -37,6 +38,7 @@ class FirecrawlContentExtractor:
         max_content_bytes: int = 1_000_000,
         client: httpx.AsyncClient | None = None,
         clock: Clock = _utc_now,
+        egress_guard: ResidencyEgressGuard | None = None,
     ):
         parsed = urlsplit(base_url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
@@ -52,6 +54,7 @@ class FirecrawlContentExtractor:
         self._max_content_bytes = max_content_bytes
         self._client = client
         self._clock = clock
+        self._egress_guard = egress_guard or ResidencyEgressGuard(lambda: None)
 
     async def extract(self, request: ExtractionRequest) -> ExtractionResponse:
         if not self._api_key:
@@ -77,8 +80,13 @@ class FirecrawlContentExtractor:
             follow_redirects=False,
         )
         try:
+            request_url = self._egress_guard.authorize_current(
+                provider=self.provider_id,
+                connector=self.provider_version,
+                url=f"{self._base_url}/v2/scrape",
+            )
             response = await client.post(
-                f"{self._base_url}/v2/scrape",
+                request_url,
                 json=body,
                 headers=headers,
                 timeout=self._timeout,
@@ -87,6 +95,8 @@ class FirecrawlContentExtractor:
             return self._error("EXTRACTION_TIMEOUT", True)
         except httpx.HTTPError:
             return self._error("PROVIDER_UNAVAILABLE", True)
+        except EgressRejected as error:
+            return self._error(error.reason_code, False)
         finally:
             if owns_client:
                 await client.aclose()
