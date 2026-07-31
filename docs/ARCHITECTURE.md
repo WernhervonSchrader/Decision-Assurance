@@ -53,7 +53,7 @@ existing engine produces assurance findings and outcomes.
 # Web Research v0.4 boundary
 
 Web Research owns provider-neutral contracts, lifecycle, ports, policies, audit and tenant-keyed
-tables in the shared database. Brave discovers; Firecrawl extracts; the compiler alone translates
+tables in the shared database. OpenAI Web Search discovers; Firecrawl optionally extracts; the compiler alone translates
 eligible candidates to Decision evidence. Only the existing engine evaluates that Decision File.
 See [the detailed architecture](web-research/architecture.md) and ADR-003.
 

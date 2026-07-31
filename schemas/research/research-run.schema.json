@@ -23,6 +23,8 @@
     "errors": {"type": "array", "items": {"$ref": "research-error.schema.json"}},
     "audit_events": {"type": "array", "items": {"$ref": "research-audit-event.schema.json"}},
     "provider_cost_units": {"type": "integer", "minimum": 0},
-    "compiled_decision_file_id": {"type": ["string", "null"]}
+    "compiled_decision_file_id": {"type": ["string", "null"]},
+    "search_summary": {"type": ["string", "null"]},
+    "search_provider_request_id": {"type": ["string", "null"]}
   }
 }

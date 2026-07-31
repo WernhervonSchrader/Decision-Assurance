@@ -21,7 +21,7 @@ class FakeExternalSecrets:
             "decision-assurance-worker-database-dsn": (
                 "postgresql://worker.invalid/decision-assurance"
             ),
-            "brave-key": "brave-canary-value",
+            "openai-key": "openai-canary-value",
             "firecrawl-key": "firecrawl-canary-value",
         }
         return SecretValue(values[reference.name])
@@ -33,13 +33,13 @@ class FakeExternalSecrets:
         (
             OperatingMode.LOCAL,
             "local.example.json",
-            "research-search.local.example",
+            "openai-api.local.example",
             "research-extract.local.example",
         ),
         (
             OperatingMode.EU_MANAGED,
             "eu-managed.example.json",
-            "research-search.eu.example",
+            "openai-api.eu.example",
             "research-extract.eu.example",
         ),
     ],
@@ -61,9 +61,9 @@ def test_operating_profile_builds_the_same_fail_closed_runtime(
     app = load_runtime(
         {
             "DA_CONFIG_PATH": str(ROOT / "config" / "deployment" / config_name),
-            "DA_BRAVE_API_KEY_SECRET_REF": "brave-key",
+            "DA_OPENAI_API_KEY_SECRET_REF": "openai-key",
             "DA_FIRECRAWL_API_KEY_SECRET_REF": "firecrawl-key",
-            "BRAVE_SEARCH_BASE_URL": f"https://{search_host}",
+            "OPENAI_BASE_URL": f"https://{search_host}",
             "FIRECRAWL_BASE_URL": f"https://{extract_host}",
             "DA_VERSION": "0.5.0",
             "DA_COMMIT_SHA": "a" * 40,
@@ -104,7 +104,7 @@ def test_provider_residency_conflict_fails_before_secret_or_adapter_construction
         load_runtime(
             {
                 "DA_CONFIG_PATH": str(ROOT / "config" / "deployment" / "eu-managed.example.json"),
-                "BRAVE_SEARCH_BASE_URL": "https://undeclared-provider.example",
+                "OPENAI_BASE_URL": "https://undeclared-provider.example",
                 "FIRECRAWL_BASE_URL": "https://research-extract.eu.example",
             },
             external_secrets=TrackingSecrets(),

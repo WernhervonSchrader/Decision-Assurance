@@ -65,8 +65,10 @@ services:
     secrets:
       - source: database-dsn
         target: decision-assurance-database-dsn
-      - decision-assurance-brave-api-key
-      - decision-assurance-firecrawl-api-key
+      - source: openai-api-key
+        target: OPENAI_API_KEY
+      - source: firecrawl-api-key
+        target: FIRECRAWL_API_KEY
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -100,8 +102,10 @@ services:
       - source: database-dsn
         target: decision-assurance-database-dsn
       - decision-assurance-worker-database-dsn
-      - decision-assurance-brave-api-key
-      - decision-assurance-firecrawl-api-key
+      - source: openai-api-key
+        target: OPENAI_API_KEY
+      - source: firecrawl-api-key
+        target: FIRECRAWL_API_KEY
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -136,8 +140,10 @@ services:
     secrets:
       - source: database-dsn
         target: decision-assurance-database-dsn
-      - decision-assurance-brave-api-key
-      - decision-assurance-firecrawl-api-key
+      - source: openai-api-key
+        target: OPENAI_API_KEY
+      - source: firecrawl-api-key
+        target: FIRECRAWL_API_KEY
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -166,7 +172,7 @@ secrets:
     file: ./.secrets/database-dsn
   decision-assurance-worker-database-dsn:
     file: ./.secrets/decision-assurance-worker-database-dsn
-  decision-assurance-brave-api-key:
-    file: ./.secrets/decision-assurance-brave-api-key
-  decision-assurance-firecrawl-api-key:
-    file: ./.secrets/decision-assurance-firecrawl-api-key
+  openai-api-key:
+    file: ./.secrets/OPENAI_API_KEY
+  firecrawl-api-key:
+    file: ./.secrets/FIRECRAWL_API_KEY

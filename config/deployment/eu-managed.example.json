@@ -32,7 +32,7 @@
   },
   "egress_allowed_hosts": [
     "research-extract.eu.example",
-    "research-search.eu.example"
+    "openai-api.eu.example"
   ],
   "provider_egress": [
     {
@@ -57,14 +57,14 @@
       }
     },
     {
-      "provider": "brave-search",
-      "service": "web-search-v1",
-      "host": "research-search.eu.example",
+      "provider": "openai-web-search",
+      "service": "responses-web-search-v1",
+      "host": "openai-api.eu.example",
       "processing_location": "DE",
       "confirmed_processing_locations": [],
       "tenant_ids": ["*"],
       "attestation": {
-        "evidence_id": "eu-brave-attestation-pending",
+        "evidence_id": "eu-openai-attestation-pending",
         "evidence_type": "OPERATOR_SELF_DECLARATION",
         "evidence_ref": "https://invalid.example/evidence-not-verified",
         "issuer": "operator",

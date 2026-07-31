@@ -12,6 +12,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from ..tenancy import TenantContext
 from .config import RuntimeConfig
+from .contracts import EnvironmentProfile, OperatingMode
 
 _HOST = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 
@@ -104,9 +105,11 @@ class ResidencyEgressGuard:
         config_supplier: Callable[[], RuntimeConfig | None],
         *,
         clock: Callable[[], datetime] | None = None,
+        expected_profile: EnvironmentProfile | None = None,
     ) -> None:
         self._config_supplier = config_supplier
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._expected_profile = expected_profile
 
     def authorize_current(self, *, provider: str, connector: str, url: str) -> str:
         context = current_egress_context()
@@ -160,6 +163,8 @@ class ResidencyEgressGuard:
 
         if config is None:
             return decide("BLOCKED", "EGRESS_CONFIGURATION_CHANGED")
+        if self._expected_profile is not None and config.profile is not self._expected_profile:
+            return decide("BLOCKED", "EGRESS_CONFIGURATION_CHANGED")
         mode = getattr(config, "operating_mode", None)
         residency = getattr(config, "data_residency", None)
         if mode is None or residency is None:
@@ -194,6 +199,18 @@ class ResidencyEgressGuard:
             return decide("BLOCKED", "EGRESS_TENANT_MISMATCH")
         if location not in residency.external_processing_locations:
             return decide("BLOCKED", "EGRESS_LOCATION_NOT_ALLOWED")
+        is_development = (
+            config.profile is EnvironmentProfile.DEVELOPMENT
+            and mode is OperatingMode.DEVELOPMENT_PROVIDER_INTEGRATION
+        )
+        if is_development:
+            if (
+                location != "external-unspecified"
+                or attestation.evidence_type != "OPERATOR_SELF_DECLARATION"
+                or attestation.verification_status != "UNVERIFIED"
+            ):
+                return decide("BLOCKED", "EGRESS_CONFIGURATION_CHANGED")
+            return decide("ALLOWED", "EGRESS_ALLOWED_DEVELOPMENT", allowed_url=normalized_url)
         if attestation.evidence_type == "OPERATOR_SELF_DECLARATION":
             return decide("BLOCKED", "EGRESS_EVIDENCE_UNVERIFIED")
         if attestation.verification_status != "VERIFIED":

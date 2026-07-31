@@ -58,6 +58,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "postgresql: requires a live PostgreSQL service",
+  "live_provider: requires explicit opt-in and local provider credentials",
 ]
 
 [tool.ruff]

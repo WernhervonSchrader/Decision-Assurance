@@ -32,7 +32,7 @@ Production Foundation v0.5 adds real PostgreSQL integration and a controlled API
 forced-RLS isolation, two-Worker lease races, current-time heartbeat renewal, durable manual requeue,
 concurrent idempotency and job recovery, and restores a native backup into a fresh database. The pilot
 uses two tenants, locally signed OIDC identities, human and agent actors, a fixed clock, deterministic
-IDs and fake Brave/Firecrawl adapters. No live provider or production identity/database is used.
+IDs and fake OpenAI/Firecrawl adapters. No live provider or production identity/database is used.
 API-only scope makes browser/device screenshots inapplicable; sanitized workflow evidence is retained.
 
 The MCP v0.5 suite lives under `tests/mcp_adapter/`. It covers strict inputs and schemas, Quick/
@@ -54,7 +54,7 @@ violations. Provider-residency regression tests prove:
 - every provider processing location occurs in `external_processing_locations`;
 - request-time guard re-reads the profile and policy after a configuration change;
 - missing, unverified, expired or mismatched provider evidence fails before the transport call;
-- Brave and Firecrawl block without a network call and persist secret-free `ALLOWED`/`BLOCKED`
+- OpenAI and Firecrawl block without a network call and persist secret-free `ALLOWED`/`BLOCKED`
   egress events;
 - undeclared runtime URLs, extra allowlisted hosts, region conflicts and tenant-specific provider
   fields fail closed;

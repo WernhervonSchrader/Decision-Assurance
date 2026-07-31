@@ -40,7 +40,7 @@ class Resolver:
 
 
 class Search:
-    provider_id = "fake-brave"
+    provider_id = "fake-openai"
 
     def __init__(self, response: SearchResponse | ProviderError):
         self.response = response
@@ -86,7 +86,7 @@ def content(url: str, text: str, *, language: str = "en") -> ExtractionResponse:
 def discovery(*, stale: bool = False) -> SearchResponse:
     published = "2020-01-01T00:00:00+00:00" if stale else NOW.isoformat()
     return SearchResponse(
-        "fake-brave",
+        "fake-openai",
         "v1",
         NOW.isoformat(),
         (
@@ -222,7 +222,7 @@ def test_e2e_02_partial_timeout_blocked_domain_and_retry(tmp_path) -> None:  # t
     created = client.post(
         "/v1/research-runs", json=request, headers=headers("a-validator", "partial-1")
     )
-    assert created.json()["status"] == "FAILED"
+    assert created.json()["status"] == "PARTIALLY_COMPLETED"
     retried = client.post(
         f"/v1/research-runs/{created.json()['research_run_id']}/retry",
         json={},
@@ -316,7 +316,7 @@ def test_e2e_06_explicitly_conflicting_evidence_requires_review(tmp_path) -> Non
 def test_e2e_07_provider_not_configured_is_controlled(tmp_path) -> None:  # type: ignore[no-untyped-def]
     client, _, _, document = make_client(
         tmp_path,
-        Search(ProviderError("brave-search", "PROVIDER_NOT_CONFIGURED", False)),
+        Search(ProviderError("openai-web-search", "PROVIDER_NOT_CONFIGURED", False)),
         Extractor({}),
     )
     response = client.post(
@@ -328,7 +328,7 @@ def test_e2e_07_provider_not_configured_is_controlled(tmp_path) -> None:  # type
         {
             "reason_code": "PROVIDER_NOT_CONFIGURED",
             "source_id": None,
-            "provider_id": "brave-search",
+            "provider_id": "openai-web-search",
             "retryable": False,
             "status_code": None,
         }

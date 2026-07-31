@@ -14,8 +14,8 @@ from ..web_research.compiler import ResearchEvidenceCompiler, SqliteDecisionEvid
 from ..web_research.evidence_policy import EvidencePolicy
 from ..web_research.normalization import EvidenceNormalizer
 from ..web_research.orchestrator import ResearchOrchestrator
-from ..web_research.providers.brave import BraveSearchProvider
 from ..web_research.providers.firecrawl import FirecrawlContentExtractor
+from ..web_research.providers.openai_web_search import OpenAIWebSearchProvider
 from ..web_research.repository import SqliteResearchRepository
 from ..web_research.url_policy import PublicUrlPolicy, SystemResolver
 from .app import create_app
@@ -32,7 +32,7 @@ def generate(path: Path, *, api_version: str = "0.4.0") -> None:
         research_repository.initialize()
         url_policy = PublicUrlPolicy(SystemResolver())
         orchestrator = ResearchOrchestrator(
-            BraveSearchProvider(api_key=None),
+            OpenAIWebSearchProvider(api_key=None),
             FirecrawlContentExtractor(api_key=None, url_policy=url_policy),
             research_repository,
             url_policy,

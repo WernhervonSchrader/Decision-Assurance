@@ -27,8 +27,8 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - two-tenant [E2E journeys](docs/TESTING.md) through `APPROVED` and `BLOCKED`
 - controlled DE/EN [real-world intake](docs/INTAKE.md) with provenance, verification and confirmation
 - a separate 13-case raw-text intake benchmark with raw-only and trusted-context variants
-- provider-neutral [Web Research v0.4](docs/web-research/README.md) with Brave discovery,
-  guarded Firecrawl extraction, tenant-scoped evidence and conservative DRAFT-only handoff
+- provider-neutral [Web Research](docs/web-research/README.md) with OpenAI Web Search discovery,
+  optional guarded Firecrawl extraction, tenant-scoped evidence and conservative DRAFT-only handoff
 - PostgreSQL persistence with forced row-level security and least-privilege application/worker roles
 - production OIDC/JWKS, external secret references and exact HTTPS egress allowlists
 - durable asynchronous Research jobs with leases, retry, cancellation and recovery
@@ -76,10 +76,10 @@ OIDC and external-secret infrastructure inside the operator boundary; it is not 
 runtime. `eu-managed` additionally requires explicit EU country codes for storage, processing,
 backup, support and external processing plus HTTPS residency/subprocessor evidence references.
 Every configured provider host has a requested processing location plus a structured attestation. Its
-host must exactly match the runtime egress allowlist and actual Brave/Firecrawl base URLs. Startup
+host must exactly match the runtime egress allowlist and actual OpenAI/Firecrawl base URLs. Startup
 validation is supplemented by a request-time guard; missing, unverified, expired, tenant-incompatible
 or profile-incompatible evidence blocks immediately before network access and records a secret-free
-decision event. The supplied Brave/Firecrawl profile entries remain blocked until independently
+decision event. The supplied OpenAI/Firecrawl profile entries remain blocked until independently
 verified evidence is supplied.
 
 The MCP adapter is a separate process from the REST API and exposes stateless Streamable HTTP at

@@ -16,7 +16,7 @@ class FakeExternalSecrets:
         values = {
             "database-dsn": "postgresql://runtime.invalid/decision-assurance",
             "worker-database-dsn": "postgresql://worker.invalid/decision-assurance",
-            "brave-key": "brave-canary-value",
+            "openai-key": "openai-canary-value",
             "firecrawl-key": "firecrawl-canary-value",
         }
         return SecretValue(values[reference.name])
@@ -56,8 +56,8 @@ def test_configured_production_runtime_selects_only_production_adapters(
         "egress_allowed_hosts": ["provider.example"],
         "provider_egress": [
             {
-                "provider": "brave-search",
-                "service": "web-search-v1",
+                "provider": "openai-web-search",
+                "service": "responses-web-search-v1",
                 "host": "provider.example",
                 "processing_location": "local",
                 "confirmed_processing_locations": [],
@@ -85,9 +85,9 @@ def test_configured_production_runtime_selects_only_production_adapters(
     app = load_runtime(
         {
             "DA_CONFIG_PATH": str(path),
-            "DA_BRAVE_API_KEY_SECRET_REF": "brave-key",
+            "DA_OPENAI_API_KEY_SECRET_REF": "openai-key",
             "DA_FIRECRAWL_API_KEY_SECRET_REF": "firecrawl-key",
-            "BRAVE_SEARCH_BASE_URL": "https://provider.example",
+            "OPENAI_BASE_URL": "https://provider.example",
             "FIRECRAWL_BASE_URL": "https://provider.example",
             "DA_VERSION": "0.5.0",
             "DA_COMMIT_SHA": "a" * 40,

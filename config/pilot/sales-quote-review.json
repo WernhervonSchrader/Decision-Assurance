@@ -7,7 +7,7 @@
   "maximum_research_budget": 100,
   "maximum_research_concurrency": 2,
   "supported_locales": ["de", "en"],
-  "supported_providers": ["brave-search", "firecrawl"],
+  "supported_providers": ["openai-web-search", "firecrawl"],
   "allowed_data_classes": ["business-contact", "quote", "public-web-evidence"],
   "retention_days": 30,
   "feature_flags": ["controlled-intake", "async-web-research", "human-approval"],

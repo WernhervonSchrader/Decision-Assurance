@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from decision_assurance.production.config import RuntimeConfig, load_config
+from decision_assurance.production.contracts import EnvironmentProfile
 from decision_assurance.production.egress import (
     EgressDecision,
     EgressRejected,
@@ -26,8 +27,8 @@ from decision_assurance.web_research.contracts import (
     ResearchStatus,
     SearchQuery,
 )
-from decision_assurance.web_research.providers.brave import BraveSearchProvider
 from decision_assurance.web_research.providers.errors import ProviderRequestFailed
+from decision_assurance.web_research.providers.openai_web_search import OpenAIWebSearchProvider
 from decision_assurance.web_research.repository import SqliteResearchRepository
 
 NOW = datetime(2026, 7, 31, tzinfo=timezone.utc)
@@ -41,9 +42,9 @@ def _attestation(
     confirmed: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
-        "evidence_id": "evidence-brave-1",
+        "evidence_id": "evidence-openai-1",
         "evidence_type": evidence_type,
-        "evidence_ref": "https://evidence.example/brave-dpa",
+        "evidence_ref": "https://evidence.example/openai-dpa",
         "issuer": "provider-contracts",
         "issued_at": "2026-01-01T00:00:00Z",
         "valid_from": "2026-01-01T00:00:00Z",
@@ -78,12 +79,12 @@ def _raw(*, status: str = "VERIFIED", confirmed: list[str] | None = None) -> dic
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
         },
-        "egress_allowed_hosts": ["brave.example"],
+        "egress_allowed_hosts": ["openai.example"],
         "provider_egress": [
             {
-                "provider": "brave-search",
-                "service": "web-search-v1",
-                "host": "brave.example",
+                "provider": "openai-web-search",
+                "service": "responses-web-search-v1",
+                "host": "openai.example",
                 "processing_location": "local",
                 "confirmed_processing_locations": (
                     confirmed if confirmed is not None else ["local"]
@@ -117,16 +118,56 @@ def test_allowed_request_emits_complete_secret_free_event() -> None:
     assert (
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
-        == "https://brave.example/res/v1/web/search"
+        == "https://openai.example/v1/responses"
     )
     event = events[0]
     assert event.decision == "ALLOWED"
     assert event.reason_code == "EGRESS_ALLOWED"
     assert "secret" not in repr(asdict(event)).casefold()
+
+
+def test_explicit_development_provider_profile_allows_only_unverified_dev_egress() -> None:
+    config = load_config(
+        Path("config/deployment/provider-development.example.json"),
+        {"DA_PROFILE": "development"},
+    )
+    events: list[EgressDecision] = []
+    guard = ResidencyEgressGuard(
+        lambda: config,
+        clock=lambda: NOW,
+        expected_profile=EnvironmentProfile.DEVELOPMENT,
+    )
+    result = guard.authorize(
+        _context(events),
+        provider="openai-web-search",
+        connector="responses-web-search-v1",
+        url="https://api.openai.com/v1/responses",
+    )
+    assert result == "https://api.openai.com/v1/responses"
+    assert events[0].reason_code == "EGRESS_ALLOWED_DEVELOPMENT"
+    assert events[0].evidence_status == "UNVERIFIED"
+
+
+def test_runtime_profile_change_blocks_development_guard() -> None:
+    production = RuntimeConfig.from_mapping(_raw())
+    events: list[EgressDecision] = []
+    guard = ResidencyEgressGuard(
+        lambda: production,
+        clock=lambda: NOW,
+        expected_profile=EnvironmentProfile.DEVELOPMENT,
+    )
+    with pytest.raises(EgressRejected, match="EGRESS_CONFIGURATION_CHANGED"):
+        guard.authorize(
+            _context(events),
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
+        )
+    assert events[0].decision == "BLOCKED"
 
 
 @pytest.mark.parametrize(
@@ -176,9 +217,9 @@ def test_missing_expired_or_mismatched_attestation_blocks(raw_mutation, reason: 
     with pytest.raises(EgressRejected, match=reason):
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
     assert events[0].decision == "BLOCKED"
     assert events[0].reason_code == reason
@@ -191,9 +232,9 @@ def test_changed_configuration_is_used_on_next_request() -> None:
     with pytest.raises(EgressRejected, match="EGRESS_EVIDENCE_UNVERIFIED"):
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
 
 
@@ -206,18 +247,18 @@ def test_changed_configuration_file_is_reloaded_on_next_request(tmp_path: Path) 
     events: list[EgressDecision] = []
     assert guard.authorize(
         _context(events),
-        provider="brave-search",
-        connector="web-search-v1",
-        url="https://brave.example/res/v1/web/search",
+        provider="openai-web-search",
+        connector="responses-web-search-v1",
+        url="https://openai.example/v1/responses",
     )
 
     path.write_text(json.dumps(_raw(status="UNVERIFIED")), encoding="utf-8")
     with pytest.raises(EgressRejected, match="EGRESS_EVIDENCE_UNVERIFIED"):
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
 
 
@@ -229,16 +270,16 @@ def test_invalid_changed_configuration_is_audited_and_blocks() -> None:
     with pytest.raises(EgressRejected, match="EGRESS_CONFIGURATION_CHANGED") as caught:
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
     assert events[0].reason_code == "EGRESS_CONFIGURATION_CHANGED"
     assert "contains-a-secret" not in str(caught.value)
 
 
 @pytest.mark.anyio
-async def test_blocked_brave_request_never_reaches_network() -> None:
+async def test_blocked_openai_request_never_reaches_network() -> None:
     raw = _raw(status="UNVERIFIED")
     guard, _ = _guard(raw)
     calls = 0
@@ -248,9 +289,9 @@ async def test_blocked_brave_request_never_reaches_network() -> None:
         calls += 1
         return httpx.Response(200, json={"web": {"results": []}})
 
-    provider = BraveSearchProvider(
+    provider = OpenAIWebSearchProvider(
         api_key="super-secret",
-        base_url="https://brave.example",
+        base_url="https://openai.example",
         client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
         egress_guard=guard,
     )
@@ -273,9 +314,9 @@ def test_tenant_scope_mismatch_blocks() -> None:
     with pytest.raises(EgressRejected, match="EGRESS_TENANT_MISMATCH"):
         guard.authorize(
             _context(events, tenant_id="tenant-b"),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://brave.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://openai.example/v1/responses",
         )
 
 
@@ -285,9 +326,9 @@ def test_host_and_attestation_mismatch_blocks() -> None:
     with pytest.raises(EgressRejected, match="EGRESS_HOST_MISMATCH"):
         guard.authorize(
             _context(events),
-            provider="brave-search",
-            connector="web-search-v1",
-            url="https://undeclared.example/res/v1/web/search",
+            provider="openai-web-search",
+            connector="responses-web-search-v1",
+            url="https://undeclared.example/v1/responses",
         )
     assert events[0].reason_code == "EGRESS_HOST_MISMATCH"
 
@@ -295,14 +336,14 @@ def test_host_and_attestation_mismatch_blocks() -> None:
 def test_startup_validation_and_request_guard_agree_for_unchanged_config() -> None:
     raw = _raw()
     config = RuntimeConfig.from_mapping(raw)
-    config.validate_provider_urls(("https://brave.example",))
+    config.validate_provider_urls(("https://openai.example",))
     guard = ResidencyEgressGuard(lambda: config, clock=lambda: NOW)
     events: list[EgressDecision] = []
     assert guard.authorize(
         _context(events),
-        provider="brave-search",
-        connector="web-search-v1",
-        url="https://brave.example/res/v1/web/search",
+        provider="openai-web-search",
+        connector="responses-web-search-v1",
+        url="https://openai.example/v1/responses",
     )
     assert events[0].reason_code == "EGRESS_ALLOWED"
 
@@ -324,9 +365,9 @@ async def test_audit_failure_blocks_before_network() -> None:
         return httpx.Response(200, json={"web": {"results": []}})
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = BraveSearchProvider(
+    provider = OpenAIWebSearchProvider(
         api_key="super-secret",
-        base_url="https://brave.example",
+        base_url="https://openai.example",
         client=client,
         egress_guard=guard,
     )
@@ -340,7 +381,7 @@ async def test_audit_failure_blocks_before_network() -> None:
 
 
 def test_direct_adapter_without_bound_context_fails_closed() -> None:
-    provider = BraveSearchProvider(api_key="secret", base_url="https://brave.example")
+    provider = OpenAIWebSearchProvider(api_key="secret", base_url="https://openai.example")
     with pytest.raises(ProviderRequestFailed, match="EGRESS_CONTEXT_REQUIRED"):
         import asyncio
 
@@ -387,9 +428,9 @@ def test_persisted_egress_event_is_tenant_scoped(tmp_path: Path) -> None:
         "corr-1",
         "production",
         "residency-policy-v1",
-        "brave-search",
-        "web-search-v1",
-        "brave.example",
+        "openai-web-search",
+        "responses-web-search-v1",
+        "openai.example",
         "local",
         "evidence-1",
         "UNVERIFIED",

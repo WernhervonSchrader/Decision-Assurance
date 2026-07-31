@@ -16,6 +16,7 @@ class EnvironmentProfile(str, Enum):
 
 
 class OperatingMode(str, Enum):
+    DEVELOPMENT_PROVIDER_INTEGRATION = "development-provider-integration"
     LOCAL = "local"
     EU_MANAGED = "eu-managed"
 

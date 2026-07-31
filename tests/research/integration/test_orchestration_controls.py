@@ -44,7 +44,7 @@ class Resolver:
 
 
 class Search:
-    provider_id = "fake-brave"
+    provider_id = "fake-openai"
 
     def __init__(self, response: SearchResponse | ProviderError):
         self.response = response
@@ -59,7 +59,7 @@ class Search:
 
 
 class SequencedSearch:
-    provider_id = "fake-brave"
+    provider_id = "fake-openai"
 
     def __init__(self, responses: list[SearchResponse | ProviderError]):
         self.responses = responses
@@ -150,7 +150,7 @@ def setup(tmp_path, search, extractor, *, budget: int = 10, clock=None):  # type
 
 def discovery() -> SearchResponse:
     return SearchResponse(
-        "fake-brave",
+        "fake-openai",
         "v1",
         NOW.isoformat(),
         (
@@ -208,7 +208,7 @@ async def test_partial_retry_only_reprocesses_failed_source_and_converges(tmp_pa
 
 @pytest.mark.anyio
 async def test_search_provider_failure_is_persisted_without_exception_details(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    provider_error = ProviderError("fake-brave", "PROVIDER_NOT_CONFIGURED", False)
+    provider_error = ProviderError("fake-openai", "PROVIDER_NOT_CONFIGURED", False)
     search = Search(provider_error)
     tenant, document, _, repository, orchestrator, request = setup(
         tmp_path, search, SequencedExtractor({})
@@ -223,8 +223,34 @@ async def test_search_provider_failure_is_persisted_without_exception_details(tm
 
 
 @pytest.mark.anyio
+async def test_firecrawl_failure_retains_citation_only_without_full_text_claim(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    search = Search(discovery())
+    extractor = SequencedExtractor(
+        {
+            "https://one.example/rule": [
+                ExtractionResponse(error=ProviderError("firecrawl", "PROVIDER_UNAVAILABLE", True))
+            ],
+            "https://two.example/rule": [
+                ExtractionResponse(error=ProviderError("firecrawl", "PROVIDER_UNAVAILABLE", True))
+            ],
+        }
+    )
+    tenant, document, _, _, orchestrator, request = setup(tmp_path, search, extractor)
+
+    run = await orchestrator.execute(
+        tenant, "actor-1", request, payload_hash(document), "correlation-citation-only"
+    )
+
+    assert run.status is ResearchStatus.PARTIALLY_COMPLETED
+    assert {source.status for source in run.sources} == {"CITATION_ONLY"}
+    assert {source.artifact_type for source in run.sources} == {"SELECTED_SOURCE"}
+    assert run.snapshots == []
+    assert run.evidence == []
+
+
+@pytest.mark.anyio
 async def test_failed_search_can_be_retried_once_without_repeating_success(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    search = SequencedSearch([ProviderError("fake-brave", "SEARCH_TIMEOUT", True), discovery()])
+    search = SequencedSearch([ProviderError("fake-openai", "SEARCH_TIMEOUT", True), discovery()])
     extractor = SequencedExtractor(
         {
             "https://one.example/rule": [response_for("https://one.example/rule", "One " * 100)],
@@ -249,7 +275,7 @@ async def test_retry_after_window_is_enforced_before_spending_budget(tmp_path) -
     current = [NOW]
     search = SequencedSearch(
         [
-            ProviderError("fake-brave", "PROVIDER_RATE_LIMITED", True, 429, 30.0),
+            ProviderError("fake-openai", "PROVIDER_RATE_LIMITED", True, 429, 30.0),
             discovery(),
         ]
     )
@@ -297,7 +323,7 @@ async def test_budget_exhaustion_is_partial_and_never_overcharges(tmp_path) -> N
 
 @pytest.mark.anyio
 async def test_cancel_is_idempotent_and_terminal_runs_cannot_be_cancelled(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    search = Search(ProviderError("fake-brave", "PROVIDER_NOT_CONFIGURED", False))
+    search = Search(ProviderError("fake-openai", "PROVIDER_NOT_CONFIGURED", False))
     tenant, document, _, _, orchestrator, request = setup(tmp_path, search, SequencedExtractor({}))
     failed = await orchestrator.execute(
         tenant, "actor-1", request, payload_hash(document), "correlation-create"

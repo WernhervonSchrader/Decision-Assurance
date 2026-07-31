@@ -14,7 +14,7 @@ API process -> authenticated Identity -> tenant-scoped PostgreSQL transaction
        | enqueue                          | RLS + audit + idempotency + budgets
        v                                  |
 PostgreSQL job table <---- lease ---- Worker process
-                                      | Brave discovery port
+                                      | OpenAI Web Search discovery port
                                       | Egress policy
                                       | Firecrawl extraction port
                                       v
@@ -77,7 +77,7 @@ payloads and never replace tenant context.
 `provider_egress` contains provider/service, target host, requested processing location, tenant scope
 and a structured attestation. Its normalized host set must exactly equal `egress_allowed_hosts`; each
 requested location must occur in `external_processing_locations`. Startup validation checks the
-effective Brave/Firecrawl URL set and HTTPS allowlist before secrets or adapters are constructed.
+effective OpenAI/Firecrawl URL set and HTTPS allowlist before secrets or adapters are constructed.
 Immediately before every provider request, the central `ResidencyEgressGuard` re-reads the current
 profile/policy, tenant scope, host, provider, connector, requested location and attestation status.
 Missing, stale, unverified or contradictory evidence blocks before the socket operation. Country and
@@ -136,5 +136,5 @@ cross-tenant attempts, cost anomalies, failed migrations and dead-letter jobs.
 - PostgreSQL with RLS and point-in-time recovery capability.
 - An OIDC issuer with HTTPS JWKS and key rotation.
 - An external secret provider selected by deployment.
-- Brave Search and Firecrawl only when the pilot feature and tenant policy permit them.
+- OpenAI Web Search and Firecrawl only when the pilot feature and tenant policy permit them.
 - A container runtime and CI scanners for build, SBOM, vulnerability and secret verification.

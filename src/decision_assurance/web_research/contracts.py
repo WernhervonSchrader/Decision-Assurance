@@ -106,6 +106,8 @@ class SearchQuery:
     preferred_languages: tuple[str, ...]
     count: int
     freshness: FreshnessPolicy
+    allowed_domains: tuple[str, ...] = ()
+    blocked_domains: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +117,8 @@ class SearchResult:
     snippet: str
     rank: int
     published_at: str | None = None
+    citation_kind: str = "CITED"
+    artifact_type: str = "SEARCH_RESULT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +127,8 @@ class SearchResponse:
     provider_version: str
     searched_at: str
     results: tuple[SearchResult, ...]
+    summary: str = ""
+    provider_request_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -140,6 +146,8 @@ class SourceCandidate:
     published_at: str | None = None
     status: str = "DISCOVERED"
     reason_codes: tuple[str, ...] = ()
+    citation_kind: str = "CITED"
+    artifact_type: str = "SEARCH_RESULT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +226,7 @@ class SourceSnapshot:
     content_provider: str
     content_provider_version: str
     risk: ContentRisk
+    artifact_type: str = "FETCHED_CONTENT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +265,7 @@ class EvidenceCandidate:
     assessment: EvidenceAssessment
     provenance: Provenance
     risk: ContentRisk
+    artifact_type: str = "DERIVED_CLAIM"
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,6 +325,8 @@ class ResearchRun:
     audit_events: list[ResearchAuditEvent] = field(default_factory=list)
     provider_cost_units: int = 0
     compiled_decision_file_id: str | None = None
+    search_summary: str | None = None
+    search_provider_request_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

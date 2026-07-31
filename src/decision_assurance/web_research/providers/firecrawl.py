@@ -14,6 +14,7 @@ from ..contracts import (
     ProviderError,
 )
 from ..url_policy import PublicUrlPolicy, UrlPolicyRejected
+from .telemetry import NOOP_PROVIDER_TELEMETRY, ProviderCallTelemetry
 
 Clock = Callable[[], datetime]
 
@@ -39,6 +40,7 @@ class FirecrawlContentExtractor:
         client: httpx.AsyncClient | None = None,
         clock: Clock = _utc_now,
         egress_guard: ResidencyEgressGuard | None = None,
+        telemetry: ProviderCallTelemetry = NOOP_PROVIDER_TELEMETRY,
     ):
         parsed = urlsplit(base_url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
@@ -55,6 +57,7 @@ class FirecrawlContentExtractor:
         self._client = client
         self._clock = clock
         self._egress_guard = egress_guard or ResidencyEgressGuard(lambda: None)
+        self._telemetry = telemetry
 
     async def extract(self, request: ExtractionRequest) -> ExtractionResponse:
         if not self._api_key:
@@ -79,6 +82,7 @@ class FirecrawlContentExtractor:
             timeout=self._timeout,
             follow_redirects=False,
         )
+        started_at = self._telemetry.start()
         try:
             request_url = self._egress_guard.authorize_current(
                 provider=self.provider_id,
@@ -92,16 +96,47 @@ class FirecrawlContentExtractor:
                 timeout=self._timeout,
             )
         except httpx.TimeoutException:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code="EXTRACTION_TIMEOUT",
+            )
             return self._error("EXTRACTION_TIMEOUT", True)
         except httpx.HTTPError:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code="PROVIDER_UNAVAILABLE",
+            )
             return self._error("PROVIDER_UNAVAILABLE", True)
         except EgressRejected as error:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code=error.reason_code,
+            )
             return self._error(error.reason_code, False)
         finally:
             if owns_client:
                 await client.aclose()
         if response.status_code != 200:
+            reason, _ = self._status(response.status_code)
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=response.status_code,
+                reason_code=reason,
+            )
             return self._error_for_status(response)
+        self._telemetry.record(
+            started_at,
+            connector=self.provider_version,
+            status_code=response.status_code,
+            reason_code="PROVIDER_CALL_SUCCEEDED",
+        )
         return self._normalize(response, request, safe_url.domain)
 
     def _normalize(
@@ -170,22 +205,28 @@ class FirecrawlContentExtractor:
 
     def _error_for_status(self, response: httpx.Response) -> ExtractionResponse:
         status = response.status_code
+        reason, retryable = self._status(status)
+        retry_after = self._retry_after(response) if status == 429 else None
+        return self._error(reason, retryable, status, retry_after)
+
+    @staticmethod
+    def _status(status: int) -> tuple[str, bool]:
         mapping = {
             400: ("EXTRACTION_REQUEST_REJECTED", False),
             401: ("PROVIDER_AUTHENTICATION_FAILED", False),
+            403: ("PROVIDER_AUTHORIZATION_FAILED", False),
+            404: ("SOURCE_NOT_FOUND", False),
             402: ("PROVIDER_QUOTA_EXHAUSTED", False),
             408: ("EXTRACTION_TIMEOUT", True),
             413: ("CONTENT_TOO_LARGE", False),
             429: ("PROVIDER_RATE_LIMITED", True),
         }
-        reason, retryable = mapping.get(
+        return mapping.get(
             status,
             ("PROVIDER_UNAVAILABLE", True)
-            if status in {500, 502, 503, 504}
+            if 500 <= status <= 599
             else ("EXTRACTION_PROVIDER_ERROR", False),
         )
-        retry_after = self._retry_after(response) if status == 429 else None
-        return self._error(reason, retryable, status, retry_after)
 
     @staticmethod
     def _retry_after(response: httpx.Response) -> float | None:

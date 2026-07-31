@@ -124,6 +124,12 @@ class DataResidencyPolicy:
         )
         if any(not locations for locations in required):
             raise ValueError("DATA_LOCATION_REQUIRED")
+        if mode is OperatingMode.DEVELOPMENT_PROVIDER_INTEGRATION:
+            if any(locations != ("local-development",) for locations in required):
+                raise ValueError("DEVELOPMENT_DATA_BOUNDARY_REQUIRED")
+            if self.external_processing_locations != ("external-unspecified",):
+                raise ValueError("DEVELOPMENT_EXTERNAL_LOCATION_REQUIRED")
+            return
         if mode is OperatingMode.LOCAL:
             if any(locations != ("local",) for locations in required):
                 raise ValueError("LOCAL_DATA_BOUNDARY_REQUIRED")
@@ -192,6 +198,8 @@ class RuntimeConfig:
                 raise ValueError("OPERATING_MODE_REQUIRED")
             if self.data_residency is None:
                 raise ValueError("DATA_RESIDENCY_POLICY_REQUIRED")
+            if self.operating_mode is OperatingMode.DEVELOPMENT_PROVIDER_INTEGRATION:
+                raise ValueError("DEVELOPMENT_PROVIDER_PROFILE_FORBIDDEN")
             self.data_residency.validate_for(self.operating_mode)
             if self.database_backend is not DatabaseBackend.POSTGRESQL:
                 raise ValueError("PRODUCTION_REQUIRES_POSTGRESQL")
@@ -226,6 +234,20 @@ class RuntimeConfig:
                     not in self.data_residency.external_processing_locations
                 ):
                     raise ValueError("PROVIDER_PROCESSING_LOCATION_UNDECLARED")
+        elif self.operating_mode is not None or self.data_residency is not None:
+            if self.operating_mode is not OperatingMode.DEVELOPMENT_PROVIDER_INTEGRATION:
+                raise ValueError("DEVELOPMENT_PROVIDER_PROFILE_REQUIRED")
+            if self.data_residency is None:
+                raise ValueError("DATA_RESIDENCY_POLICY_REQUIRED")
+            self.data_residency.validate_for(self.operating_mode)
+            if set(item.host for item in self.provider_egress) != {
+                host.casefold().rstrip(".") for host in self.egress_allowed_hosts
+            }:
+                raise ValueError("PROVIDER_EGRESS_ALLOWLIST_MISMATCH")
+            if any(
+                item.processing_location != "external-unspecified" for item in self.provider_egress
+            ):
+                raise ValueError("DEVELOPMENT_EXTERNAL_LOCATION_REQUIRED")
 
     def validate_provider_urls(self, urls: tuple[str, ...]) -> None:
         declared = {item.host for item in self.provider_egress}
@@ -367,7 +389,8 @@ def _residency_policy(raw: object) -> DataResidencyPolicy:
 
 def _locations(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
     values = _string_tuple(raw, key)
-    return tuple(value if value == "local" else value.upper() for value in values)
+    development_sentinels = {"local", "local-development", "external-unspecified"}
+    return tuple(value if value in development_sentinels else value.upper() for value in values)
 
 
 def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
@@ -419,7 +442,9 @@ def _provider_egress(raw: object) -> tuple[ProviderEgress, ...]:
                 provider=provider,
                 service=service,
                 host=host,
-                processing_location=location if location == "local" else location.upper(),
+                processing_location=(
+                    location if location in {"local", "external-unspecified"} else location.upper()
+                ),
                 confirmed_processing_locations=confirmed_locations,
                 tenant_ids=tenant_ids,
                 attestation=ProviderAttestation(

@@ -42,7 +42,7 @@ def test_pilot_contract_requires_human_approval_and_rejects_unknown_fields() -> 
         "maximum_research_budget": 100,
         "maximum_research_concurrency": 2,
         "supported_locales": ["de", "en"],
-        "supported_providers": ["brave-search", "firecrawl"],
+        "supported_providers": ["openai-web-search", "firecrawl"],
         "allowed_data_classes": ["business-confidential"],
         "retention_days": 90,
         "feature_flags": ["background-research"],
