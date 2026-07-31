@@ -54,9 +54,7 @@ async def test_openai_to_firecrawl_to_evidence_uses_guard_and_preserves_provenan
                         "type": "web_search_call",
                         "action": {
                             "type": "search",
-                            "sources": [
-                                {"type": "url", "url": "https://one.example/rule"}
-                            ],
+                            "sources": [{"type": "url", "url": "https://one.example/rule"}],
                         },
                     },
                     {

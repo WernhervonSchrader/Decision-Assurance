@@ -94,7 +94,9 @@ def provider(
 
 
 @pytest.mark.anyio
-async def test_success_uses_responses_web_search_and_preserves_cited_and_consulted_sources() -> None:
+async def test_success_uses_responses_web_search_and_preserves_cited_and_consulted_sources() -> (
+    None
+):
     def handle(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/responses"
         assert request.headers["Authorization"] == f"Bearer {SECRET}"
@@ -152,9 +154,7 @@ async def test_success_uses_responses_web_search_and_preserves_cited_and_consult
                 },
                 {
                     "type": "message",
-                    "content": [
-                        {"type": "output_text", "text": "x" * 32_769, "annotations": []}
-                    ],
+                    "content": [{"type": "output_text", "text": "x" * 32_769, "annotations": []}],
                 },
             ],
         },
@@ -162,9 +162,9 @@ async def test_success_uses_responses_web_search_and_preserves_cited_and_consult
 )
 async def test_schema_drift_fails_closed(payload: object) -> None:
     with pytest.raises(ProviderRequestFailed, match="PROVIDER_SCHEMA_INVALID"):
-        await provider(httpx.MockTransport(lambda request: httpx.Response(200, json=payload))).search(
-            query()
-        )
+        await provider(
+            httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+        ).search(query())
 
 
 @pytest.mark.anyio

@@ -97,9 +97,7 @@ async def test_live_openai_minimal_search() -> None:
     correlation_id = "live-openai-smoke"
     started = time.monotonic()
     with bind_egress_context(_context(correlation_id)):
-        response = await OpenAIWebSearchProvider(
-            api_key=openai_key, egress_guard=_guard()
-        ).search(
+        response = await OpenAIWebSearchProvider(api_key=openai_key, egress_guard=_guard()).search(
             SearchQuery(
                 "site:example.com Example Domain",
                 "en-US",
