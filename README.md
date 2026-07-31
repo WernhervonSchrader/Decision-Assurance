@@ -31,6 +31,8 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
   optional guarded Firecrawl extraction, tenant-scoped evidence and conservative DRAFT-only handoff
 - PostgreSQL persistence with forced row-level security and least-privilege application/worker roles
 - production OIDC/JWKS, external secret references and exact HTTPS egress allowlists
+- reproducible [Keycloak OIDC development/E2E environment](docs/KEYCLOAK.md) with PostgreSQL 16,
+  S256 PKCE, controlled tenant/role claims and secret-free realm import
 - durable asynchronous Research jobs with leases, retry, cancellation and recovery
 - bounded MCP Web Research adapter with five authenticated tools and a validated personal-skill
   source template for ChatGPT Work/Codex
@@ -127,6 +129,7 @@ schemas/                         normative JSON Schemas
 examples/decision-cases/         valid Decision Files
 src/decision_assurance/          domain engine, API, policy, repositories and CLI
 integrations/chatgpt-work/       validated personal-skill source templates (not installed)
+integrations/keycloak/           secret-free, versioned local realm import
 migrations/                      SQLite and PostgreSQL/RLS migrations
 tests/fixtures/invalid/           deliberately invalid contracts
 tests/gold/                       open Gold Dataset manifest
@@ -134,6 +137,7 @@ benchmarks/intake/cases/          13-case untrusted-text benchmark
 docs/                             contract, policy and architecture
 .github/workflows/ci.yml          public verification pipeline
 Dockerfile.api / Dockerfile.worker / Dockerfile.mcp process container targets
+Dockerfile.keycloak / compose.keycloak.yaml isolated Keycloak development target
 ```
 
 The included benchmark is the project-owned **open benchmark suite**. It is not

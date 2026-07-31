@@ -59,3 +59,10 @@ rebinding. Tool schemas contain no tenant or provider-key field. Outputs omit pa
 assurance outcomes; internal failures return generic localized errors with correlation IDs. MCP does
 not weaken provider SSRF, redirect, DNS, scheme, port, body, timeout, rate, budget or retry controls.
 
+The local Keycloak profile verifies RS256 signatures against a bounded JWKS cache, exact issuer and
+audience, `exp`, `iat`, optional `nbf`, `azp`, `sub`, controlled tenant/actor claims, roles and the
+`da.api` scope. Keycloak encryption keys are ignored rather than accepted for signature validation.
+Tenant conflicts in header, path or JSON body and missing permissions are rejected before domain
+repository/provider access. Security events use stable reason codes and pseudonymize an unverified
+token reference; tokens, cookies, passwords and secrets are excluded. See [Keycloak](KEYCLOAK.md).
+

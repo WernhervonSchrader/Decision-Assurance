@@ -36,10 +36,12 @@ def _claims(**overrides: Any) -> dict[str, Any]:
         "nbf": now - 1,
         "exp": now + 300,
         "tenant_id": "tenant-a",
-        "role": "APPROVER",
+        "realm_access": {"roles": ["decision_approver", "decision_author"]},
         "actor_kind": "HUMAN",
         "organization": "org-a",
         "groups": ["reviewers", "sales"],
+        "azp": "decision-assurance-e2e",
+        "scope": "openid da.api",
     }
     values.update(overrides)
     return values
@@ -60,8 +62,11 @@ def _authenticator(
             issuer=ISSUER,
             audience=AUDIENCE,
             algorithms=("RS256",),
+            role_claim="realm_access.roles",
             organization_claim="organization",
             groups_claim="groups",
+            authorized_parties=("decision-assurance-ui", "decision-assurance-e2e"),
+            required_scopes=("da.api",),
         ),
         provider,
     )
@@ -77,9 +82,24 @@ def test_valid_signed_token_maps_identity_only_from_verified_claims() -> None:
     assert identity.actor_id == "human-1"
     assert identity.tenant.tenant_id == "tenant-a"
     assert identity.role is Role.APPROVER
+    assert identity.roles == frozenset({Role.APPROVER, Role.GENERATOR})
     assert identity.kind is ActorKind.HUMAN
     assert identity.organization_id == "org-a"
     assert identity.groups == ("reviewers", "sales")
+    assert identity.client_id == "decision-assurance-e2e"
+    assert identity.scopes == frozenset({"openid", "da.api"})
+
+
+def test_valid_signing_key_is_selected_when_jwks_also_contains_encryption_key() -> None:
+    private, signing_key = _key("signing-key")
+    _, encryption_key = _key("encryption-key")
+    encryption_key.update({"use": "enc", "alg": "RSA-OAEP"})
+    authenticator = _authenticator(
+        lambda request: httpx.Response(200, json={"keys": [encryption_key, signing_key]})
+    )
+    token = jwt.encode(_claims(), private, algorithm="RS256", headers={"kid": "signing-key"})
+
+    assert authenticator.authenticate(token).actor_id == "human-1"
 
 
 @pytest.mark.parametrize(
@@ -90,10 +110,12 @@ def test_valid_signed_token_maps_identity_only_from_verified_claims() -> None:
         {"exp": 1},
         {"nbf": int(time.time()) + 3600},
         {"tenant_id": ""},
-        {"role": "ROOT"},
+        {"realm_access": {"roles": ["ROOT"]}},
         {"actor_kind": "ROBOT"},
         {"sub": ""},
         {"groups": "reviewers"},
+        {"azp": "untrusted-client"},
+        {"scope": "openid"},
     ],
 )
 def test_invalid_registered_or_mapped_claims_fail_closed(overrides: dict[str, Any]) -> None:
@@ -101,7 +123,7 @@ def test_invalid_registered_or_mapped_claims_fail_closed(overrides: dict[str, An
     authenticator = _authenticator(lambda request: httpx.Response(200, json={"keys": [public]}))
     token = jwt.encode(_claims(**overrides), private, algorithm="RS256", headers={"kid": "key-1"})
 
-    with pytest.raises(AuthenticationFailed, match="INVALID_TOKEN"):
+    with pytest.raises(AuthenticationFailed):
         authenticator.authenticate(token)
 
 
@@ -124,7 +146,7 @@ def test_manipulated_payload_and_unsigned_tokens_are_rejected() -> None:
     )
 
     for token in (manipulated, unsigned, confused):
-        with pytest.raises(AuthenticationFailed, match="INVALID_TOKEN"):
+        with pytest.raises(AuthenticationFailed, match="AUTH_TOKEN_INVALID"):
             authenticator.authenticate(token)
 
 
@@ -171,7 +193,32 @@ def test_unknown_key_or_jwks_outage_fails_without_disclosing_provider_details() 
     with pytest.raises(AuthenticationFailed) as captured:
         authenticator.authenticate(unknown)
 
-    assert str(captured.value) == "INVALID_TOKEN"
+    assert str(captured.value) == "AUTH_TOKEN_INVALID"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason_code"),
+    [
+        ({"exp": 1}, "AUTH_TOKEN_EXPIRED"),
+        ({"iss": "https://attacker.example"}, "AUTH_ISSUER_MISMATCH"),
+        ({"aud": "wrong-audience"}, "AUTH_AUDIENCE_MISMATCH"),
+        ({"azp": "untrusted-client"}, "AUTH_TOKEN_INVALID"),
+        ({"scope": "openid"}, "AUTH_TOKEN_INVALID"),
+        ({"realm_access": {"roles": ["unknown"]}}, "AUTH_ROLE_REQUIRED"),
+    ],
+)
+def test_authentication_failures_have_stable_reason_codes(
+    overrides: dict[str, Any], reason_code: str
+) -> None:
+    private, public = _key("key-1")
+    authenticator = _authenticator(lambda request: httpx.Response(200, json={"keys": [public]}))
+    token = jwt.encode(_claims(**overrides), private, algorithm="RS256", headers={"kid": "key-1"})
+
+    with pytest.raises(AuthenticationFailed) as captured:
+        authenticator.authenticate(token)
+
+    assert captured.value.reason_code == reason_code
+    assert str(captured.value) == reason_code
 
 
 def test_duplicate_key_ids_are_rejected_as_a_poisoned_jwks_document() -> None:
@@ -181,5 +228,5 @@ def test_duplicate_key_ids_are_rejected_as_a_poisoned_jwks_document() -> None:
     )
     token = jwt.encode(_claims(), private, algorithm="RS256", headers={"kid": "duplicate"})
 
-    with pytest.raises(AuthenticationFailed, match="INVALID_TOKEN"):
+    with pytest.raises(AuthenticationFailed, match="AUTH_TOKEN_INVALID"):
         authenticator.authenticate(token)

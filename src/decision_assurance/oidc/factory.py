@@ -33,5 +33,6 @@ def create_authenticator(
             issuer=oidc_policy.issuer,
             jwks_uri=jwks_uri,
             client=http_client,
+            allow_insecure_loopback=oidc_policy.allow_insecure_loopback,
         ),
     )

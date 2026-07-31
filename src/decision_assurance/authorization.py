@@ -94,6 +94,27 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.RESEARCH_AUDIT_READ,
         }
     ),
+    Role.RESEARCH_OPERATOR: frozenset(
+        {
+            Permission.DECISION_READ,
+            Permission.REPORT_READ,
+            Permission.RESEARCH_CREATE,
+            Permission.RESEARCH_READ,
+            Permission.RESEARCH_RETRY,
+            Permission.RESEARCH_CANCEL,
+            Permission.RESEARCH_HANDOFF,
+            Permission.RESEARCH_FORCE_REFRESH,
+            Permission.RESEARCH_AUDIT_READ,
+        }
+    ),
+    Role.READONLY: frozenset(
+        {
+            Permission.DECISION_READ,
+            Permission.REPORT_READ,
+            Permission.INTAKE_READ,
+            Permission.RESEARCH_READ,
+        }
+    ),
 }
 
 
@@ -102,5 +123,5 @@ class AuthorizationDenied(PermissionError):
 
 
 def authorize(identity: Identity, permission: Permission) -> None:
-    if permission not in ROLE_PERMISSIONS.get(identity.role, frozenset()):
+    if not any(permission in ROLE_PERMISSIONS.get(role, frozenset()) for role in identity.roles):
         raise AuthorizationDenied("FORBIDDEN")

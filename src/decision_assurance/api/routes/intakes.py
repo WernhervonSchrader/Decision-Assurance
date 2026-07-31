@@ -75,7 +75,7 @@ def create_intake(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.INTAKE_CREATE)
+    require(request, identity, Permission.INTAKE_CREATE)
     operation = f"intake:create:{body.intake_id}"
     key, digest, replay = _begin(request, identity, operation, idempotency_key, body.model_dump())
     if replay is not None:
@@ -152,7 +152,7 @@ def create_intake(
 def get_intake(
     intake_id: str, request: Request, identity: Identity = Depends(get_identity)
 ) -> dict[str, Any]:
-    require(identity, Permission.INTAKE_READ)
+    require(request, identity, Permission.INTAKE_READ)
     record = _intakes(request).get(identity.tenant, intake_id)
     if record is None:
         raise ApiError(404, "NOT_FOUND")
@@ -167,7 +167,7 @@ def add_confirmation(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.INTAKE_CONFIRM)
+    require(request, identity, Permission.INTAKE_CONFIRM)
     operation = f"intake:confirm:{intake_id}:{body.fact_id}"
     key, digest, replay = _begin(request, identity, operation, idempotency_key, body.model_dump())
     if replay is not None:
@@ -238,7 +238,7 @@ def compile_intake(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.INTAKE_COMPILE)
+    require(request, identity, Permission.INTAKE_COMPILE)
     operation = f"intake:compile:{intake_id}"
     key, digest, replay = _begin(request, identity, operation, idempotency_key, {})
     if replay is not None:
@@ -308,7 +308,7 @@ def compile_intake(
 def get_intake_audit(
     intake_id: str, request: Request, identity: Identity = Depends(get_identity)
 ) -> dict[str, Any]:
-    require(identity, Permission.AUDIT_READ)
+    require(request, identity, Permission.AUDIT_READ)
     if _intakes(request).get(identity.tenant, intake_id) is None:
         raise ApiError(404, "NOT_FOUND")
     return {"items": _intakes(request).list_audit(identity.tenant, intake_id)}

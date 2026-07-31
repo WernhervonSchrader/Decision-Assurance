@@ -27,3 +27,8 @@ Deletion must preserve isolation and cover tenant-owned domain, Intake, Research
 provider data plus documented backup expiry. Cross-tenant bulk export/deletion and administrative
 bypass remain unsupported and are a production `BLOCK` until explicit authorization, audit and
 two-tenant negative tests exist.
+
+Keycloak's admin-managed `tenant_id` token claim is the only local OIDC tenant authority. A differing
+`X-Tenant-ID`, path tenant or top-level JSON `tenant_id` produces `AUTH_TENANT_MISMATCH` before a
+handler, database or external provider is called. `da_admin` has no implicit bypass; an attempted
+cross-tenant assertion is denied as `AUTH_CROSS_TENANT_DENIED` and audited.

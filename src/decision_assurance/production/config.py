@@ -102,7 +102,19 @@ class OidcRuntimeConfig:
     jwks_uri: str
 
     def __post_init__(self) -> None:
-        if not self.jwks_uri.startswith("https://"):
+        parsed = urlsplit(self.jwks_uri)
+        loopback = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "::1", "localhost"}
+        issuer = urlsplit(self.policy.issuer)
+        if (
+            (parsed.scheme != "https" and not (self.policy.allow_insecure_loopback and loopback))
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or (parsed.scheme, parsed.hostname, parsed.port)
+            != (issuer.scheme, issuer.hostname, issuer.port)
+        ):
             raise ValueError("INVALID_OIDC_JWKS_URI")
 
 
@@ -205,6 +217,12 @@ class RuntimeConfig:
                 raise ValueError("PRODUCTION_REQUIRES_POSTGRESQL")
             if self.authentication_mode is not AuthenticationMode.OIDC or self.oidc is None:
                 raise ValueError("PRODUCTION_REQUIRES_OIDC")
+            if self.oidc.policy.allow_insecure_loopback:
+                raise ValueError("PRODUCTION_OIDC_HTTPS_REQUIRED")
+            if not self.oidc.policy.authorized_parties:
+                raise ValueError("OIDC_AUTHORIZED_PARTIES_REQUIRED")
+            if not self.oidc.policy.required_scopes:
+                raise ValueError("OIDC_REQUIRED_SCOPES_REQUIRED")
             if self.secret_provider is not SecretProviderMode.EXTERNAL:
                 raise ValueError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
             if not self.egress_allowed_hosts:
@@ -297,6 +315,11 @@ class RuntimeConfig:
                     organization_claim=_optional(oidc_raw, "organization_claim"),
                     groups_claim=_optional(oidc_raw, "groups_claim"),
                     clock_skew_seconds=int(oidc_raw.get("clock_skew_seconds", 30)),
+                    authorized_parties=_string_tuple(oidc_raw, "authorized_parties"),
+                    required_scopes=_string_tuple(oidc_raw, "required_scopes"),
+                    allow_insecure_loopback=_boolean(
+                        oidc_raw, "allow_insecure_loopback", default=False
+                    ),
                 ),
                 _required(oidc_raw, "jwks_uri"),
             )
@@ -472,6 +495,13 @@ def _optional_string(raw: Mapping[str, Any], key: str) -> str | None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
     return value.strip()
+
+
+def _boolean(raw: Mapping[str, Any], key: str, *, default: bool) -> bool:
+    value = raw.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value
 
 
 def _reject_literal_secrets(raw: Mapping[str, Any]) -> None:

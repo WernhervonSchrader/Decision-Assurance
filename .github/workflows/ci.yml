@@ -26,7 +26,7 @@ jobs:
       - name: Mypy strict
         run: mypy src
       - name: Non-PostgreSQL test suite
-        run: python -m pytest -q -m "not postgresql"
+        run: python -m pytest -q -m "not postgresql and not keycloak_e2e and not live_provider"
       - name: Gold benchmark
         run: decision-assurance benchmark tests/gold/manifest.json
       - name: Intake benchmark
@@ -133,11 +133,13 @@ jobs:
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.api -t decision-assurance-api:"$GITHUB_SHA" .
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.worker -t decision-assurance-worker:"$GITHUB_SHA" .
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.mcp -t decision-assurance-mcp:"$GITHUB_SHA" .
+          docker build -f Dockerfile.keycloak -t decision-assurance-keycloak:"$GITHUB_SHA" .
       - name: Smoke immutable non-root runtimes
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-api:"$GITHUB_SHA")" = "10001:10001"
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-worker:"$GITHUB_SHA")" = "10001:10001"
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-mcp:"$GITHUB_SHA")" = "10001:10001"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-keycloak:"$GITHUB_SHA")" = "1000"
           docker run --rm --entrypoint python decision-assurance-api:"$GITHUB_SHA" -c "import decision_assurance; assert decision_assurance.__version__ == '0.5.0'"
           docker run --rm --entrypoint python decision-assurance-worker:"$GITHUB_SHA" -c "from decision_assurance.api.worker_runtime import load_worker; assert callable(load_worker)"
           docker run --rm --entrypoint python decision-assurance-mcp:"$GITHUB_SHA" -c "from decision_assurance.mcp.runtime import load_mcp_runtime; assert callable(load_mcp_runtime)"
@@ -165,6 +167,14 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+      - name: Scan Keycloak image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-keycloak:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
       - name: Create API CycloneDX SBOM
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
@@ -186,6 +196,13 @@ jobs:
           format: cyclonedx
           output: mcp.sbom.cdx.json
           exit-code: "0"
+      - name: Create Keycloak CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-keycloak:${{ github.sha }}
+          format: cyclonedx
+          output: keycloak.sbom.cdx.json
+          exit-code: "0"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -204,9 +221,41 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  keycloak-oidc-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: |
+          python -m pip install --upgrade "pip>=26.1.2"
+          python -m pip install -e ".[dev]"
+      - name: Create isolated ephemeral Keycloak secrets
+        run: |
+          umask 077
+          mkdir -p .secrets
+          printf '%s' 'keycloak-ci-admin' > .secrets/keycloak-admin-username
+          openssl rand -hex 32 > .secrets/keycloak-admin-password
+          openssl rand -hex 32 > .secrets/keycloak-db-password
+      - name: Start isolated Keycloak and PostgreSQL 16
+        run: docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait --wait-timeout 180
+      - name: Verify Keycloak non-root runtime
+        run: |
+          test "$(docker inspect --format '{{.Config.User}}' decision-assurance-keycloak-local-keycloak-1)" = "1000:0"
+          test "$(docker exec decision-assurance-keycloak-local-keycloak-postgres-1 stat -c '%u' /proc/1)" != "0"
+      - name: Keycloak OIDC PKCE, tenant and Research E2E
+        env:
+          DA_RUN_KEYCLOAK_E2E: "1"
+        run: python -m pytest tests/keycloak -q --basetemp /tmp/pytest-keycloak
+      - name: Stop isolated Keycloak environment
+        if: always()
+        run: docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml down --volumes
+
   release-evidence:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    needs: [verify, postgresql, restore-verification, container-security, secret-scan]
+    needs: [verify, postgresql, restore-verification, container-security, secret-scan, keycloak-oidc-e2e]
     env:
       DA_EVIDENCE_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:

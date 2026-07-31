@@ -70,6 +70,13 @@ Publish the new reference version, invalidate controlled caches, restart affecte
 verify authentication/provider/database probes. Retain the prior reference only for the documented
 overlap window; revoke it after successful verification.
 
+For Keycloak signing-key rotation, publish the new public key before issuing tokens with its `kid`,
+retain the prior public key for access-token lifetime plus clock skew, verify controlled unknown-key
+JWKS refresh, then retire the old key. Rotate bootstrap/database/client secrets only through the
+secret provider or ignored local secret files. Never export, log or commit them. A Keycloak/JWKS
+outage blocks unknown keys and new authentication; do not bypass signature verification or fall back
+to static identity in a production profile.
+
 ## Worker recovery
 
 The Worker renews a running lease every one third of its configured lease duration and uses a fresh

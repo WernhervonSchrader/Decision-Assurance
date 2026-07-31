@@ -142,7 +142,14 @@ def _authenticator() -> tuple[OidcAuthenticator, Any]:
     )
     return (
         OidcAuthenticator(
-            OidcPolicy(issuer=ISSUER, audience=AUDIENCE, algorithms=("RS256",)), keys
+            OidcPolicy(
+                issuer=ISSUER,
+                audience=AUDIENCE,
+                algorithms=("RS256",),
+                authorized_parties=("pilot-client",),
+                required_scopes=("da.api",),
+            ),
+            keys,
         ),
         private,
     )
@@ -161,6 +168,8 @@ def _token(private: Any, tenant: str, actor: str, role: str, kind: str = "HUMAN"
             "tenant_id": tenant,
             "role": role,
             "actor_kind": kind,
+            "azp": "pilot-client",
+            "scope": "da.api",
         },
         private,
         algorithm="RS256",

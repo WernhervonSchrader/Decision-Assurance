@@ -33,6 +33,8 @@ def _production() -> dict[str, object]:
             "audience": "decision-assurance",
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
+            "authorized_parties": ["decision-assurance-ui"],
+            "required_scopes": ["da.api"],
         },
         "egress_allowed_hosts": ["provider.example"],
         "provider_egress": [

@@ -21,11 +21,14 @@
     "algorithms": ["RS256"],
     "tenant_claim": "tenant_id",
     "actor_id_claim": "sub",
-    "role_claim": "role",
+    "role_claim": "realm_access.roles",
     "actor_kind_claim": "actor_kind",
     "organization_claim": "organization",
     "groups_claim": "groups",
-    "clock_skew_seconds": 30
+    "clock_skew_seconds": 30,
+    "authorized_parties": ["decision-assurance-ui"],
+    "required_scopes": ["da.api"],
+    "allow_insecure_loopback": false
   },
   "egress_allowed_hosts": [
     "research-extract.local.example",

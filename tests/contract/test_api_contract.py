@@ -7,6 +7,14 @@ def test_health_endpoints(client: TestClient) -> None:
     assert client.get("/health/ready").status_code == 200
 
 
+def test_interactive_api_documentation_is_not_a_public_runtime_endpoint(
+    client: TestClient,
+) -> None:
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
 def test_security_headers_are_applied(client: TestClient) -> None:
     response = client.get("/health/live")
     assert response.headers["x-content-type-options"] == "nosniff"
@@ -44,7 +52,7 @@ def test_unknown_fields_and_actor_spoofing_are_rejected(client: TestClient, deci
             headers=headers("a-generator", "x1"),
             json=dict(decision, tenant_id="tenant-b"),
         ).status_code
-        == 422
+        == 403
     )
     spoofed = dict(
         decision, created_by={"id": "someone-else", "role": "GENERATOR", "kind": "AGENT"}

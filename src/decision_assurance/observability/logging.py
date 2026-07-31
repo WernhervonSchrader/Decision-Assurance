@@ -20,6 +20,13 @@ _ALLOWED_FIELDS = frozenset(
         "attempt_count",
         "provider_id",
         "connector",
+        "schema_version",
+        "security_event_type",
+        "decision",
+        "actor_ref",
+        "tenant_id",
+        "client_id",
+        "permission",
         "authorization",
         "error",
     }

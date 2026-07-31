@@ -16,6 +16,8 @@ class Role(str, Enum):
     REVIEWER = "REVIEWER"
     TENANT_ADMIN = "TENANT_ADMIN"
     SYSTEM_ADMINISTRATOR = "SYSTEM_ADMINISTRATOR"
+    RESEARCH_OPERATOR = "RESEARCH_OPERATOR"
+    READONLY = "READONLY"
 
 
 class ActorKind(str, Enum):
@@ -32,6 +34,9 @@ class Identity:
     kind: ActorKind
     organization_id: str | None = None
     groups: tuple[str, ...] = ()
+    roles: frozenset[Role] = frozenset()
+    client_id: str | None = None
+    scopes: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not self.actor_id.strip():
@@ -40,6 +45,14 @@ class Identity:
             raise ValueError("INVALID_ORGANIZATION_ID")
         if any(not item.strip() for item in self.groups):
             raise ValueError("INVALID_IDENTITY_GROUP")
+        effective_roles = self.roles or frozenset({self.role})
+        if self.role not in effective_roles:
+            raise ValueError("INVALID_PRIMARY_ROLE")
+        if self.client_id is not None and not self.client_id.strip():
+            raise ValueError("INVALID_CLIENT_ID")
+        if any(not item.strip() for item in self.scopes):
+            raise ValueError("INVALID_IDENTITY_SCOPE")
+        object.__setattr__(self, "roles", effective_roles)
 
 
 class Authenticator(Protocol):

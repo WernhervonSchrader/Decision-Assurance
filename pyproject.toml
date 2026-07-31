@@ -31,6 +31,7 @@ dev = [
   "mypy>=1.15,<2",
   "pip-audit>=2.8,<3",
   "pytest>=8,<10",
+  "pyyaml>=6,<7",
   "ruff>=0.11,<1",
   "trio>=0.30,<1",
 ]
@@ -58,6 +59,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "postgresql: requires a live PostgreSQL service",
+  "keycloak_e2e: requires the isolated local Keycloak Compose stack",
   "live_provider: requires explicit opt-in and local provider credentials",
 ]
 

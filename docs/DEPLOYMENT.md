@@ -92,6 +92,12 @@ decision-assurance-api
 It is not a production profile. Protect the identity file, bind only to `127.0.0.1` and never use
 real credentials or regulated data.
 
+The alternative Keycloak development profile is documented in [KEYCLOAK.md](KEYCLOAK.md). It binds
+Keycloak to loopback, uses a separate PostgreSQL 16 database and accepts HTTP only through an
+explicit development-only loopback flag. It is not the `local` production profile. Production must
+replace it with TLS/domain, managed secrets, MFA/e-mail/SMTP, monitoring, encrypted backup/PITR and
+HA configuration and must independently validate EU-managed location/contract requirements.
+
 ## Production images
 
 `Dockerfile.api`, `Dockerfile.worker` and `Dockerfile.mcp` build the same immutable v0.5 wheel in
