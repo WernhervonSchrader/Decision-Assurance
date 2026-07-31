@@ -43,3 +43,35 @@ suite also proves running cancellation between provider calls, production retry 
 single owner for concurrent idempotency keys. The repository skill source is structurally checked
 and also validated with the official Skill Creator.
 
+## Operating Profiles v0.6 evidence
+
+Configuration contract tests load both repository profiles and cover missing residency, unknown
+fields, incomplete location categories, non-EU countries, missing HTTPS evidence and local-boundary
+violations. Provider-residency regression tests prove:
+
+- local provider hosts are declared as `local` and EU-managed provider hosts use declared EU codes;
+- provider hosts and the HTTPS allowlist have identical normalized sets;
+- every provider processing location occurs in `external_processing_locations`;
+- request-time guard re-reads the profile and policy after a configuration change;
+- missing, unverified, expired or mismatched provider evidence fails before the transport call;
+- Brave and Firecrawl block without a network call and persist secret-free `ALLOWED`/`BLOCKED`
+  egress events;
+- undeclared runtime URLs, extra allowlisted hosts, region conflicts and tenant-specific provider
+  fields fail closed;
+- those runtime conflicts fail before secret resolution or database/OIDC/provider construction.
+
+`tests/production/e2e/test_operating_profiles.py` loads both checked-in profiles with deterministic
+fake secrets, a mocked JWKS client and no live provider. It asserts the shared PostgreSQL/OIDC
+runtime types and the early failure boundary. Existing production E2E supplies two tenants, at least
+two roles and German/English behavior; existing PostgreSQL tests prove forced-RLS isolation. Profile
+configuration is deployment-wide, so the negative `tenant_id` provider-field test proves no tenant
+can select a separate region or egress route.
+
+Local and CI commands are `ruff format --check src tests`, `ruff check src tests`, `mypy src`, the
+targeted configuration/E2E tests, `pytest -m "not postgresql" -q` and `pytest -m postgresql -q`
+against isolated PostgreSQL 16. CI additionally runs Bandit, dependency audit, secret scan, container
+scan, build/OpenAPI verification, backup/restore verification and commit-bound release evidence.
+Tests use fresh temp directories/databases and deterministic fakes without retry; no browser UI means
+device screenshots/traces remain inapplicable. Sanitized pytest, build and release evidence is
+retained by CI on failure.
+

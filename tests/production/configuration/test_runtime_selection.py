@@ -33,6 +33,15 @@ def test_configured_production_runtime_selects_only_production_adapters(
     )
     config = {
         "profile": "production",
+        "operating_mode": "local",
+        "data_residency": {
+            "storage_locations": ["local"],
+            "processing_locations": ["local"],
+            "backup_locations": ["local"],
+            "support_access_locations": ["local"],
+            "external_processing_locations": ["local"],
+            "evidence_refs": [],
+        },
         "database_backend": "postgresql",
         "authentication_mode": "oidc",
         "secret_provider": "external",
@@ -44,7 +53,30 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
         },
-        "egress_allowed_hosts": ["api.search.brave.com", "api.firecrawl.dev"],
+        "egress_allowed_hosts": ["provider.example"],
+        "provider_egress": [
+            {
+                "provider": "brave-search",
+                "service": "web-search-v1",
+                "host": "provider.example",
+                "processing_location": "local",
+                "confirmed_processing_locations": [],
+                "tenant_ids": ["*"],
+                "attestation": {
+                    "evidence_id": "pending",
+                    "evidence_type": "OPERATOR_SELF_DECLARATION",
+                    "evidence_ref": "https://invalid.example/pending",
+                    "issuer": "operator",
+                    "issued_at": "2026-01-01T00:00:00Z",
+                    "valid_from": "2026-01-01T00:00:00Z",
+                    "expires_at": "2027-01-01T00:00:00Z",
+                    "verification_status": "UNVERIFIED",
+                    "verified_at": None,
+                    "verified_by": None,
+                    "document_hash": None,
+                },
+            }
+        ],
         "worker": {},
     }
     path = tmp_path / "production.json"
@@ -55,6 +87,8 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "DA_CONFIG_PATH": str(path),
             "DA_BRAVE_API_KEY_SECRET_REF": "brave-key",
             "DA_FIRECRAWL_API_KEY_SECRET_REF": "firecrawl-key",
+            "BRAVE_SEARCH_BASE_URL": "https://provider.example",
+            "FIRECRAWL_BASE_URL": "https://provider.example",
             "DA_VERSION": "0.5.0",
             "DA_COMMIT_SHA": "a" * 40,
             "DA_BUILD_TIMESTAMP": "2026-07-30T10:00:00Z",

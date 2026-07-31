@@ -9,6 +9,7 @@ import pytest
 from decision_assurance.web_research.contracts import FreshnessPolicy, SearchQuery
 from decision_assurance.web_research.providers.brave import BraveSearchProvider
 from decision_assurance.web_research.providers.errors import ProviderRequestFailed
+from tests.research.providers.egress_support import ALLOW_EGRESS
 
 NOW = datetime(2026, 7, 29, tzinfo=timezone.utc)
 SECRET = "brave-secret-value"  # noqa: S105 - verifies credentials are never exposed
@@ -30,7 +31,9 @@ def provider(
     handler: httpx.MockTransport | None, *, api_key: str | None = SECRET
 ) -> BraveSearchProvider:
     client = httpx.AsyncClient(transport=handler) if handler else None
-    return BraveSearchProvider(api_key=api_key, client=client, clock=lambda: NOW)
+    return BraveSearchProvider(
+        api_key=api_key, client=client, clock=lambda: NOW, egress_guard=ALLOW_EGRESS
+    )
 
 
 @pytest.mark.anyio
@@ -60,10 +63,7 @@ async def test_success_normalizes_discovery_and_ignores_additive_fields() -> Non
             headers={"x-request-id": "request-secret-that-is-not-retained"},
         )
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        result = await BraveSearchProvider(api_key=SECRET, client=client, clock=lambda: NOW).search(
-            query()
-        )
+    result = await provider(httpx.MockTransport(handle)).search(query())
 
     assert result.provider_id == "brave-search"
     assert result.provider_version == "web-search-v1"
@@ -75,11 +75,9 @@ async def test_success_normalizes_discovery_and_ignores_additive_fields() -> Non
 
 @pytest.mark.anyio
 async def test_empty_results_are_valid() -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"web": {"results": []}})
-    )
-    async with httpx.AsyncClient(transport=transport) as client:
-        result = await BraveSearchProvider(api_key=SECRET, client=client).search(query())
+    result = await provider(
+        httpx.MockTransport(lambda request: httpx.Response(200, json={"web": {"results": []}}))
+    ).search(query())
     assert result.results == ()
 
 
@@ -93,10 +91,10 @@ async def test_empty_results_are_valid() -> None:
     ],
 )
 async def test_schema_drift_fails_closed(payload: object, reason: str) -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
-    async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(ProviderRequestFailed) as caught:
-            await BraveSearchProvider(api_key=SECRET, client=client).search(query())
+    with pytest.raises(ProviderRequestFailed) as caught:
+        await provider(
+            httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+        ).search(query())
     assert caught.value.error.reason_code == reason
     assert not caught.value.error.retryable
 
@@ -115,14 +113,14 @@ async def test_schema_drift_fails_closed(payload: object, reason: str) -> None:
     ],
 )
 async def test_http_failures_are_translated(status: int, reason: str, retryable: bool) -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
-            status, json={"message": SECRET}, headers={"Retry-After": "3"}
-        )
-    )
-    async with httpx.AsyncClient(transport=transport) as client:
-        with pytest.raises(ProviderRequestFailed) as caught:
-            await BraveSearchProvider(api_key=SECRET, client=client).search(query())
+    with pytest.raises(ProviderRequestFailed) as caught:
+        await provider(
+            httpx.MockTransport(
+                lambda request: httpx.Response(
+                    status, json={"message": SECRET}, headers={"Retry-After": "3"}
+                )
+            )
+        ).search(query())
     assert caught.value.error.reason_code == reason
     assert caught.value.error.retryable is retryable
     assert caught.value.error.retry_after_seconds == (3.0 if status == 429 else None)
@@ -138,9 +136,8 @@ async def test_timeout_is_controlled_and_not_retried_blindly() -> None:
         calls += 1
         raise httpx.ReadTimeout(SECRET, request=request)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(timeout)) as client:
-        with pytest.raises(ProviderRequestFailed) as caught:
-            await BraveSearchProvider(api_key=SECRET, client=client).search(query())
+    with pytest.raises(ProviderRequestFailed) as caught:
+        await provider(httpx.MockTransport(timeout)).search(query())
     assert caught.value.error.reason_code == "SEARCH_TIMEOUT"
     assert calls == 1
     assert SECRET not in str(caught.value)
@@ -149,7 +146,7 @@ async def test_timeout_is_controlled_and_not_retried_blindly() -> None:
 @pytest.mark.anyio
 async def test_missing_configuration_is_controlled_without_making_a_request() -> None:
     with pytest.raises(ProviderRequestFailed) as caught:
-        await BraveSearchProvider(api_key=None).search(query())
+        await provider(None, api_key=None).search(query())
     assert caught.value.error.reason_code == "PROVIDER_NOT_CONFIGURED"
     assert "None" not in str(caught.value)
 
@@ -167,5 +164,5 @@ async def test_missing_configuration_is_controlled_without_making_a_request() ->
 )
 async def test_query_boundaries_fail_before_network(invalid: SearchQuery) -> None:
     with pytest.raises(ProviderRequestFailed) as caught:
-        await BraveSearchProvider(api_key=SECRET).search(invalid)
+        await provider(None).search(invalid)
     assert caught.value.error.reason_code == "INVALID_SEARCH_QUERY"

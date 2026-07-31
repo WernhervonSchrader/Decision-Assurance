@@ -37,6 +37,8 @@ evaluation requires no LLM and never turns an internal failure into `PASS`.
 - non-root containers, readiness, redacted telemetry, backup/restore, CycloneDX SBOMs and
   fail-closed [release verification](docs/CI-RELEASE.md)
 - a bounded [Sales Quote Review pilot](docs/PILOT.md) with two tenants and human gates
+- validated `local` self-managed and `eu-managed` [operating profiles](docs/DEPLOYMENT.md)
+  that share one runtime while failing closed on contradictory residency declarations
 
 Case lifecycle (`DRAFT`, `VALIDATION`, `REVIEW`, `APPROVED`, `BLOCKED`) and
 governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
@@ -68,6 +70,17 @@ decision-assurance-api
 The static identity adapter is not production OIDC and is rejected by configured production. Read the
 [deployment](docs/DEPLOYMENT.md), [security](docs/SECURITY.md) and
 [operations](docs/OPERATIONS.md) limitations before using real data.
+
+Production deployments choose exactly one operating profile. `local` is self-managed PostgreSQL,
+OIDC and external-secret infrastructure inside the operator boundary; it is not the SQLite reference
+runtime. `eu-managed` additionally requires explicit EU country codes for storage, processing,
+backup, support and external processing plus HTTPS residency/subprocessor evidence references.
+Every configured provider host has a requested processing location plus a structured attestation. Its
+host must exactly match the runtime egress allowlist and actual Brave/Firecrawl base URLs. Startup
+validation is supplemented by a request-time guard; missing, unverified, expired, tenant-incompatible
+or profile-incompatible evidence blocks immediately before network access and records a secret-free
+decision event. The supplied Brave/Firecrawl profile entries remain blocked until independently
+verified evidence is supplied.
 
 The MCP adapter is a separate process from the REST API and exposes stateless Streamable HTTP at
 `http://127.0.0.1:8001/mcp` in local reference mode:

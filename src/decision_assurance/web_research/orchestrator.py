@@ -7,8 +7,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 
 from ..audit import payload_hash
+from ..production.egress import EgressDecision, EgressRequestContext, bind_egress_context
 from ..tenancy import TenantContext
-from .audit import apply_transition
+from .audit import append_egress_decision, apply_transition
 from .circuit_breaker import NoOpProviderCircuitBreaker, ProviderCircuitOpen
 from .conflicts import mark_conflicting_evidence
 from .contracts import (
@@ -361,15 +362,16 @@ class ResearchOrchestrator:
             return False
         try:
             self._ensure_active(cancelled)
-            response = await self._search.search(
-                SearchQuery(
-                    run.request.query,
-                    run.request.locale,
-                    run.request.preferred_languages,
-                    run.request.max_search_results,
-                    run.request.freshness,
+            with bind_egress_context(self._egress_context(tenant, run, actor_id)):
+                response = await self._search.search(
+                    SearchQuery(
+                        run.request.query,
+                        run.request.locale,
+                        run.request.preferred_languages,
+                        run.request.max_search_results,
+                        run.request.freshness,
+                    )
                 )
-            )
         except ProviderRequestFailed as failure:
             self._ensure_active(cancelled)
             self._circuit.record_failure(
@@ -494,7 +496,7 @@ class ResearchOrchestrator:
         seen_hashes = {item.content_hash for item in run.snapshots}
         for source in candidates:
             self._ensure_active(cancelled)
-            snapshot = await self._obtain_snapshot(tenant, run, source, policy, cancelled)
+            snapshot = await self._obtain_snapshot(tenant, run, actor_id, source, policy, cancelled)
             if snapshot is None:
                 continue
             self._ensure_active(cancelled)
@@ -598,6 +600,7 @@ class ResearchOrchestrator:
         self,
         tenant: TenantContext,
         run: ResearchRun,
+        actor_id: str,
         source: SourceCandidate,
         policy: PublicUrlPolicy,
         cancelled: CancellationCheck,
@@ -649,15 +652,16 @@ class ResearchOrchestrator:
             return None
         try:
             self._ensure_active(cancelled)
-            extraction = await self._extractor.extract(
-                ExtractionRequest(
-                    source.source_id,
-                    source.canonical_url,
-                    run.request.locale,
-                    self._policy.max_content_bytes,
-                    self._policy.cache_ttl_seconds,
+            with bind_egress_context(self._egress_context(tenant, run, actor_id)):
+                extraction = await self._extractor.extract(
+                    ExtractionRequest(
+                        source.source_id,
+                        source.canonical_url,
+                        run.request.locale,
+                        self._policy.max_content_bytes,
+                        self._policy.cache_ttl_seconds,
+                    )
                 )
-            )
         except Exception:
             self._ensure_active(cancelled)
             self._circuit.record_failure(tenant.tenant_id, provider_id, retryable=True)
@@ -795,6 +799,22 @@ class ResearchOrchestrator:
 
     def _time(self) -> str:
         return self._clock().astimezone(timezone.utc).isoformat()
+
+    def _egress_context(
+        self, tenant: TenantContext, run: ResearchRun, actor_id: str
+    ) -> EgressRequestContext:
+        return EgressRequestContext(
+            tenant_id=tenant.tenant_id,
+            actor_id=actor_id,
+            correlation_id=run.correlation_id,
+            record_decision=lambda decision: self._record_egress_decision(tenant, run, decision),
+        )
+
+    def _record_egress_decision(
+        self, tenant: TenantContext, run: ResearchRun, decision: EgressDecision
+    ) -> None:
+        append_egress_decision(run, decision)
+        self._repository.save(tenant, run)
 
     @staticmethod
     def _ensure_active(cancelled: CancellationCheck) -> None:

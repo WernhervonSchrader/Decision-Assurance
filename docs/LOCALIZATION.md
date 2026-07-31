@@ -18,3 +18,11 @@ The v0.5 pilot verifies German quote Intake, an English Research source, German 
 English fallback for unsupported interface languages. PostgreSQL, jobs and release evidence retain
 locale-neutral codes and RFC 3339 UTC timestamps. There is no browser UI in this milestone.
 
+Operating mode, country codes, provider hosts and startup failure codes are deployment configuration,
+not user-facing localized content. `local`, `eu-managed`, ISO country codes and machine-readable
+reason codes remain stable English identifiers for audit and automation. Operator runbooks may have
+localized explanatory text, but must preserve the original code and configuration hash. Neither
+interface language, explicit user locale, tenant default locale nor content language can select or
+alter residency, provider egress or tenant context. Both profiles run the same DE/EN catalogs and
+English fallback tests.
+

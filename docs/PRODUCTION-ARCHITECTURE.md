@@ -64,6 +64,30 @@ explicitly granted operational paths.
 SQLite adapters continue to include tenant predicates and composite keys, but cannot satisfy the
 production profile because SQLite has no RLS.
 
+## Deployment-mode boundary
+
+The same immutable images support two production modes. `local` keeps primary data, application
+computation, backups, support access and configured provider processing inside the self-managed
+`local` boundary. `eu-managed` requires explicit EU member-country declarations for storage,
+application processing, backups, support access and every configured external provider plus HTTPS
+evidence references. Mode and residency are loaded from operator-controlled configuration before
+database, identity, provider or job adapters are constructed. They are never accepted from API/MCP
+payloads and never replace tenant context.
+
+`provider_egress` contains provider/service, target host, requested processing location, tenant scope
+and a structured attestation. Its normalized host set must exactly equal `egress_allowed_hosts`; each
+requested location must occur in `external_processing_locations`. Startup validation checks the
+effective Brave/Firecrawl URL set and HTTPS allowlist before secrets or adapters are constructed.
+Immediately before every provider request, the central `ResidencyEgressGuard` re-reads the current
+profile/policy, tenant scope, host, provider, connector, requested location and attestation status.
+Missing, stale, unverified or contradictory evidence blocks before the socket operation. Country and
+provider policy remain deployment-wide and cannot vary by tenant except through an explicit allowlist.
+
+Attestations accept only `DPA`, `SIGNED_PROVIDER_ATTESTATION` or
+`TECHNICAL_PROVIDER_CONFIGURATION` as release evidence. `OPERATOR_SELF_DECLARATION` is retained as
+an explicit pending state and never grants egress. The code enforces evidence identity, validity,
+issuer and verification status; it cannot create or independently prove a contractual fact.
+
 ## Asynchronous research flow
 
 1. A validated request creates or reuses a tenant-bound Research Run.
@@ -72,7 +96,8 @@ production profile because SQLite has no RLS.
 4. A Worker claims an available job with a lease and a worker identity, then renews that lease at
    one third of its duration using a current UTC timestamp.
 5. Before each provider call it reserves budget atomically and checks tenant quotas, circuit state and
-   egress policy.
+   the request-time residency/egress guard. The guard persists a secret-free `ALLOWED` or `BLOCKED`
+   `research.egress-decision` event before returning; audit failure is itself blocking.
 6. Successful attempts, partial failures and retry scheduling persist with audit in one transaction.
 7. Cancellation or lease loss is checked before and after search, each extraction and later
    persistence. A stale lease becomes claimable only after recovery; the prior Worker cannot

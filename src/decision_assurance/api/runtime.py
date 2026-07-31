@@ -23,7 +23,7 @@ from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
 from ..production.contracts import AuthenticationMode, BuildMetadata, HealthStatus, SecretReference
-from ..production.egress import HttpsEgressAllowlist
+from ..production.egress import HttpsEgressAllowlist, ResidencyEgressGuard
 from ..production.ports import SecretProviderPort
 from ..production.secrets import EnvironmentSecretProvider
 from ..repositories.sqlite import SqliteDecisionRepository
@@ -140,6 +140,13 @@ def _load_configured_runtime(
     external_secrets: SecretProviderPort | None,
     oidc_http_client: httpx.Client | None,
 ) -> FastAPI:
+    brave_url = values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com")
+    firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
+    config.validate_provider_urls((brave_url, firecrawl_url))
+    egress = HttpsEgressAllowlist(config.egress_allowed_hosts)
+    runtime_tenant = TenantContext("runtime-validation")
+    brave_base = egress.validate(runtime_tenant, brave_url).rstrip("/")
+    firecrawl_base = egress.validate(runtime_tenant, firecrawl_url).rstrip("/")
     if config.secret_provider.value == "external":
         if external_secrets is None:
             raise RuntimeError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
@@ -163,16 +170,6 @@ def _load_configured_runtime(
         jwks_uri=config.oidc.jwks_uri,
         http_client=oidc_client,
     )
-    egress = HttpsEgressAllowlist(config.egress_allowed_hosts)
-    runtime_tenant = TenantContext("runtime-validation")
-    brave_base = egress.validate(
-        runtime_tenant,
-        values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com"),
-    ).rstrip("/")
-    firecrawl_base = egress.validate(
-        runtime_tenant,
-        values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev"),
-    ).rstrip("/")
     brave_key = secrets.resolve(
         SecretReference(
             values.get("DA_BRAVE_API_KEY_SECRET_REF", "decision-assurance-brave-api-key")
@@ -192,13 +189,23 @@ def _load_configured_runtime(
         max_search_results=_integer(values, "WEB_RESEARCH_MAX_RESULTS", 10),
         max_extractions=_integer(values, "WEB_RESEARCH_MAX_EXTRACTIONS", 5),
     )
+    config_path_value = values.get("DA_CONFIG_PATH")
+    if not config_path_value:
+        raise RuntimeError("DA_CONFIG_PATH is required for configured runtime")
+    config_path = Path(config_path_value)
+    residency_guard = ResidencyEgressGuard(lambda: load_config(config_path, values))
     orchestrator = ResearchOrchestrator(
-        BraveSearchProvider(api_key=brave_key.value, base_url=brave_base),
+        BraveSearchProvider(
+            api_key=brave_key.value,
+            base_url=brave_base,
+            egress_guard=residency_guard,
+        ),
         FirecrawlContentExtractor(
             api_key=firecrawl_key.value,
             url_policy=url_policy,
             base_url=firecrawl_base,
             max_content_bytes=max_content_bytes,
+            egress_guard=residency_guard,
         ),
         persistence.research,
         url_policy,
@@ -248,6 +255,8 @@ def _load_configured_runtime(
         build_metadata=build_metadata,
     )
     app.state.job_repository = jobs
+    app.state.operating_mode = config.operating_mode
+    app.state.data_residency = config.data_residency
     return app
 
 

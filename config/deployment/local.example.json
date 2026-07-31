@@ -15,9 +15,9 @@
   "database_dsn_secret": "decision-assurance-database-dsn",
   "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
   "oidc": {
-    "issuer": "https://identity.example.com",
+    "issuer": "https://identity.local.example",
     "audience": "decision-assurance",
-    "jwks_uri": "https://identity.example.com/.well-known/jwks.json",
+    "jwks_uri": "https://identity.local.example/.well-known/jwks.json",
     "algorithms": ["RS256"],
     "tenant_claim": "tenant_id",
     "actor_id_claim": "sub",

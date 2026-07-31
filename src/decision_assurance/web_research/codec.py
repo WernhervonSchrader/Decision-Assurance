@@ -110,6 +110,16 @@ def run_from_data(raw: dict[str, Any]) -> ResearchRun:
                 "from_status": ResearchStatus(item["from_status"]),
                 "to_status": ResearchStatus(item["to_status"]),
                 "reason_codes": tuple(item["reason_codes"]),
+                "schema_version": item.get("schema_version", "research-audit-v1"),
+                "decision": item.get("decision"),
+                "operating_profile": item.get("operating_profile"),
+                "policy_version": item.get("policy_version"),
+                "provider": item.get("provider"),
+                "connector": item.get("connector"),
+                "target_host": item.get("target_host"),
+                "requested_processing_location": item.get("requested_processing_location"),
+                "evidence_id": item.get("evidence_id"),
+                "evidence_status": item.get("evidence_status"),
             }
         )
         for item in raw.get("audit_events", [])

@@ -14,3 +14,24 @@ Pilot targets are RPO 24 hours and RTO 4 hours unless the deployment owner docum
 platform-backed PITR objectives. Run a restore drill before pilot start and at least quarterly;
 record backup reference, checksum, timings, verifier report, operator and approver. Corrupt or
 unverifiable backups are `BLOCK`, not `REVIEW`.
+
+## Operating-profile placement and disaster recovery
+
+The backup manifest must also record operating mode, reviewed configuration hash, tenant set,
+storage country/boundary, encryption-key reference, retention expiry and restore target. For `local`,
+backup storage, key custody, support access and the fresh restore target remain `local`. For
+`eu-managed`, primary, replica/PITR, backup and restore locations must be declared EU country codes
+with current evidence. Replication or emergency copies outside the active profile are forbidden;
+there is no automatic cross-jurisdiction disaster-recovery fallback.
+
+Before restore, compare the backup profile/configuration hash with the intended target. A profile or
+country change requires a separately approved migration, not a routine restore. After technical
+verification, reapply the protected tenant deletion ledger so expired or erased tenant data is not
+silently reactivated, then run two-tenant isolation, OIDC, queue, provider-egress and DE/EN smoke
+tests. Switch traffic only with recorded operator and independent approver sign-off.
+
+Disaster response prioritizes confidentiality and tenant isolation over RTO. If no compliant target
+is available, remain unavailable and declare the recovery incident rather than restoring to an
+undeclared region. Record actual RPO/RTO, lost job window, provider side effects, config/evidence
+hashes and corrective action. Quarterly drills must exercise both selected profile placement and a
+negative restore to a prohibited location, which must fail closed.

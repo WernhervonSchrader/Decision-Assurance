@@ -16,6 +16,7 @@ from decision_assurance.web_research.evidence_policy import EvidencePolicy
 from decision_assurance.web_research.normalization import EvidenceNormalizer
 from decision_assurance.web_research.providers.firecrawl import FirecrawlContentExtractor
 from decision_assurance.web_research.url_policy import PublicUrlPolicy
+from tests.research.providers.egress_support import ALLOW_EGRESS
 
 NOW = datetime(2026, 7, 29, tzinfo=timezone.utc)
 API_KEY = "firecrawl-test-credential"  # noqa: S105 - verifies secret-safe adapter behavior
@@ -61,8 +62,29 @@ def extractor(client: httpx.AsyncClient | None, **kwargs: Any) -> FirecrawlConte
         url_policy=PublicUrlPolicy(Resolver()),
         client=client,
         clock=lambda: NOW,
+        egress_guard=ALLOW_EGRESS,
         **kwargs,
     )
+
+
+@pytest.mark.anyio
+async def test_direct_adapter_without_egress_context_never_reaches_network() -> None:
+    calls = 0
+
+    def handle(http_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=success_payload())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await FirecrawlContentExtractor(
+            api_key=API_KEY,
+            url_policy=PublicUrlPolicy(Resolver()),
+            client=client,
+        ).extract(request())
+    assert result.error is not None
+    assert result.error.reason_code == "EGRESS_CONTEXT_REQUIRED"
+    assert calls == 0
 
 
 @pytest.mark.anyio

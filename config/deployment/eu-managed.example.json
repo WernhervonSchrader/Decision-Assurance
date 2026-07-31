@@ -1,13 +1,16 @@
 {
   "profile": "production",
-  "operating_mode": "local",
+  "operating_mode": "eu-managed",
   "data_residency": {
-    "storage_locations": ["local"],
-    "processing_locations": ["local"],
-    "backup_locations": ["local"],
-    "support_access_locations": ["local"],
-    "external_processing_locations": ["local"],
-    "evidence_refs": []
+    "storage_locations": ["DE"],
+    "processing_locations": ["DE", "IE"],
+    "backup_locations": ["DE", "IE"],
+    "support_access_locations": ["DE", "NL"],
+    "external_processing_locations": ["DE"],
+    "evidence_refs": [
+      "https://compliance.example/eu-residency",
+      "https://compliance.example/eu-subprocessors"
+    ]
   },
   "database_backend": "postgresql",
   "authentication_mode": "oidc",
@@ -15,9 +18,9 @@
   "database_dsn_secret": "decision-assurance-database-dsn",
   "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
   "oidc": {
-    "issuer": "https://identity.example.com",
+    "issuer": "https://identity.eu.example",
     "audience": "decision-assurance",
-    "jwks_uri": "https://identity.example.com/.well-known/jwks.json",
+    "jwks_uri": "https://identity.eu.example/.well-known/jwks.json",
     "algorithms": ["RS256"],
     "tenant_claim": "tenant_id",
     "actor_id_claim": "sub",
@@ -28,19 +31,19 @@
     "clock_skew_seconds": 30
   },
   "egress_allowed_hosts": [
-    "research-extract.local.example",
-    "research-search.local.example"
+    "research-extract.eu.example",
+    "research-search.eu.example"
   ],
   "provider_egress": [
     {
       "provider": "firecrawl",
       "service": "scrape-v2",
-      "host": "research-extract.local.example",
-      "processing_location": "local",
+      "host": "research-extract.eu.example",
+      "processing_location": "DE",
       "confirmed_processing_locations": [],
       "tenant_ids": ["*"],
       "attestation": {
-        "evidence_id": "local-firecrawl-attestation-pending",
+        "evidence_id": "eu-firecrawl-attestation-pending",
         "evidence_type": "OPERATOR_SELF_DECLARATION",
         "evidence_ref": "https://invalid.example/evidence-not-verified",
         "issuer": "operator",
@@ -56,12 +59,12 @@
     {
       "provider": "brave-search",
       "service": "web-search-v1",
-      "host": "research-search.local.example",
-      "processing_location": "local",
+      "host": "research-search.eu.example",
+      "processing_location": "DE",
       "confirmed_processing_locations": [],
       "tenant_ids": ["*"],
       "attestation": {
-        "evidence_id": "local-brave-attestation-pending",
+        "evidence_id": "eu-brave-attestation-pending",
         "evidence_type": "OPERATOR_SELF_DECLARATION",
         "evidence_ref": "https://invalid.example/evidence-not-verified",
         "issuer": "operator",

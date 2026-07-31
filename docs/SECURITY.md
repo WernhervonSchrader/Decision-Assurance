@@ -15,9 +15,31 @@ redacted telemetry and separate application/worker/migration roles. TLS terminat
 limits, managed identity operation, monitoring and encrypted storage remain deployment duties.
 See [Threat Model](THREAT_MODEL.md).
 
+Operating Profiles v0.6 treat deployment mode, residency and provider egress as one privileged
+configuration boundary. `local` accepts only `local` core and provider processing; `eu-managed`
+accepts only EU country codes. Every provider entry has a structured attestation; HTTPS references
+alone are not proof, and `OPERATOR_SELF_DECLARATION` never authorizes restrictive production egress.
+Startup validation is separate from a central request-time guard that runs immediately before every
+Brave/Firecrawl network call, re-reads policy and tenant scope, and persists an allow/block event.
+Profile and provider fields never appear in tenant request schemas, so a tenant cannot select a weaker
+region or shared credential path.
+
+Configuration proves consistency of declared intent, not physical residency. Deployment owners must
+verify contracts, DPA/subprocessors, DNS/endpoint ownership, control-plane and support access,
+encryption, backup locations and provider retention. Configuration or evidence drift blocks rollout;
+suspected runtime drift disables provider egress and triggers the incident procedure in
+[Operations](OPERATIONS.md).
+
 Data is minimized to Decision, Intake, Research, job, audit and idempotency records. The pilot sets a
 30-day retention ceiling, but automated export/deletion and legal hold are not implemented. Deployers
 must supply and test those controls before storing real personal or regulated data.
+
+For both operating profiles, exports and deletion require tenant-scoped authorization, two-person
+approval, audit evidence and verification that no second tenant is included. Because the current
+application does not implement a general export/deletion workflow, deployments with an immediate
+automated erasure, legal-hold or portability obligation remain blocked until the documented
+operational control is implemented and tested. Backup expiry must follow the same profile boundary;
+restores may not silently resurrect data past its deletion deadline.
 
 Web Research treats search and scraped material as untrusted and applies HTTPS/public-address,
 credential, redirect, domain, MIME, size, active-content, secret-redaction and prompt-injection

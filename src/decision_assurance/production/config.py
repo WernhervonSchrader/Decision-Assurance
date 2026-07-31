@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .contracts import (
     AuthenticationMode,
@@ -12,9 +13,87 @@ from .contracts import (
     EnvironmentProfile,
     JobPolicy,
     OidcPolicy,
+    OperatingMode,
     SecretProviderMode,
     SecretReference,
 )
+
+_EU_COUNTRY_CODES = frozenset(
+    {
+        "AT",
+        "BE",
+        "BG",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+    }
+)
+_RESIDENCY_FIELDS = frozenset(
+    {
+        "storage_locations",
+        "processing_locations",
+        "backup_locations",
+        "support_access_locations",
+        "external_processing_locations",
+        "evidence_refs",
+    }
+)
+_PROVIDER_EGRESS_FIELDS = frozenset(
+    {
+        "provider",
+        "service",
+        "host",
+        "processing_location",
+        "confirmed_processing_locations",
+        "tenant_ids",
+        "attestation",
+    }
+)
+_ATTESTATION_FIELDS = frozenset(
+    {
+        "evidence_id",
+        "evidence_type",
+        "evidence_ref",
+        "issuer",
+        "issued_at",
+        "valid_from",
+        "expires_at",
+        "verification_status",
+        "verified_at",
+        "verified_by",
+        "document_hash",
+    }
+)
+_EVIDENCE_TYPES = frozenset(
+    {
+        "DPA",
+        "SIGNED_PROVIDER_ATTESTATION",
+        "TECHNICAL_PROVIDER_CONFIGURATION",
+        "OPERATOR_SELF_DECLARATION",
+    }
+)
+_VERIFICATION_STATUSES = frozenset({"VERIFIED", "UNVERIFIED", "EXPIRED", "REVOKED"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +107,75 @@ class OidcRuntimeConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class DataResidencyPolicy:
+    storage_locations: tuple[str, ...]
+    processing_locations: tuple[str, ...]
+    backup_locations: tuple[str, ...]
+    support_access_locations: tuple[str, ...]
+    external_processing_locations: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+
+    def validate_for(self, mode: OperatingMode) -> None:
+        required = (
+            self.storage_locations,
+            self.processing_locations,
+            self.backup_locations,
+            self.support_access_locations,
+        )
+        if any(not locations for locations in required):
+            raise ValueError("DATA_LOCATION_REQUIRED")
+        if mode is OperatingMode.LOCAL:
+            if any(locations != ("local",) for locations in required):
+                raise ValueError("LOCAL_DATA_BOUNDARY_REQUIRED")
+            if any(location != "local" for location in self.external_processing_locations):
+                raise ValueError("LOCAL_PROVIDER_PROCESSING_REQUIRED")
+            return
+        all_locations = (
+            *self.storage_locations,
+            *self.processing_locations,
+            *self.backup_locations,
+            *self.support_access_locations,
+            *self.external_processing_locations,
+        )
+        if any(location not in _EU_COUNTRY_CODES for location in all_locations):
+            raise ValueError("EU_DATA_LOCATION_REQUIRED")
+        if not self.evidence_refs:
+            raise ValueError("EU_RESIDENCY_EVIDENCE_REQUIRED")
+        if any(not reference.startswith("https://") for reference in self.evidence_refs):
+            raise ValueError("INVALID_RESIDENCY_EVIDENCE_REFERENCE")
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderAttestation:
+    evidence_id: str
+    evidence_type: str
+    evidence_ref: str
+    issuer: str
+    issued_at: str
+    valid_from: str
+    expires_at: str
+    verification_status: str
+    verified_at: str | None
+    verified_by: str | None
+    document_hash: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderEgress:
+    provider: str
+    service: str
+    host: str
+    processing_location: str
+    confirmed_processing_locations: tuple[str, ...]
+    tenant_ids: tuple[str, ...]
+    attestation: ProviderAttestation
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     profile: EnvironmentProfile
+    operating_mode: OperatingMode | None
+    data_residency: DataResidencyPolicy | None
     database_backend: DatabaseBackend
     authentication_mode: AuthenticationMode
     secret_provider: SecretProviderMode
@@ -37,10 +183,16 @@ class RuntimeConfig:
     worker_database_dsn_secret: SecretReference
     oidc: OidcRuntimeConfig | None
     egress_allowed_hosts: tuple[str, ...]
+    provider_egress: tuple[ProviderEgress, ...]
     worker_policy: JobPolicy
 
     def __post_init__(self) -> None:
         if self.profile in {EnvironmentProfile.STAGING, EnvironmentProfile.PRODUCTION}:
+            if self.operating_mode is None:
+                raise ValueError("OPERATING_MODE_REQUIRED")
+            if self.data_residency is None:
+                raise ValueError("DATA_RESIDENCY_POLICY_REQUIRED")
+            self.data_residency.validate_for(self.operating_mode)
             if self.database_backend is not DatabaseBackend.POSTGRESQL:
                 raise ValueError("PRODUCTION_REQUIRES_POSTGRESQL")
             if self.authentication_mode is not AuthenticationMode.OIDC or self.oidc is None:
@@ -49,11 +201,56 @@ class RuntimeConfig:
                 raise ValueError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
             if not self.egress_allowed_hosts:
                 raise ValueError("EGRESS_ALLOWLIST_REQUIRED")
+            if not self.provider_egress:
+                raise ValueError("PROVIDER_EGRESS_REQUIRED")
+            provider_hosts = tuple(item.host for item in self.provider_egress)
+            if len(set(provider_hosts)) != len(provider_hosts):
+                raise ValueError("DUPLICATE_PROVIDER_EGRESS_HOST")
+            if set(provider_hosts) != {
+                host.casefold().rstrip(".") for host in self.egress_allowed_hosts
+            }:
+                raise ValueError("PROVIDER_EGRESS_ALLOWLIST_MISMATCH")
+            for provider in self.provider_egress:
+                if (
+                    self.operating_mode is OperatingMode.LOCAL
+                    and provider.processing_location != "local"
+                ):
+                    raise ValueError("LOCAL_PROVIDER_PROCESSING_REQUIRED")
+                if (
+                    self.operating_mode is OperatingMode.EU_MANAGED
+                    and provider.processing_location not in _EU_COUNTRY_CODES
+                ):
+                    raise ValueError("EU_PROVIDER_PROCESSING_REQUIRED")
+                if (
+                    provider.processing_location
+                    not in self.data_residency.external_processing_locations
+                ):
+                    raise ValueError("PROVIDER_PROCESSING_LOCATION_UNDECLARED")
+
+    def validate_provider_urls(self, urls: tuple[str, ...]) -> None:
+        declared = {item.host for item in self.provider_egress}
+        actual: set[str] = set()
+        for url in urls:
+            try:
+                host = (urlsplit(url).hostname or "").casefold().rstrip(".")
+            except ValueError:
+                raise ValueError("PROVIDER_EGRESS_UNDECLARED") from None
+            if not host or host not in declared:
+                raise ValueError("PROVIDER_EGRESS_UNDECLARED")
+            actual.add(host)
+        if actual != declared:
+            raise ValueError("PROVIDER_EGRESS_RUNTIME_MISMATCH")
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> RuntimeConfig:
         _reject_literal_secrets(raw)
         profile = EnvironmentProfile(_required(raw, "profile"))
+        operating_mode_raw = raw.get("operating_mode")
+        operating_mode = (
+            OperatingMode(operating_mode_raw) if isinstance(operating_mode_raw, str) else None
+        )
+        residency_raw = raw.get("data_residency")
+        residency = _residency_policy(residency_raw) if residency_raw is not None else None
         backend = DatabaseBackend(_required(raw, "database_backend"))
         auth = AuthenticationMode(_required(raw, "authentication_mode"))
         oidc_raw = raw.get("oidc")
@@ -89,6 +286,8 @@ class RuntimeConfig:
             raise ValueError("INVALID_EGRESS_ALLOWLIST")
         return cls(
             profile=profile,
+            operating_mode=operating_mode,
+            data_residency=residency,
             database_backend=backend,
             authentication_mode=auth,
             secret_provider=SecretProviderMode(_required(raw, "secret_provider")),
@@ -98,6 +297,7 @@ class RuntimeConfig:
             ),
             oidc=oidc,
             egress_allowed_hosts=tuple(hosts),
+            provider_egress=_provider_egress(raw.get("provider_egress", [])),
             worker_policy=JobPolicy(
                 max_attempts=int(worker.get("max_attempts", 5)),
                 lease_seconds=int(worker.get("lease_seconds", 60)),
@@ -133,6 +333,13 @@ def _required(raw: Mapping[str, Any], key: str) -> str:
     return value
 
 
+def _required_nonempty(raw: Mapping[str, Any], key: str) -> str:
+    value = _required(raw, key).strip()
+    if not value:
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value
+
+
 def _optional(raw: Mapping[str, Any], key: str) -> str | None:
     value = raw.get(key)
     if value is None:
@@ -140,6 +347,106 @@ def _optional(raw: Mapping[str, Any], key: str) -> str | None:
     if not isinstance(value, str):
         raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
     return value
+
+
+def _residency_policy(raw: object) -> DataResidencyPolicy:
+    if not isinstance(raw, Mapping):
+        raise ValueError("INVALID_DATA_RESIDENCY_POLICY")
+    unknown = set(raw).difference(_RESIDENCY_FIELDS)
+    if unknown:
+        raise ValueError("UNKNOWN_DATA_RESIDENCY_FIELD")
+    return DataResidencyPolicy(
+        storage_locations=_locations(raw, "storage_locations"),
+        processing_locations=_locations(raw, "processing_locations"),
+        backup_locations=_locations(raw, "backup_locations"),
+        support_access_locations=_locations(raw, "support_access_locations"),
+        external_processing_locations=_locations(raw, "external_processing_locations"),
+        evidence_refs=_string_tuple(raw, "evidence_refs"),
+    )
+
+
+def _locations(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    values = _string_tuple(raw, key)
+    return tuple(value if value == "local" else value.upper() for value in values)
+
+
+def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
+    value = raw.get(key)
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    normalized = tuple(item.strip() for item in value)
+    if any(not item for item in normalized) or len(set(normalized)) != len(normalized):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return normalized
+
+
+def _provider_egress(raw: object) -> tuple[ProviderEgress, ...]:
+    if not isinstance(raw, list):
+        raise ValueError("INVALID_PROVIDER_EGRESS")
+    providers: list[ProviderEgress] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise ValueError("INVALID_PROVIDER_EGRESS")
+        if set(item).difference(_PROVIDER_EGRESS_FIELDS):
+            raise ValueError("UNKNOWN_PROVIDER_EGRESS_FIELD")
+        attestation_raw = item.get("attestation")
+        if not isinstance(attestation_raw, Mapping):
+            raise ValueError("PROVIDER_ATTESTATION_REQUIRED")
+        if set(attestation_raw).difference(_ATTESTATION_FIELDS):
+            raise ValueError("UNKNOWN_PROVIDER_ATTESTATION_FIELD")
+        host = _required_nonempty(item, "host").casefold().rstrip(".")
+        location = _required_nonempty(item, "processing_location")
+        confirmed_locations = _locations(item, "confirmed_processing_locations")
+        provider = _required_nonempty(item, "provider")
+        service = _required_nonempty(item, "service")
+        tenant_ids = _string_tuple(item, "tenant_ids")
+        if not tenant_ids:
+            raise ValueError("PROVIDER_TENANT_SCOPE_REQUIRED")
+        evidence_type = _required_nonempty(attestation_raw, "evidence_type")
+        if evidence_type not in _EVIDENCE_TYPES:
+            raise ValueError("INVALID_PROVIDER_EVIDENCE_TYPE")
+        verification_status = _required_nonempty(attestation_raw, "verification_status")
+        if verification_status not in _VERIFICATION_STATUSES:
+            raise ValueError("INVALID_PROVIDER_VERIFICATION_STATUS")
+        evidence_ref = _required_nonempty(attestation_raw, "evidence_ref")
+        issuer = _required_nonempty(attestation_raw, "issuer")
+        issued_at = _required_nonempty(attestation_raw, "issued_at")
+        valid_from = _required_nonempty(attestation_raw, "valid_from")
+        expires_at = _required_nonempty(attestation_raw, "expires_at")
+        evidence_id = _required_nonempty(attestation_raw, "evidence_id")
+        providers.append(
+            ProviderEgress(
+                provider=provider,
+                service=service,
+                host=host,
+                processing_location=location if location == "local" else location.upper(),
+                confirmed_processing_locations=confirmed_locations,
+                tenant_ids=tenant_ids,
+                attestation=ProviderAttestation(
+                    evidence_id=evidence_id,
+                    evidence_type=evidence_type,
+                    evidence_ref=evidence_ref,
+                    issuer=issuer,
+                    issued_at=issued_at,
+                    valid_from=valid_from,
+                    expires_at=expires_at,
+                    verification_status=verification_status,
+                    verified_at=_optional_string(attestation_raw, "verified_at"),
+                    verified_by=_optional_string(attestation_raw, "verified_by"),
+                    document_hash=_optional_string(attestation_raw, "document_hash"),
+                ),
+            )
+        )
+    return tuple(providers)
+
+
+def _optional_string(raw: Mapping[str, Any], key: str) -> str | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value.strip()
 
 
 def _reject_literal_secrets(raw: Mapping[str, Any]) -> None:
