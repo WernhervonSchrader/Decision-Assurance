@@ -19,6 +19,7 @@ _ALLOWED_FIELDS = frozenset(
         "retryable",
         "attempt_count",
         "provider_id",
+        "connector",
         "authorization",
         "error",
     }

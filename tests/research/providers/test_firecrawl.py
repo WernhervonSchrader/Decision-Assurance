@@ -28,6 +28,16 @@ class Resolver:
         return ("93.184.216.34",)
 
 
+class RebindingResolver:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def resolve(self, hostname: str) -> tuple[str, ...]:
+        del hostname
+        self.calls += 1
+        return ("93.184.216.34",) if self.calls == 1 else ("127.0.0.1",)
+
+
 def request(url: str = "https://example.com/rule", **overrides: Any) -> ExtractionRequest:
     values: dict[str, Any] = {
         "source_id": "source-1",
@@ -247,6 +257,25 @@ async def test_unsafe_urls_are_rejected_before_network(url: str, reason: str) ->
 
 
 @pytest.mark.anyio
+async def test_dns_rebinding_is_rechecked_after_provider_response() -> None:
+    resolver = RebindingResolver()
+    transport = httpx.MockTransport(
+        lambda http_request: httpx.Response(200, json=success_payload())
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await FirecrawlContentExtractor(
+            api_key=API_KEY,
+            url_policy=PublicUrlPolicy(resolver),
+            client=client,
+            clock=lambda: NOW,
+            egress_guard=ALLOW_EGRESS,
+        ).extract(request())
+    assert result.error is not None
+    assert result.error.reason_code == "URL_NOT_PUBLIC"
+    assert resolver.calls == 2
+
+
+@pytest.mark.anyio
 async def test_idna_and_public_ipv6_are_canonicalized_safely() -> None:
     received: list[str] = []
 
@@ -273,11 +302,14 @@ async def test_idna_and_public_ipv6_are_canonicalized_safely() -> None:
     [
         (400, "EXTRACTION_REQUEST_REJECTED", False),
         (401, "PROVIDER_AUTHENTICATION_FAILED", False),
+        (403, "PROVIDER_AUTHORIZATION_FAILED", False),
+        (404, "SOURCE_NOT_FOUND", False),
         (402, "PROVIDER_QUOTA_EXHAUSTED", False),
         (408, "EXTRACTION_TIMEOUT", True),
         (413, "CONTENT_TOO_LARGE", False),
         (429, "PROVIDER_RATE_LIMITED", True),
         (500, "PROVIDER_UNAVAILABLE", True),
+        (501, "PROVIDER_UNAVAILABLE", True),
         (503, "PROVIDER_UNAVAILABLE", True),
     ],
 )

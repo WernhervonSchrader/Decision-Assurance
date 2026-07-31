@@ -71,6 +71,13 @@ include a request-time residency transport guard, repeated URL validation, publi
 composite tenant keys, atomic budgets, bounded attempts and human-review markers. DNS changes
 between adapter validation and remote provider retrieval remain an upstream/provider risk.
 
+The provider-integration development profile adds a configuration-downgrade threat: an operator
+could otherwise mistake unverified `external-unspecified` egress for production residency evidence.
+The runtime pins the startup profile, reloads it before each call, emits the distinct
+`EGRESS_ALLOWED_DEVELOPMENT` code, and rejects this operating mode in staging and production. The
+residual risk is compromise of process/configuration authority; response is to stop provider egress,
+rotate credentials and review tenant-scoped egress audit records.
+
 The asynchronous v0.5 boundary adds job theft, duplicate cost, stale leases and cross-tenant Worker
 privilege. Controls are hashed lease tokens, periodic current-time heartbeats, conditional
 transitions, atomic budget/job submission, provider-boundary cancellation, bounded retries, stale

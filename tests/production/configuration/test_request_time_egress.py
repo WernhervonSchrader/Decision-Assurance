@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from decision_assurance.production.config import RuntimeConfig, load_config
+from decision_assurance.production.contracts import EnvironmentProfile
 from decision_assurance.production.egress import (
     EgressDecision,
     EgressRejected,
@@ -127,6 +128,46 @@ def test_allowed_request_emits_complete_secret_free_event() -> None:
     assert event.decision == "ALLOWED"
     assert event.reason_code == "EGRESS_ALLOWED"
     assert "secret" not in repr(asdict(event)).casefold()
+
+
+def test_explicit_development_provider_profile_allows_only_unverified_dev_egress() -> None:
+    config = load_config(
+        Path("config/deployment/provider-development.example.json"),
+        {"DA_PROFILE": "development"},
+    )
+    events: list[EgressDecision] = []
+    guard = ResidencyEgressGuard(
+        lambda: config,
+        clock=lambda: NOW,
+        expected_profile=EnvironmentProfile.DEVELOPMENT,
+    )
+    result = guard.authorize(
+        _context(events),
+        provider="brave-search",
+        connector="web-search-v1",
+        url="https://api.search.brave.com/res/v1/web/search",
+    )
+    assert result == "https://api.search.brave.com/res/v1/web/search"
+    assert events[0].reason_code == "EGRESS_ALLOWED_DEVELOPMENT"
+    assert events[0].evidence_status == "UNVERIFIED"
+
+
+def test_runtime_profile_change_blocks_development_guard() -> None:
+    production = RuntimeConfig.from_mapping(_raw())
+    events: list[EgressDecision] = []
+    guard = ResidencyEgressGuard(
+        lambda: production,
+        clock=lambda: NOW,
+        expected_profile=EnvironmentProfile.DEVELOPMENT,
+    )
+    with pytest.raises(EgressRejected, match="EGRESS_CONFIGURATION_CHANGED"):
+        guard.authorize(
+            _context(events),
+            provider="brave-search",
+            connector="web-search-v1",
+            url="https://brave.example/res/v1/web/search",
+        )
+    assert events[0].decision == "BLOCKED"
 
 
 @pytest.mark.parametrize(

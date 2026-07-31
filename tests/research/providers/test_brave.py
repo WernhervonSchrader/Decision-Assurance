@@ -52,7 +52,7 @@ async def test_success_normalizes_discovery_and_ignores_additive_fields() -> Non
                             "url": "https://example.com/rule",
                             "title": "Rule",
                             "description": "Current rule",
-                            "page_age": "2026-07-20T00:00:00Z",
+                            "age": "2026-07-20T00:00:00Z",
                             "future_addition": {"ignored": True},
                         }
                     ],
@@ -105,6 +105,8 @@ async def test_schema_drift_fails_closed(payload: object, reason: str) -> None:
     [
         (400, "SEARCH_REQUEST_REJECTED", False),
         (401, "PROVIDER_AUTHENTICATION_FAILED", False),
+        (403, "PROVIDER_AUTHORIZATION_FAILED", False),
+        (404, "SEARCH_ENDPOINT_NOT_FOUND", False),
         (402, "PROVIDER_QUOTA_EXHAUSTED", False),
         (408, "SEARCH_TIMEOUT", True),
         (429, "PROVIDER_RATE_LIMITED", True),

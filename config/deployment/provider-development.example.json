@@ -1,0 +1,68 @@
+{
+  "profile": "development",
+  "operating_mode": "development-provider-integration",
+  "data_residency": {
+    "storage_locations": ["local-development"],
+    "processing_locations": ["local-development"],
+    "backup_locations": ["local-development"],
+    "support_access_locations": ["local-development"],
+    "external_processing_locations": ["external-unspecified"],
+    "evidence_refs": []
+  },
+  "database_backend": "sqlite",
+  "authentication_mode": "static",
+  "secret_provider": "environment",
+  "database_dsn_secret": "DEVELOPMENT_DATABASE_UNUSED",
+  "worker_database_dsn_secret": "DEVELOPMENT_WORKER_DATABASE_UNUSED",
+  "egress_allowed_hosts": ["api.search.brave.com", "api.firecrawl.dev"],
+  "provider_egress": [
+    {
+      "provider": "brave-search",
+      "service": "web-search-v1",
+      "host": "api.search.brave.com",
+      "processing_location": "external-unspecified",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "development-only-brave-unverified",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "development-only:not-residency-evidence",
+        "issuer": "local-developer",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    },
+    {
+      "provider": "firecrawl",
+      "service": "scrape-v2",
+      "host": "api.firecrawl.dev",
+      "processing_location": "external-unspecified",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "development-only-firecrawl-unverified",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "development-only:not-residency-evidence",
+        "issuer": "local-developer",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    }
+  ],
+  "worker": {
+    "max_attempts": 2,
+    "lease_seconds": 60,
+    "base_backoff_seconds": 2,
+    "maximum_backoff_seconds": 30
+  }
+}

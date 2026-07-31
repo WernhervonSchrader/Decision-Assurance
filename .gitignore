@@ -7,4 +7,5 @@ build/
 dist/
 .venv/
 .cache/
-.secrets/
+.secrets/*
+!.secrets/*.example

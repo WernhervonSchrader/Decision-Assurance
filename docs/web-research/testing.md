@@ -8,7 +8,15 @@ DRAFT-only handoff, two tenants, DE/EN, schema parity and eight approved API E2E
 
 CI runs pytest, both existing benchmarks, Ruff, strict mypy, Bandit, `pip-audit`, package build,
 schema/migration checks, secret scanning and deterministic OpenAPI v0.4 drift detection. Real
-provider-account testing is explicit operator-owned work outside the standard suite.
+provider-account testing is isolated under the `live_provider` marker. It runs only when
+`DA_RUN_LIVE_PROVIDER_TESTS=1` and both required local `.secrets` files are available. Example:
+
+```text
+DA_RUN_LIVE_PROVIDER_TESTS=1 python -m pytest -m live_provider -s
+```
+
+Live output is bounded to status, HTTP result class, duration, result count and correlation ID. It
+must never print credentials, URLs, provider bodies or extracted content.
 
 MCP adapter tests additionally cover official protocol discovery and bearer enforcement, strict
 tool input/output contracts, role/tenant attacks, server-limit precedence, mutation replay, DE

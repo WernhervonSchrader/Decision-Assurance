@@ -22,10 +22,20 @@ from ..observability.metrics import InMemoryMetrics
 from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
-from ..production.contracts import AuthenticationMode, BuildMetadata, HealthStatus, SecretReference
+from ..production.contracts import (
+    AuthenticationMode,
+    BuildMetadata,
+    EnvironmentProfile,
+    HealthStatus,
+    SecretReference,
+)
 from ..production.egress import HttpsEgressAllowlist, ResidencyEgressGuard
 from ..production.ports import SecretProviderPort
-from ..production.secrets import EnvironmentSecretProvider
+from ..production.secrets import (
+    EnvironmentSecretProvider,
+    FileSecretProvider,
+    SecretResolutionError,
+)
 from ..repositories.sqlite import SqliteDecisionRepository
 from ..tenancy import TenantContext
 from ..web_research.circuit_breaker import InMemoryProviderCircuitBreaker
@@ -39,6 +49,7 @@ from ..web_research.normalization import EvidenceNormalizer
 from ..web_research.orchestrator import ResearchOrchestrator, ResearchPolicy
 from ..web_research.providers.brave import BraveSearchProvider
 from ..web_research.providers.firecrawl import FirecrawlContentExtractor
+from ..web_research.providers.telemetry import ProviderCallTelemetry
 from ..web_research.repository import SqliteResearchRepository
 from ..web_research.service import ResearchSubmissionService
 from ..web_research.url_policy import PublicUrlPolicy, SystemResolver
@@ -54,6 +65,8 @@ def load_runtime(
     values = environment if environment is not None else os.environ
     if config_path := values.get("DA_CONFIG_PATH"):
         config = load_config(Path(config_path), values)
+        if config.profile is EnvironmentProfile.DEVELOPMENT:
+            return _load_reference_runtime(values, provider_config=config)
         return _load_configured_runtime(
             config,
             values,
@@ -63,7 +76,9 @@ def load_runtime(
     return _load_reference_runtime(values)
 
 
-def _load_reference_runtime(values: Mapping[str, str]) -> FastAPI:
+def _load_reference_runtime(
+    values: Mapping[str, str], *, provider_config: RuntimeConfig | None = None
+) -> FastAPI:
     database_value = values.get("DA_DATABASE_PATH")
     identities_value = values.get("DA_IDENTITIES_PATH")
     if not database_value or not identities_value:
@@ -97,18 +112,39 @@ def _load_reference_runtime(values: Mapping[str, str]) -> FastAPI:
         max_search_results=_integer(values, "WEB_RESEARCH_MAX_RESULTS", 10),
         max_extractions=_integer(values, "WEB_RESEARCH_MAX_EXTRACTIONS", 5),
     )
+    brave_url = values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com")
+    firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
+    secret_provider: SecretProviderPort
+    if directory := values.get("DA_SECRET_DIRECTORY"):
+        secret_provider = FileSecretProvider(Path(directory))
+    else:
+        secret_provider = EnvironmentSecretProvider(EnvironmentProfile.DEVELOPMENT, values)
+    residency_guard: ResidencyEgressGuard | None = None
+    if provider_config is not None:
+        provider_config.validate_provider_urls((brave_url, firecrawl_url))
+        config_path = Path(values["DA_CONFIG_PATH"])
+        residency_guard = ResidencyEgressGuard(
+            lambda: load_config(config_path, values),
+            expected_profile=EnvironmentProfile.DEVELOPMENT,
+        )
+    logger = JsonEventLogger(print)
+    provider_telemetry = ProviderCallTelemetry(logger)
     research_orchestrator = ResearchOrchestrator(
         BraveSearchProvider(
-            api_key=values.get("BRAVE_SEARCH_API_KEY"),
-            base_url=values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com"),
+            api_key=_provider_secret(secret_provider, "BRAVE_API_KEY"),
+            base_url=brave_url,
             timeout_seconds=_number(values, "BRAVE_SEARCH_TIMEOUT_SECONDS", 10.0),
+            egress_guard=residency_guard,
+            telemetry=provider_telemetry,
         ),
         FirecrawlContentExtractor(
-            api_key=values.get("FIRECRAWL_API_KEY"),
+            api_key=_provider_secret(secret_provider, "FIRECRAWL_API_KEY"),
             url_policy=url_policy,
-            base_url=values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev"),
+            base_url=firecrawl_url,
             timeout_seconds=_number(values, "FIRECRAWL_TIMEOUT_SECONDS", 20.0),
             max_content_bytes=max_content_bytes,
+            egress_guard=residency_guard,
+            telemetry=provider_telemetry,
         ),
         research_repository,
         url_policy,
@@ -130,6 +166,7 @@ def _load_reference_runtime(values: Mapping[str, str]) -> FastAPI:
         ),
         research_repository,
         research_orchestrator,
+        logger=logger,
     )
 
 
@@ -170,15 +207,11 @@ def _load_configured_runtime(
         jwks_uri=config.oidc.jwks_uri,
         http_client=oidc_client,
     )
-    brave_key = secrets.resolve(
-        SecretReference(
-            values.get("DA_BRAVE_API_KEY_SECRET_REF", "decision-assurance-brave-api-key")
-        )
+    brave_key = _provider_secret(
+        secrets, values.get("DA_BRAVE_API_KEY_SECRET_REF", "BRAVE_API_KEY")
     )
-    firecrawl_key = secrets.resolve(
-        SecretReference(
-            values.get("DA_FIRECRAWL_API_KEY_SECRET_REF", "decision-assurance-firecrawl-api-key")
-        )
+    firecrawl_key = _provider_secret(
+        secrets, values.get("DA_FIRECRAWL_API_KEY_SECRET_REF", "FIRECRAWL_API_KEY")
     )
     url_policy = PublicUrlPolicy(SystemResolver())
     max_content_bytes = _integer(values, "WEB_RESEARCH_MAX_CONTENT_BYTES", 1_000_000)
@@ -193,19 +226,25 @@ def _load_configured_runtime(
     if not config_path_value:
         raise RuntimeError("DA_CONFIG_PATH is required for configured runtime")
     config_path = Path(config_path_value)
-    residency_guard = ResidencyEgressGuard(lambda: load_config(config_path, values))
+    residency_guard = ResidencyEgressGuard(
+        lambda: load_config(config_path, values), expected_profile=config.profile
+    )
+    logger = JsonEventLogger(print)
+    provider_telemetry = ProviderCallTelemetry(logger)
     orchestrator = ResearchOrchestrator(
         BraveSearchProvider(
-            api_key=brave_key.value,
+            api_key=brave_key,
             base_url=brave_base,
             egress_guard=residency_guard,
+            telemetry=provider_telemetry,
         ),
         FirecrawlContentExtractor(
-            api_key=firecrawl_key.value,
+            api_key=firecrawl_key,
             url_policy=url_policy,
             base_url=firecrawl_base,
             max_content_bytes=max_content_bytes,
             egress_guard=residency_guard,
+            telemetry=provider_telemetry,
         ),
         persistence.research,
         url_policy,
@@ -249,7 +288,7 @@ def _load_configured_runtime(
         orchestrator,
         research_submission_service=submission,
         health_service=health,
-        logger=JsonEventLogger(print),
+        logger=logger,
         metrics=InMemoryMetrics(),
         api_version="0.5.0",
         build_metadata=build_metadata,
@@ -265,6 +304,13 @@ def _integer(values: Mapping[str, str], name: str, default: int) -> int:
         return int(values.get(name, str(default)))
     except ValueError as error:
         raise RuntimeError(f"{name} must be an integer") from error
+
+
+def _provider_secret(provider: SecretProviderPort, reference: str) -> str | None:
+    try:
+        return provider.resolve(SecretReference(reference, required=False)).value
+    except SecretResolutionError:
+        return None
 
 
 def _number(values: Mapping[str, str], name: str, default: float) -> float:

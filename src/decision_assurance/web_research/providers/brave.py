@@ -10,6 +10,7 @@ import httpx
 from ...production.egress import EgressRejected, ResidencyEgressGuard
 from ..contracts import ProviderError, SearchQuery, SearchResponse, SearchResult
 from .errors import ProviderRequestFailed
+from .telemetry import NOOP_PROVIDER_TELEMETRY, ProviderCallTelemetry
 
 Clock = Callable[[], datetime]
 
@@ -33,6 +34,7 @@ class BraveSearchProvider:
         client: httpx.AsyncClient | None = None,
         clock: Clock = _utc_now,
         egress_guard: ResidencyEgressGuard | None = None,
+        telemetry: ProviderCallTelemetry = NOOP_PROVIDER_TELEMETRY,
     ):
         parsed = urlsplit(base_url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
@@ -45,6 +47,7 @@ class BraveSearchProvider:
         self._client = client
         self._clock = clock
         self._egress_guard = egress_guard or ResidencyEgressGuard(lambda: None)
+        self._telemetry = telemetry
 
     async def search(self, request: SearchQuery) -> SearchResponse:
         self._validate(request)
@@ -67,6 +70,7 @@ class BraveSearchProvider:
             timeout=self._timeout,
             follow_redirects=False,
         )
+        started_at = self._telemetry.start()
         try:
             request_url = self._egress_guard.authorize_current(
                 provider=self.provider_id,
@@ -80,16 +84,47 @@ class BraveSearchProvider:
                 timeout=self._timeout,
             )
         except httpx.TimeoutException:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code="SEARCH_TIMEOUT",
+            )
             self._fail("SEARCH_TIMEOUT", True)
         except httpx.HTTPError:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code="PROVIDER_UNAVAILABLE",
+            )
             self._fail("PROVIDER_UNAVAILABLE", True)
         except EgressRejected as error:
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=None,
+                reason_code=error.reason_code,
+            )
             self._fail(error.reason_code, False)
         finally:
             if owns_client:
                 await client.aclose()
         if response.status_code != 200:
+            reason, _ = self._status(response.status_code)
+            self._telemetry.record(
+                started_at,
+                connector=self.provider_version,
+                status_code=response.status_code,
+                reason_code=reason,
+            )
             self._raise_for_status(response)
+        self._telemetry.record(
+            started_at,
+            connector=self.provider_version,
+            status_code=response.status_code,
+            reason_code="PROVIDER_CALL_SUCCEEDED",
+        )
         return self._normalize(response)
 
     @classmethod
@@ -121,7 +156,7 @@ class BraveSearchProvider:
                     raise TypeError
                 url, title = raw.get("url"), raw.get("title")
                 snippet = raw.get("description", "")
-                published = raw.get("page_age")
+                published = raw.get("age", raw.get("page_age"))
                 if (
                     not isinstance(url, str)
                     or not isinstance(title, str)
@@ -142,21 +177,27 @@ class BraveSearchProvider:
     @classmethod
     def _raise_for_status(cls, response: httpx.Response) -> None:
         status = response.status_code
+        reason, retryable = cls._status(status)
+        retry_after = cls._retry_after(response) if status == 429 else None
+        cls._fail(reason, retryable, status, retry_after)
+
+    @staticmethod
+    def _status(status: int) -> tuple[str, bool]:
         mapping = {
             400: ("SEARCH_REQUEST_REJECTED", False),
             401: ("PROVIDER_AUTHENTICATION_FAILED", False),
+            403: ("PROVIDER_AUTHORIZATION_FAILED", False),
+            404: ("SEARCH_ENDPOINT_NOT_FOUND", False),
             402: ("PROVIDER_QUOTA_EXHAUSTED", False),
             408: ("SEARCH_TIMEOUT", True),
             429: ("PROVIDER_RATE_LIMITED", True),
         }
-        reason, retryable = mapping.get(
+        return mapping.get(
             status,
             ("PROVIDER_UNAVAILABLE", True)
             if 500 <= status <= 599
             else ("SEARCH_PROVIDER_ERROR", False),
         )
-        retry_after = cls._retry_after(response) if status == 429 else None
-        cls._fail(reason, retryable, status, retry_after)
 
     @staticmethod
     def _retry_after(response: httpx.Response) -> float | None:

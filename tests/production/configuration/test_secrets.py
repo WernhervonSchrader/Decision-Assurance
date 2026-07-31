@@ -1,7 +1,9 @@
+import json
 from pathlib import Path
 
 import pytest
 
+from decision_assurance.api.runtime import _provider_secret, load_runtime
 from decision_assurance.production.contracts import EnvironmentProfile, SecretReference
 from decision_assurance.production.secrets import (
     EnvironmentSecretProvider,
@@ -44,3 +46,49 @@ def test_platform_mounted_secret_files_are_resolved_by_reference(tmp_path: Path)
     assert canary not in repr(provider)
     with pytest.raises(SecretResolutionError):
         provider.resolve(SecretReference("missing-secret"))
+
+
+def test_provider_secrets_resolve_independently_and_missing_connector_fails_closed(
+    tmp_path: Path,
+) -> None:
+    brave_canary = "mounted-brave-canary-4ce1"  # noqa: S105
+    (tmp_path / "BRAVE_API_KEY").write_text(brave_canary, encoding="utf-8")
+    provider = FileSecretProvider(tmp_path)
+
+    assert _provider_secret(provider, "BRAVE_API_KEY") == brave_canary
+    assert _provider_secret(provider, "FIRECRAWL_API_KEY") is None
+    assert brave_canary not in repr(provider)
+
+
+def test_development_runtime_starts_with_independently_missing_provider_keys(
+    tmp_path: Path,
+) -> None:
+    identities = tmp_path / "identities.json"
+    identities.write_text(
+        json.dumps(
+            {
+                "test-token": {
+                    "actor_id": "actor-1",
+                    "tenant_id": "tenant-a",
+                    "role": "GENERATOR",
+                    "kind": "HUMAN",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    secret_directory = tmp_path / "secrets"
+    secret_directory.mkdir()
+    (secret_directory / "BRAVE_API_KEY").write_text("valid-brave-canary", encoding="utf-8")
+
+    app = load_runtime(
+        {
+            "DA_CONFIG_PATH": "config/deployment/provider-development.example.json",
+            "DA_PROFILE": "development",
+            "DA_DATABASE_PATH": str(tmp_path / "runtime.db"),
+            "DA_IDENTITIES_PATH": str(identities),
+            "DA_SECRET_DIRECTORY": str(secret_directory),
+        }
+    )
+
+    assert app is not None
