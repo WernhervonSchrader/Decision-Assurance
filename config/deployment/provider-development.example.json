@@ -14,17 +14,17 @@
   "secret_provider": "environment",
   "database_dsn_secret": "DEVELOPMENT_DATABASE_UNUSED",
   "worker_database_dsn_secret": "DEVELOPMENT_WORKER_DATABASE_UNUSED",
-  "egress_allowed_hosts": ["api.search.brave.com", "api.firecrawl.dev"],
+  "egress_allowed_hosts": ["api.openai.com", "api.firecrawl.dev"],
   "provider_egress": [
     {
-      "provider": "brave-search",
-      "service": "web-search-v1",
-      "host": "api.search.brave.com",
+      "provider": "openai-web-search",
+      "service": "responses-web-search-v1",
+      "host": "api.openai.com",
       "processing_location": "external-unspecified",
       "confirmed_processing_locations": [],
       "tenant_ids": ["*"],
       "attestation": {
-        "evidence_id": "development-only-brave-unverified",
+        "evidence_id": "development-only-openai-unverified",
         "evidence_type": "OPERATOR_SELF_DECLARATION",
         "evidence_ref": "development-only:not-residency-evidence",
         "issuer": "local-developer",

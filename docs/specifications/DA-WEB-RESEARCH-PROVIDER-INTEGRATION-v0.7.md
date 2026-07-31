@@ -1,103 +1,111 @@
-# Web Research Provider Integration v0.7
+# OpenAI Web Search and Firecrawl Provider Integration v0.7
 
-Status: approved implementation basis for development and controlled pilot provider operation.
+Status: approved implementation basis for development and controlled pilot operation.
 
 ## Context and objective
 
-Decision Assurance already has one tenant-aware Research pipeline, Brave and Firecrawl adapters,
-bounded source selection, URL policy, normalization, evidence compilation, persistence and the
-request-time residency guard. This change completes the technical provider integration without a
-parallel architecture. It does not add OIDC/Keycloak, export, deletion, legal hold or retention.
+Decision Assurance keeps one tenant-aware Research pipeline. OpenAI Responses API Web Search
+replaces Brave for discovery, source-grounded summary and citation metadata. Firecrawl remains an
+optional, separately guarded fetch/extraction step for selected public URLs. OIDC/Keycloak, export,
+deletion, legal hold and retention remain outside this change.
 
-Brave discovery returns title, URL, description, rank and an available publication/page age. A
-selected public URL is submitted to Firecrawl for Markdown extraction. Provider output is validated,
-normalized, hashed and retained as separate source, snapshot and evidence records. External content
-is untrusted data and cannot change agent instructions, policy or authorization.
+The provider flow is:
 
-Official provider contracts checked for this design are Brave Web Search v1 at
-`GET /res/v1/web/search` with `X-Subscription-Token`, and Firecrawl Scrape v2 at
-`POST /v2/scrape` with Bearer authentication.
+```text
+Research Request -> OpenAI Web Search -> source assessment -> URL selection
+                 -> optional Firecrawl -> normalized content -> Evidence Records
+                 -> Decision Assurance
+```
+
+Official OpenAI documentation checked on 2026-07-31 recommends Responses API with
+`{"type":"web_search"}` for new integrations. Inline citations are returned as `url_citation`
+annotations. `include: ["web_search_call.action.sources"]` returns all consulted URLs, which may be
+more numerous than cited URLs. The implementation uses the configurable `gpt-5.6` default shown by
+the current guide and never relies on a dynamically changing model alias without configuration.
 
 ## Requirements matrix
 
 | ID | Requirement | Implementation | Verification |
 | --- | --- | --- | --- |
-| PI-01 | Reuse the existing pipeline and domain contracts | current providers, orchestrator, normalizer and compiler | architecture/diff review |
-| PI-02 | Brave preserves title, URL, description, rank and available date | Brave adapter | response contract tests |
-| PI-03 | Firecrawl returns bounded normalized text and metadata | Firecrawl adapter and normalizer | adapter and integration tests |
-| PI-04 | Every network attempt passes the request-time guard | provider adapters and egress context | zero-call spies and audit tests |
-| PI-05 | Restrictive profiles remain evidence-gated | residency guard | production negative tests |
-| PI-06 | Development use is explicit and cannot authorize production | development provider profile and pinned runtime profile | downgrade tests and audit code |
-| PI-07 | Provider keys use `SecretProviderPort` and local files by preference | runtime provider factory and `.secrets` templates | missing/invalid/file-provider tests |
-| PI-08 | Connector failures are controlled and independent of unrelated functions | optional provider key resolution and existing error model | missing-key API tests |
-| PI-09 | Timeout, retry, backoff and 429 are bounded | existing Research attempts, job policy and Retry-After | provider/orchestration tests |
-| PI-10 | 401/403/404/429/5xx have stable classifications | provider adapters | table-driven tests |
-| PI-11 | SSRF, redirect and DNS changes fail closed | `PublicUrlPolicy` before and after extraction | hostile resolver/metadata tests |
-| PI-12 | Size and content type are bounded | Firecrawl adapter and normalizer | negative tests |
-| PI-13 | Canonical URLs and duplicates converge | URL policy and orchestrator | combined pipeline tests |
-| PI-14 | Provenance, retrieval time and content hash are immutable | source/snapshot/evidence contracts | persistence assertions |
-| PI-15 | Prompt injection is marked and cannot drive handoff | normalizer and evidence policy | injection E2E |
-| PI-16 | Logs contain only connector, status, duration, correlation and reason | provider telemetry and structured logger | secret-canary tests |
-| PI-17 | Tenant isolation and DE/EN behavior remain unchanged | repositories, RLS and API localization | full regression and E2E |
-| PI-18 | Live tests are explicit, local-key-gated and output-minimal | marked live smoke module | opt-in execution |
-| PI-19 | CI retains all security and build gates | existing CI | successful PR checks |
+| OW-01 | Reuse the existing provider-neutral pipeline | `SearchProviderPort`, orchestrator, policies and repositories | architecture/diff review |
+| OW-02 | Responses API uses `web_search` and requests all sources | OpenAI adapter | exact request contract test |
+| OW-03 | Preserve summary, cited URLs and consulted URLs | OpenAI normalization and Research run/source records | response contract tests |
+| OW-04 | Firecrawl remains optional and selected-URL only | existing extractor/orchestrator | combined and degraded-flow tests |
+| OW-05 | Every OpenAI and Firecrawl call passes the request-time guard | both adapters | audit-before-network zero-call tests |
+| OW-06 | Restrictive profiles remain evidence-gated | residency guard/profile config | negative configuration tests |
+| OW-07 | Development exception cannot authorize production | explicit dev mode and expected profile pin | downgrade tests |
+| OW-08 | `OPENAI_API_KEY` and `FIRECRAWL_API_KEY` use `SecretProviderPort` | runtime wiring and `.secrets` templates | missing/file-provider tests |
+| OW-09 | Missing connectors fail independently | optional key resolution | runtime and adapter tests |
+| OW-10 | 401/403/404/429/5xx, timeout and retry are bounded | adapters and existing attempts/backoff | table-driven tests |
+| OW-11 | URL, redirect, host, DNS and private address rules remain fail-closed | `PublicUrlPolicy` before selection and after extraction | SSRF/rebinding tests |
+| OW-12 | Size and content types remain bounded | Firecrawl adapter/normalizer | negative tests |
+| OW-13 | Canonical URLs and duplicates converge | URL policy/orchestrator | combined pipeline tests |
+| OW-14 | Evidence chain has explicit artifact stages | contracts and orchestrator | schema/persistence assertions |
+| OW-15 | Citation-only fallback never claims fetched full text | source status and partial completion | Firecrawl failure tests |
+| OW-16 | Prompt injection remains untrusted data | OpenAI prompt boundary and Firecrawl risk policy | injection tests |
+| OW-17 | Logs contain bounded connector metadata only | provider telemetry | exact-field/secret-canary tests |
+| OW-18 | Tenant isolation and DE/EN behavior remain unchanged | repositories/RLS/localization | full regression/E2E |
+| OW-19 | Live tests are explicit and key-gated | `live_provider` tests | safe skip/live execution |
+| OW-20 | CI security and build gates remain blocking | existing CI | PR checks |
 
-## Architecture
+## Artifact and trust model
+
+The chain is explicit and monotonic:
 
 ```text
-Research Request
-      |
-      v
-ResearchOrchestrator -- tenant/actor/correlation --> ResidencyEgressGuard
-      |                                                   |
-      v                                                   v
-BraveSearchProvider -------------------------------> Brave Search
-      |
-      v
-PublicUrlPolicy -> canonical selection/deduplication
-      |
-      v
-FirecrawlContentExtractor -------------------------> Firecrawl Scrape
-      |
-      v
-PublicUrlPolicy (post-response) -> EvidenceNormalizer -> Snapshot/Hash -> Evidence
+SEARCH_RESULT -> SELECTED_SOURCE -> FETCHED_CONTENT -> DERIVED_CLAIM
 ```
 
-Provider retries remain orchestration attempts. Each retry consumes budget, creates an attempt and a
-new egress decision, and respects job backoff or bounded `Retry-After`. Firecrawl POST requests are
-not blindly repeated inside the adapter.
+- `SEARCH_RESULT`: cited or consulted URL plus OpenAI-generated, untrusted search context.
+- `SELECTED_SOURCE`: canonical public URL selected by deterministic local policy.
+- `FETCHED_CONTENT`: Firecrawl response validated, normalized, timestamped and content-hashed.
+- `DERIVED_CLAIM`: Decision Assurance evidence candidate linked to a fetched snapshot and claim refs.
 
-Development is represented by `development-provider-integration`. Its external location is recorded
-as `external-unspecified`, and its egress decision uses `EGRESS_ALLOWED_DEVELOPMENT`. That reason is
-not residency evidence. Staging and production reject the development mode and continue to accept
-only independently verified admissible evidence.
+If Firecrawl is missing, denied or fails, a selected source becomes `CITATION_ONLY`. It remains a
+search/citation record and may be displayed with its source URL, but it does not create a snapshot,
+content hash, full-text assertion or compiled Decision evidence. The run becomes
+`PARTIALLY_COMPLETED` and may be retried later.
 
-`BRAVE_API_KEY` and `FIRECRAWL_API_KEY` are secret references. Local operation prefers mounted files
-under `.secrets/`; environment resolution is permitted only for development/test. Missing or unsafe
-values become `PROVIDER_NOT_CONFIGURED` and never appear in logs, audit or exceptions.
+OpenAI output and every consulted web page are untrusted data. Search summaries, citations and page
+instructions cannot change authorization, provider selection, policy, prompts or workflow state.
+Only deterministic application code chooses URLs and produces evidence candidates.
+
+## Provider boundary
+
+OpenAI uses `POST https://api.openai.com/v1/responses`, Bearer authentication, a configurable model,
+`tools: [{"type":"web_search"}]`, `tool_choice: "auto"` and
+`include: ["web_search_call.action.sources"]`. Allowed/blocked domains are passed to supported tool
+filters and are independently re-enforced locally. Firecrawl remains `POST /v2/scrape`.
+
+Retries remain explicit orchestration attempts. Each attempt consumes budget, passes the guard,
+records egress before transport and respects bounded `Retry-After`. No adapter blindly retries.
+
+Development uses `development-provider-integration` with `external-unspecified` and
+`EGRESS_ALLOWED_DEVELOPMENT`. This is not residency evidence. Staging and production reject the
+development mode and require independently verified evidence for OpenAI and Firecrawl.
 
 ## Threat model
 
-| Threat | Likelihood / impact | Prevention and detection | Residual risk / response |
+| Threat | Likelihood / impact | Controls | Residual risk / response |
 | --- | --- | --- | --- |
-| Production profile downgraded to development | low / critical | pin startup profile; reject development mode in staging/production | compromised process/config authority; stop service |
-| Key disclosure | medium / critical | secret ports, ignored files, redacted structured logs, Gitleaks | operator terminal/process exposure; rotate key |
-| Guard or audit bypass | low / critical | adapter-level guard immediately before transport; audit-before-send | compromised runtime; isolate egress |
-| SSRF, metadata access or DNS rebinding | medium / critical | HTTPS/public-IP policy before selection and after provider result | provider-side DNS timing; block source/provider |
-| Redirect to prohibited target | medium / high | post-response canonical URL and same-domain validation | provider metadata may be incomplete; reject result |
-| Poisoned or instructional content | high / high | active-content stripping, secret redaction, injection risk, no policy authority | semantic detection incomplete; human review |
-| Retry amplification/rate-limit abuse | medium / medium | bounded attempts, budget, circuit breaker, backoff and capped Retry-After | provider outage; disable connector |
-| Cross-tenant inference | low / critical | tenant context, tenant repositories/RLS and tenant-scoped audit | privileged operator risk; incident response |
-| Provider schema drift | medium / high | strict required fields and stable errors | additive fields ignored; block incompatible response |
+| Development downgrade | low / critical | pinned profile; dev mode rejected outside development | compromised config authority; stop egress |
+| API key disclosure | medium / critical | secret port/files, ignore rules, Gitleaks, bounded logs | operator/process exposure; rotate key |
+| Guard/audit bypass | low / critical | adapter guard immediately before transport; audit-before-send | compromised runtime; isolate network |
+| SSRF/DNS rebinding/redirect | medium / critical | local canonical/public-IP checks before and after extraction | provider-side timing; reject source |
+| Search prompt injection | high / high | untrusted summary/source model; fixed system boundary; no external instructions | semantic detection incomplete; human review |
+| Search summary treated as full text | medium / high | explicit artifact types; citation-only partial state | UI misuse; audit and correct record |
+| Provider schema drift | medium / high | strict required output parsing and stable errors | incompatible response blocks run |
+| Cost/retry amplification | medium / medium | budgets, circuit breaker, attempts, backoff/Retry-After | outage; disable connector |
+| Cross-tenant inference | low / critical | tenant context, composite keys/RLS, tenant audit | privileged operator risk; incident response |
 
 ## Acceptance criteria
 
-1. Actual Brave and Firecrawl adapter instances complete a mocked end-to-end Research run.
-2. Source candidates, snapshots and evidence retain separate provenance, retrieval time and hashes.
-3. Missing/invalid keys and all required HTTP classes fail with stable secret-free errors.
-4. Residency denial and mandatory audit failure produce zero network calls.
-5. Private, loopback, link-local, metadata, DNS-change and prohibited redirect targets are rejected.
-6. Unsupported/oversized content and prompt-injection patterns cannot become trusted evidence.
-7. Development calls are explicitly marked and cannot be configured in staging/production.
-8. Live smoke tests require explicit opt-in and both local secret files; output is bounded metadata.
-9. Ruff, strict Mypy, complete non-PostgreSQL/PostgreSQL tests, scans, audits and builds pass.
+1. Actual OpenAI and Firecrawl adapters complete a mocked Research run through the existing ports.
+2. OpenAI request and response handling preserve all citations and consulted URL sources.
+3. Artifact types prove `SEARCH_RESULT -> SELECTED_SOURCE -> FETCHED_CONTENT -> DERIVED_CLAIM`.
+4. Firecrawl failure produces citation-only partial completion without snapshot/content hash/claim.
+5. Missing/invalid keys and required HTTP classes fail with stable secret-free errors.
+6. Residency denial and audit failure produce zero network calls.
+7. SSRF, DNS changes, redirects, size/MIME and prompt-injection paths fail conservatively.
+8. Development configuration cannot be used by staging or production.
+9. Standard and PostgreSQL tests, Ruff, strict Mypy, scans, audits and builds pass.

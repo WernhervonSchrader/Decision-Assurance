@@ -229,7 +229,7 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
     provider = json.loads((FIXTURES / "pilot_provider_response.json").read_text(encoding="utf-8"))
     search = FakeSearchProvider(
         SearchResponse(
-            "fake-brave",
+            "fake-openai",
             "pilot-v1",
             NOW.isoformat(),
             (SearchResult(provider["url"], provider["title"], "policy", 1, NOW.isoformat()),),

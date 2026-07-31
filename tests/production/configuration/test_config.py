@@ -37,7 +37,7 @@ def _production() -> dict[str, object]:
         "egress_allowed_hosts": ["provider.example"],
         "provider_egress": [
             {
-                "provider": "brave-search",
+                "provider": "openai-web-search",
                 "service": "web-search-v1",
                 "host": "provider.example",
                 "processing_location": "local",

@@ -1,7 +1,7 @@
 # MCP Web Research and ChatGPT Work
 
 Decision Assurance v0.5 exposes the existing Web Research domain through one separately runnable
-MCP resource server. It does not duplicate Brave or Firecrawl and it does not expose arbitrary
+MCP resource server. It does not duplicate OpenAI Web Search or Firecrawl and it does not expose arbitrary
 browsing. The supported transport is stateless Streamable HTTP at `/mcp` using the official MCP
 Python SDK `>=1.29,<2`.
 
@@ -9,7 +9,7 @@ Python SDK `>=1.29,<2`.
 
 ```text
 ChatGPT Work/Codex -> personal skill -> MCP /mcp -> existing Research service
--> queued Worker -> Brave/Firecrawl -> conservative evidence -> DRAFT Decision File
+-> queued Worker -> OpenAI Web Search/optional Firecrawl -> conservative evidence -> DRAFT Decision File
 ```
 
 Exactly five tools are available:
@@ -30,7 +30,7 @@ authoritative.
 Tenant is never an input. The MCP bearer token is checked before every tool call by the existing
 static-development or production OIDC authenticator. The adapter derives tenant, actor, role and kind
 only from that verified identity. Provider keys remain server-side and are resolved only from
-`BRAVE_SEARCH_API_KEY`/`FIRECRAWL_API_KEY` in reference mode or their protected secret references in
+`OPENAI_API_KEY`/`FIRECRAWL_API_KEY` in reference mode or their protected secret references in
 configured production.
 
 ## Research modes and limits

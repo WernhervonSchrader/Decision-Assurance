@@ -4,12 +4,14 @@
   "title": "Source Candidate v0.4",
   "type": "object",
   "additionalProperties": false,
-  "required": ["source_id", "original_url", "canonical_url", "domain", "title", "snippet", "rank", "searched_at", "search_provider", "search_provider_version", "status", "reason_codes"],
+  "required": ["source_id", "original_url", "canonical_url", "domain", "title", "snippet", "rank", "searched_at", "search_provider", "search_provider_version", "status", "reason_codes", "citation_kind", "artifact_type"],
   "properties": {
     "source_id": {"type": "string"}, "original_url": {"type": "string"}, "canonical_url": {"type": "string"}, "domain": {"type": "string"},
     "title": {"type": "string"}, "snippet": {"type": "string"}, "rank": {"type": "integer", "minimum": 1},
     "searched_at": {"type": "string"}, "search_provider": {"type": "string"}, "search_provider_version": {"type": "string"},
     "published_at": {"type": ["string", "null"]}, "status": {"type": "string"},
-    "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+    "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "citation_kind": {"enum": ["CITED", "CONSULTED"]},
+    "artifact_type": {"enum": ["SEARCH_RESULT", "SELECTED_SOURCE"]}
   }
 }

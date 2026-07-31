@@ -85,7 +85,7 @@ def setup_service(
     decisions.create_decision(TenantContext("tenant-a"), copy.deepcopy(document))
     decisions.create_decision(TenantContext("tenant-b"), copy.deepcopy(document))
     search_response = SearchResponse(
-        "fake-brave",
+        "fake-openai",
         "v1",
         NOW.isoformat(),
         (
@@ -152,7 +152,7 @@ def setup_service(
 
 
 class BlockingSearch:
-    provider_id = "fake-brave"
+    provider_id = "fake-openai"
 
     def __init__(self, response: SearchResponse):
         self.response = response
@@ -403,7 +403,7 @@ async def test_production_retry_requeues_without_provider_call(tmp_path) -> None
 @pytest.mark.anyio
 async def test_concurrent_idempotency_allows_only_one_provider_execution(tmp_path) -> None:  # type: ignore[no-untyped-def]
     response = SearchResponse(
-        "fake-brave",
+        "fake-openai",
         "v1",
         NOW.isoformat(),
         (SearchResult("https://one.example/rule", "Primary One", "", 1, NOW.isoformat()),),

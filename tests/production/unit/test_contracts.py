@@ -45,7 +45,7 @@ def test_pilot_profile_cannot_disable_human_approval() -> None:
             100,
             2,
             ("de", "en"),
-            ("brave-search", "firecrawl"),
+            ("openai-web-search", "firecrawl"),
             ("business-confidential",),
             90,
             ("background-research",),

@@ -193,7 +193,7 @@ async def test_untrusted_content_is_marked_by_normalization_policy(
         "",
         1,
         NOW.isoformat(),
-        "brave-search",
+        "openai-web-search",
         "web-search-v1",
         NOW.isoformat(),
     )
@@ -221,7 +221,7 @@ async def test_active_html_is_never_executed_and_is_removed() -> None:
         "",
         1,
         NOW.isoformat(),
-        "brave-search",
+        "openai-web-search",
         "web-search-v1",
     )
     snapshot = EvidenceNormalizer(max_content_bytes=100_000).normalize(source, result.content)

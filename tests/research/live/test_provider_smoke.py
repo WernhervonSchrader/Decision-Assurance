@@ -32,8 +32,8 @@ from decision_assurance.web_research.contracts import (
 from decision_assurance.web_research.evidence_policy import EvidencePolicy
 from decision_assurance.web_research.normalization import EvidenceNormalizer
 from decision_assurance.web_research.orchestrator import ResearchOrchestrator, ResearchPolicy
-from decision_assurance.web_research.providers.brave import BraveSearchProvider
 from decision_assurance.web_research.providers.firecrawl import FirecrawlContentExtractor
+from decision_assurance.web_research.providers.openai_web_search import OpenAIWebSearchProvider
 from decision_assurance.web_research.repository import SqliteResearchRepository
 from decision_assurance.web_research.url_policy import PublicUrlPolicy, SystemResolver
 
@@ -46,16 +46,14 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def _secrets() -> tuple[str, str]:
+def _secret(reference: str) -> str:
     if os.getenv("DA_RUN_LIVE_PROVIDER_TESTS") != "1":
         pytest.skip("live provider tests require explicit opt-in")
     provider = FileSecretProvider(SECRET_DIRECTORY)
     try:
-        brave = provider.resolve(SecretReference("BRAVE_API_KEY")).value
-        firecrawl = provider.resolve(SecretReference("FIRECRAWL_API_KEY")).value
+        return provider.resolve(SecretReference(reference)).value
     except SecretResolutionError:
-        pytest.skip("local provider credentials are unavailable")
-    return brave, firecrawl
+        pytest.skip(f"local {reference} credential is unavailable")
 
 
 def _guard() -> ResidencyEgressGuard:
@@ -94,13 +92,21 @@ def _report(*, status: str, duration: float, count: int, correlation_id: str) ->
 
 
 @pytest.mark.anyio
-async def test_live_brave_minimal_search() -> None:
-    brave_key, _ = _secrets()
-    correlation_id = "live-brave-smoke"
+async def test_live_openai_minimal_search() -> None:
+    openai_key = _secret("OPENAI_API_KEY")
+    correlation_id = "live-openai-smoke"
     started = time.monotonic()
     with bind_egress_context(_context(correlation_id)):
-        response = await BraveSearchProvider(api_key=brave_key, egress_guard=_guard()).search(
-            SearchQuery("site:example.com Example Domain", "en-US", ("en",), 3)
+        response = await OpenAIWebSearchProvider(
+            api_key=openai_key, egress_guard=_guard()
+        ).search(
+            SearchQuery(
+                "site:example.com Example Domain",
+                "en-US",
+                ("en",),
+                3,
+                FreshnessPolicy(3650, True),
+            )
         )
     assert response.results
     _report(
@@ -113,7 +119,7 @@ async def test_live_brave_minimal_search() -> None:
 
 @pytest.mark.anyio
 async def test_live_firecrawl_minimal_scrape() -> None:
-    _, firecrawl_key = _secrets()
+    firecrawl_key = _secret("FIRECRAWL_API_KEY")
     correlation_id = "live-firecrawl-smoke"
     started = time.monotonic()
     with bind_egress_context(_context(correlation_id)):
@@ -133,7 +139,8 @@ async def test_live_firecrawl_minimal_scrape() -> None:
 
 @pytest.mark.anyio
 async def test_live_combined_provider_to_evidence_pipeline(tmp_path: Path) -> None:
-    brave_key, firecrawl_key = _secrets()
+    openai_key = _secret("OPENAI_API_KEY")
+    firecrawl_key = _secret("FIRECRAWL_API_KEY")
     correlation_id = "live-combined-smoke"
     database = tmp_path / "live-provider.db"
     decisions = SqliteDecisionRepository(database)
@@ -145,7 +152,7 @@ async def test_live_combined_provider_to_evidence_pipeline(tmp_path: Path) -> No
     decisions.create_decision(tenant, document)
     url_policy = PublicUrlPolicy(SystemResolver())
     orchestrator = ResearchOrchestrator(
-        BraveSearchProvider(api_key=brave_key, egress_guard=_guard()),
+        OpenAIWebSearchProvider(api_key=openai_key, egress_guard=_guard()),
         FirecrawlContentExtractor(
             api_key=firecrawl_key,
             url_policy=url_policy,

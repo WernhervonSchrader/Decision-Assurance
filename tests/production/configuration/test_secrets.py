@@ -51,13 +51,13 @@ def test_platform_mounted_secret_files_are_resolved_by_reference(tmp_path: Path)
 def test_provider_secrets_resolve_independently_and_missing_connector_fails_closed(
     tmp_path: Path,
 ) -> None:
-    brave_canary = "mounted-brave-canary-4ce1"  # noqa: S105
-    (tmp_path / "BRAVE_API_KEY").write_text(brave_canary, encoding="utf-8")
+    openai_canary = "mounted-openai-canary-4ce1"  # noqa: S105
+    (tmp_path / "OPENAI_API_KEY").write_text(openai_canary, encoding="utf-8")
     provider = FileSecretProvider(tmp_path)
 
-    assert _provider_secret(provider, "BRAVE_API_KEY") == brave_canary
+    assert _provider_secret(provider, "OPENAI_API_KEY") == openai_canary
     assert _provider_secret(provider, "FIRECRAWL_API_KEY") is None
-    assert brave_canary not in repr(provider)
+    assert openai_canary not in repr(provider)
 
 
 def test_development_runtime_starts_with_independently_missing_provider_keys(
@@ -79,7 +79,7 @@ def test_development_runtime_starts_with_independently_missing_provider_keys(
     )
     secret_directory = tmp_path / "secrets"
     secret_directory.mkdir()
-    (secret_directory / "BRAVE_API_KEY").write_text("valid-brave-canary", encoding="utf-8")
+    (secret_directory / "OPENAI_API_KEY").write_text("valid-openai-canary", encoding="utf-8")
 
     app = load_runtime(
         {

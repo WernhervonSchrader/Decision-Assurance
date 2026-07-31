@@ -11,18 +11,18 @@ def test_retryable_failures_open_and_success_closes_tenant_provider_circuit() ->
     breaker = InMemoryProviderCircuitBreaker(
         failure_threshold=2, recovery_seconds=30, clock=lambda: now
     )
-    breaker.record_failure("tenant-a", "brave", retryable=True)
-    breaker.before_call("tenant-a", "brave")
-    breaker.record_failure("tenant-a", "brave", retryable=True)
+    breaker.record_failure("tenant-a", "openai", retryable=True)
+    breaker.before_call("tenant-a", "openai")
+    breaker.record_failure("tenant-a", "openai", retryable=True)
 
     with pytest.raises(ProviderCircuitOpen, match="PROVIDER_CIRCUIT_OPEN"):
-        breaker.before_call("tenant-a", "brave")
-    breaker.before_call("tenant-b", "brave")
+        breaker.before_call("tenant-a", "openai")
+    breaker.before_call("tenant-b", "openai")
 
     now = 41.0
-    breaker.before_call("tenant-a", "brave")
-    breaker.record_success("tenant-a", "brave")
-    breaker.before_call("tenant-a", "brave")
+    breaker.before_call("tenant-a", "openai")
+    breaker.record_success("tenant-a", "openai")
+    breaker.before_call("tenant-a", "openai")
 
 
 def test_non_retryable_failure_does_not_poison_circuit() -> None:

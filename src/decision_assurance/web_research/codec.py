@@ -143,4 +143,6 @@ def run_from_data(raw: dict[str, Any]) -> ResearchRun:
         audit_events=audit_events,
         provider_cost_units=int(raw.get("provider_cost_units", 0)),
         compiled_decision_file_id=cast(str | None, raw.get("compiled_decision_file_id")),
+        search_summary=cast(str | None, raw.get("search_summary")),
+        search_provider_request_id=cast(str | None, raw.get("search_provider_request_id")),
     )

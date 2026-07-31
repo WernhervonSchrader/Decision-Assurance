@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Replaced the discovery connector with OpenAI Responses API Web Search, including cited and
+  consulted sources, guarded domain filters and source-grounded summaries.
+- Kept Firecrawl as an optional selected-URL fetch step and added an explicit
+  `SEARCH_RESULT -> SELECTED_SOURCE -> FETCHED_CONTENT -> DERIVED_CLAIM` evidence chain.
+- Added citation-only partial completion when Firecrawl is unavailable, without fabricating full
+  text, content hashes, derived claims or Decision evidence.
+
 ## 0.5.0 — Public Draft
 
 - Added a bounded, separately runnable MCP Web Research adapter with exactly five authenticated,

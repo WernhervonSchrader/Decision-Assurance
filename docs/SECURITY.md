@@ -20,7 +20,7 @@ configuration boundary. `local` accepts only `local` core and provider processin
 accepts only EU country codes. Every provider entry has a structured attestation; HTTPS references
 alone are not proof, and `OPERATOR_SELF_DECLARATION` never authorizes restrictive production egress.
 Startup validation is separate from a central request-time guard that runs immediately before every
-Brave/Firecrawl network call, re-reads policy and tenant scope, and persists an allow/block event.
+OpenAI/Firecrawl network call, re-reads policy and tenant scope, and persists an allow/block event.
 Profile and provider fields never appear in tenant request schemas, so a tenant cannot select a weaker
 region or shared credential path.
 
@@ -46,7 +46,7 @@ credential, redirect, domain, MIME, size, active-content, secret-redaction and p
 controls before conservative handoff. Provider credentials and raw responses are not persisted as
 Research errors or returned by the API. See [Web Research Security](web-research/security.md).
 
-Direct Brave and Firecrawl development calls require the explicit
+Direct OpenAI and Firecrawl development calls require the explicit
 `development-provider-integration` profile. Its `external-unspecified` declaration is deliberately
 unverified and is rejected by staging/production configuration. Both credentials resolve through
 the secret-provider boundary; local files under `.secrets/` are ignored and a dedicated Gitleaks

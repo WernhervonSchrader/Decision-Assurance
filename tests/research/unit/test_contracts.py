@@ -31,7 +31,7 @@ def test_research_request_is_provider_neutral_and_has_no_trusted_identity_fields
         "verification_status",
         "approval_status",
     }
-    assert not any(name.startswith(("brave_", "firecrawl_")) for name in names)
+    assert not any(name.startswith(("openai_", "firecrawl_")) for name in names)
 
 
 def test_bounded_value_objects_fail_closed() -> None:

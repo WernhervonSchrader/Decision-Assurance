@@ -21,8 +21,8 @@ from decision_assurance.web_research.contracts import FreshnessPolicy, ResearchR
 from decision_assurance.web_research.evidence_policy import EvidencePolicy
 from decision_assurance.web_research.normalization import EvidenceNormalizer
 from decision_assurance.web_research.orchestrator import ResearchOrchestrator, ResearchPolicy
-from decision_assurance.web_research.providers.brave import BraveSearchProvider
 from decision_assurance.web_research.providers.firecrawl import FirecrawlContentExtractor
+from decision_assurance.web_research.providers.openai_web_search import OpenAIWebSearchProvider
 from decision_assurance.web_research.repository import SqliteResearchRepository
 from decision_assurance.web_research.url_policy import PublicUrlPolicy
 
@@ -36,33 +36,48 @@ class Resolver:
 
 
 @pytest.mark.anyio
-async def test_brave_to_firecrawl_to_evidence_uses_guard_and_preserves_provenance(
+async def test_openai_to_firecrawl_to_evidence_uses_guard_and_preserves_provenance(
     tmp_path: Path,
 ) -> None:
-    brave_calls = 0
+    openai_calls = 0
     firecrawl_calls = 0
 
-    def brave_handler(request: httpx.Request) -> httpx.Response:
-        nonlocal brave_calls
-        brave_calls += 1
+    def openai_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal openai_calls
+        openai_calls += 1
         return httpx.Response(
             200,
             json={
-                "web": {
-                    "results": [
-                        {
-                            "url": "https://one.example/rule#section",
-                            "title": "Rule",
-                            "description": "Official rule",
-                            "age": "2026-07-30T00:00:00Z",
+                "id": "resp-provider-pipeline",
+                "output": [
+                    {
+                        "type": "web_search_call",
+                        "action": {
+                            "type": "search",
+                            "sources": [
+                                {"type": "url", "url": "https://one.example/rule"}
+                            ],
                         },
-                        {
-                            "url": "https://one.example/rule",
-                            "title": "Duplicate",
-                            "description": "Same canonical source",
-                        },
-                    ]
-                }
+                    },
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "Official rule",
+                                "annotations": [
+                                    {
+                                        "type": "url_citation",
+                                        "start_index": 0,
+                                        "end_index": 13,
+                                        "url": "https://one.example/rule#section",
+                                        "title": "Rule",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
             },
         )
 
@@ -107,13 +122,13 @@ async def test_brave_to_firecrawl_to_evidence_uses_guard_and_preserves_provenanc
     url_policy = PublicUrlPolicy(Resolver())
 
     async with (
-        httpx.AsyncClient(transport=httpx.MockTransport(brave_handler)) as brave_client,
+        httpx.AsyncClient(transport=httpx.MockTransport(openai_handler)) as openai_client,
         httpx.AsyncClient(transport=httpx.MockTransport(firecrawl_handler)) as firecrawl_client,
     ):
         orchestrator = ResearchOrchestrator(
-            BraveSearchProvider(
-                api_key="brave-test-key",  # noqa: S106
-                client=brave_client,
+            OpenAIWebSearchProvider(
+                api_key="openai-test-key",  # noqa: S106
+                client=openai_client,
                 clock=lambda: NOW,
                 egress_guard=guard,
             ),
@@ -148,16 +163,29 @@ async def test_brave_to_firecrawl_to_evidence_uses_guard_and_preserves_provenanc
         )
 
     assert run.status.value == "COMPLETED"
-    assert brave_calls == 1 and firecrawl_calls == 1
+    assert openai_calls == 1 and firecrawl_calls == 1
     assert len(run.sources) == len(run.snapshots) == len(run.evidence) == 1
     source, snapshot, evidence = run.sources[0], run.snapshots[0], run.evidence[0]
     assert source.canonical_url == snapshot.canonical_url == "https://one.example/rule"
-    assert source.published_at == "2026-07-30T00:00:00Z"
+    assert source.published_at is None
+    assert source.artifact_type == "SELECTED_SOURCE"
+    assert snapshot.artifact_type == "FETCHED_CONTENT"
+    assert evidence.artifact_type == "DERIVED_CLAIM"
     assert evidence.content_hash == snapshot.content_hash
-    assert evidence.provenance.search_provider == "brave-search"
+    assert evidence.provenance.search_provider == "openai-web-search"
     assert evidence.provenance.content_provider == "firecrawl"
     assert evidence.source_id == source.source_id
     egress_events = [event for event in run.audit_events if event.decision == "ALLOWED"]
     assert {event.reason_codes for event in egress_events} == {("EGRESS_ALLOWED_DEVELOPMENT",)}
-    assert {event.connector for event in egress_events} == {"web-search-v1", "scrape-v2"}
+    assert {event.connector for event in egress_events} == {
+        "responses-web-search-v1",
+        "scrape-v2",
+    }
+    stored = research.get(tenant, run.research_run_id)
+    assert stored is not None
+    assert stored.search_summary == "Official rule"
+    assert stored.search_provider_request_id == "resp-provider-pipeline"
+    assert stored.sources[0] == source
+    assert stored.snapshots[0].content_hash == snapshot.content_hash
+    assert stored.evidence[0].provenance == evidence.provenance
     assert research.get(TenantContext("different-tenant"), run.research_run_id) is None

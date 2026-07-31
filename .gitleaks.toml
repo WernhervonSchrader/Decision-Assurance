@@ -5,5 +5,5 @@ useDefault = true
 id = "decision-assurance-provider-secret-file"
 description = "Provider credentials must never be committed from .secrets"
 regex = '''(?s).+'''
-path = '''(?i)\.secrets[\\/](BRAVE_API_KEY|FIRECRAWL_API_KEY)$'''
+path = '''(?i)\.secrets[\\/](OPENAI_API_KEY|FIRECRAWL_API_KEY)$'''
 tags = ["key", "provider", "secret-file"]

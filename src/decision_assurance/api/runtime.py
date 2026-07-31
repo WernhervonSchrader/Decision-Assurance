@@ -47,8 +47,8 @@ from ..web_research.compiler import (
 from ..web_research.evidence_policy import EvidencePolicy
 from ..web_research.normalization import EvidenceNormalizer
 from ..web_research.orchestrator import ResearchOrchestrator, ResearchPolicy
-from ..web_research.providers.brave import BraveSearchProvider
 from ..web_research.providers.firecrawl import FirecrawlContentExtractor
+from ..web_research.providers.openai_web_search import OpenAIWebSearchProvider
 from ..web_research.providers.telemetry import ProviderCallTelemetry
 from ..web_research.repository import SqliteResearchRepository
 from ..web_research.service import ResearchSubmissionService
@@ -112,7 +112,7 @@ def _load_reference_runtime(
         max_search_results=_integer(values, "WEB_RESEARCH_MAX_RESULTS", 10),
         max_extractions=_integer(values, "WEB_RESEARCH_MAX_EXTRACTIONS", 5),
     )
-    brave_url = values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com")
+    openai_url = values.get("OPENAI_BASE_URL", "https://api.openai.com")
     firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
     secret_provider: SecretProviderPort
     if directory := values.get("DA_SECRET_DIRECTORY"):
@@ -121,7 +121,7 @@ def _load_reference_runtime(
         secret_provider = EnvironmentSecretProvider(EnvironmentProfile.DEVELOPMENT, values)
     residency_guard: ResidencyEgressGuard | None = None
     if provider_config is not None:
-        provider_config.validate_provider_urls((brave_url, firecrawl_url))
+        provider_config.validate_provider_urls((openai_url, firecrawl_url))
         config_path = Path(values["DA_CONFIG_PATH"])
         residency_guard = ResidencyEgressGuard(
             lambda: load_config(config_path, values),
@@ -130,10 +130,11 @@ def _load_reference_runtime(
     logger = JsonEventLogger(print)
     provider_telemetry = ProviderCallTelemetry(logger)
     research_orchestrator = ResearchOrchestrator(
-        BraveSearchProvider(
-            api_key=_provider_secret(secret_provider, "BRAVE_API_KEY"),
-            base_url=brave_url,
-            timeout_seconds=_number(values, "BRAVE_SEARCH_TIMEOUT_SECONDS", 10.0),
+        OpenAIWebSearchProvider(
+            api_key=_provider_secret(secret_provider, "OPENAI_API_KEY"),
+            model=values.get("OPENAI_WEB_SEARCH_MODEL", "gpt-5.6"),
+            base_url=openai_url,
+            timeout_seconds=_number(values, "OPENAI_WEB_SEARCH_TIMEOUT_SECONDS", 30.0),
             egress_guard=residency_guard,
             telemetry=provider_telemetry,
         ),
@@ -177,12 +178,12 @@ def _load_configured_runtime(
     external_secrets: SecretProviderPort | None,
     oidc_http_client: httpx.Client | None,
 ) -> FastAPI:
-    brave_url = values.get("BRAVE_SEARCH_BASE_URL", "https://api.search.brave.com")
+    openai_url = values.get("OPENAI_BASE_URL", "https://api.openai.com")
     firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
-    config.validate_provider_urls((brave_url, firecrawl_url))
+    config.validate_provider_urls((openai_url, firecrawl_url))
     egress = HttpsEgressAllowlist(config.egress_allowed_hosts)
     runtime_tenant = TenantContext("runtime-validation")
-    brave_base = egress.validate(runtime_tenant, brave_url).rstrip("/")
+    openai_base = egress.validate(runtime_tenant, openai_url).rstrip("/")
     firecrawl_base = egress.validate(runtime_tenant, firecrawl_url).rstrip("/")
     if config.secret_provider.value == "external":
         if external_secrets is None:
@@ -207,8 +208,8 @@ def _load_configured_runtime(
         jwks_uri=config.oidc.jwks_uri,
         http_client=oidc_client,
     )
-    brave_key = _provider_secret(
-        secrets, values.get("DA_BRAVE_API_KEY_SECRET_REF", "BRAVE_API_KEY")
+    openai_key = _provider_secret(
+        secrets, values.get("DA_OPENAI_API_KEY_SECRET_REF", "OPENAI_API_KEY")
     )
     firecrawl_key = _provider_secret(
         secrets, values.get("DA_FIRECRAWL_API_KEY_SECRET_REF", "FIRECRAWL_API_KEY")
@@ -232,9 +233,11 @@ def _load_configured_runtime(
     logger = JsonEventLogger(print)
     provider_telemetry = ProviderCallTelemetry(logger)
     orchestrator = ResearchOrchestrator(
-        BraveSearchProvider(
-            api_key=brave_key,
-            base_url=brave_base,
+        OpenAIWebSearchProvider(
+            api_key=openai_key,
+            model=values.get("OPENAI_WEB_SEARCH_MODEL", "gpt-5.6"),
+            base_url=openai_base,
+            timeout_seconds=_number(values, "OPENAI_WEB_SEARCH_TIMEOUT_SECONDS", 30.0),
             egress_guard=residency_guard,
             telemetry=provider_telemetry,
         ),

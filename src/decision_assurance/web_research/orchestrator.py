@@ -370,6 +370,8 @@ class ResearchOrchestrator:
                         run.request.preferred_languages,
                         run.request.max_search_results,
                         run.request.freshness,
+                        run.request.allowed_domains,
+                        run.request.blocked_domains,
                     )
                 )
         except ProviderRequestFailed as failure:
@@ -407,6 +409,8 @@ class ResearchOrchestrator:
         return True
 
     def _store_discovery(self, run: ResearchRun, response: SearchResponse) -> None:
+        run.search_summary = response.summary or None
+        run.search_provider_request_id = response.provider_request_id
         policy = self._url_policy.for_domains(
             allowed_domains=run.request.allowed_domains,
             blocked_domains=run.request.blocked_domains,
@@ -431,6 +435,7 @@ class ResearchOrchestrator:
                         result.published_at,
                         "BLOCKED",
                         (str(error),),
+                        result.citation_kind,
                     )
                 )
                 continue
@@ -450,6 +455,7 @@ class ResearchOrchestrator:
                     response.provider_id,
                     response.provider_version,
                     result.published_at,
+                    citation_kind=result.citation_kind,
                 )
             )
 
@@ -481,7 +487,7 @@ class ResearchOrchestrator:
             allowed_domains=run.request.allowed_domains,
             blocked_domains=run.request.blocked_domains,
         )
-        statuses = {"FAILED"} if retry_only else {"DISCOVERED"}
+        statuses = {"FAILED", "CITATION_ONLY"} if retry_only else {"DISCOVERED"}
         candidates = self._selection.select(
             run.sources,
             limit=run.request.max_sources_to_extract,
@@ -545,6 +551,18 @@ class ResearchOrchestrator:
             source.status = "EXTRACTED" if assessment.usable_for_decision else "REVIEW_REQUIRED"
 
         self._ensure_active(cancelled)
+        if not run.snapshots and any(item.status == "CITATION_ONLY" for item in run.sources):
+            apply_transition(
+                run,
+                ResearchStatus.PARTIALLY_COMPLETED,
+                occurred_at=self._time(),
+                actor_id=actor_id,
+                reason_codes=("SEARCH_CITATIONS_ONLY",),
+                payload={"citations": sum(item.status == "CITATION_ONLY" for item in run.sources)},
+            )
+            self._repository.save(tenant, run)
+            self._metrics.increment("research.completed", tags={"status": run.status.value})
+            return run
         if not run.snapshots:
             self._fail_run(tenant, run, actor_id, "NO_CONTENT_EXTRACTED")
             return run
@@ -582,7 +600,7 @@ class ResearchOrchestrator:
                 run.errors.append(ResearchError(reason))
                 handoff_failed = True
         self._ensure_active(cancelled)
-        partial_statuses = {"BLOCKED", "FAILED", "REJECTED", "REVIEW_REQUIRED"}
+        partial_statuses = {"BLOCKED", "FAILED", "REJECTED", "REVIEW_REQUIRED", "CITATION_ONLY"}
         partial = handoff_failed or any(item.status in partial_statuses for item in run.sources)
         apply_transition(
             run,
@@ -606,6 +624,9 @@ class ResearchOrchestrator:
         cancelled: CancellationCheck,
     ) -> SourceSnapshot | None:
         self._ensure_active(cancelled)
+        source.status = "SELECTED"
+        source.artifact_type = "SELECTED_SOURCE"
+        source.reason_codes = ("SOURCE_SELECTED",)
         cached = None
         if not run.request.force_refresh:
             cached = self._repository.get_snapshot(
@@ -621,8 +642,7 @@ class ResearchOrchestrator:
                 domain=source.domain,
             )
         if not self._can_attempt(run, "extract", source.source_id):
-            source.status = "FAILED"
-            source.reason_codes = ("RETRY_LIMIT_EXCEEDED",)
+            self._mark_citation_only(source, "RETRY_LIMIT_EXCEEDED")
             self._record_error(
                 run,
                 ProviderError(self._provider_id(self._extractor), "RETRY_LIMIT_EXCEEDED", False),
@@ -634,8 +654,7 @@ class ResearchOrchestrator:
             self._circuit.before_call(tenant.tenant_id, provider_id)
         except ProviderCircuitOpen:
             provider_failure = ProviderError(provider_id, "PROVIDER_CIRCUIT_OPEN", True)
-            source.status = "FAILED"
-            source.reason_codes = (provider_failure.reason_code,)
+            self._mark_citation_only(source, provider_failure.reason_code)
             self._record_error(run, provider_failure, source.source_id)
             return None
         try:
@@ -644,8 +663,7 @@ class ResearchOrchestrator:
         except ValueError as budget_failure:
             if str(budget_failure) != "BUDGET_EXCEEDED":
                 raise
-            source.status = "FAILED"
-            source.reason_codes = ("BUDGET_EXCEEDED",)
+            self._mark_citation_only(source, "BUDGET_EXCEEDED")
             self._record_error(
                 run, ProviderError("research-budget", "BUDGET_EXCEEDED", False), source.source_id
             )
@@ -669,8 +687,7 @@ class ResearchOrchestrator:
                 self._provider_id(self._extractor), "PROVIDER_UNAVAILABLE", True
             )
             self._fail_attempt(run, provider_failure)
-            source.status = "FAILED"
-            source.reason_codes = (provider_failure.reason_code,)
+            self._mark_citation_only(source, provider_failure.reason_code)
             self._record_error(run, provider_failure, source.source_id)
             return None
         self._ensure_active(cancelled)
@@ -679,8 +696,7 @@ class ResearchOrchestrator:
                 tenant.tenant_id, provider_id, retryable=extraction.error.retryable
             )
             self._fail_attempt(run, extraction.error)
-            source.status = "FAILED"
-            source.reason_codes = (extraction.error.reason_code,)
+            self._mark_citation_only(source, extraction.error.reason_code)
             self._record_error(run, extraction.error, source.source_id)
             return None
         if extraction.content is None:
@@ -689,8 +705,7 @@ class ResearchOrchestrator:
                 self._provider_id(self._extractor), "EMPTY_EXTRACTION_RESPONSE", False
             )
             self._fail_attempt(run, provider_failure)
-            source.status = "FAILED"
-            source.reason_codes = (provider_failure.reason_code,)
+            self._mark_citation_only(source, provider_failure.reason_code)
             self._record_error(run, provider_failure, source.source_id)
             return None
         try:
@@ -700,8 +715,7 @@ class ResearchOrchestrator:
             snapshot = self._normalizer.normalize(source, extraction.content)
         except (UrlPolicyRejected, EvidenceNormalizationRejected) as failure:
             reason = str(failure)
-            source.status = "REJECTED"
-            source.reason_codes = (reason,)
+            self._mark_citation_only(source, reason)
             normalization_failure = ProviderError("normalizer", reason, False)
             self._fail_attempt(run, normalization_failure)
             self._record_error(run, normalization_failure, source.source_id)
@@ -709,6 +723,11 @@ class ResearchOrchestrator:
         self._circuit.record_success(tenant.tenant_id, provider_id)
         self._succeed_attempt(run)
         return snapshot
+
+    @staticmethod
+    def _mark_citation_only(source: SourceCandidate, reason_code: str) -> None:
+        source.status = "CITATION_ONLY"
+        source.reason_codes = ("SEARCH_CITATION_ONLY", reason_code)
 
     def _fail_run(
         self, tenant: TenantContext, run: ResearchRun, actor_id: str, reason_code: str
