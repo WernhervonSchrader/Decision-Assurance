@@ -1,0 +1,94 @@
+{
+	admin off
+	auto_https off
+	log {
+		format json
+		level INFO
+	}
+}
+
+http://{$DA_PUBLIC_HOST}:8080 {
+	redir https://{$DA_PUBLIC_HOST}{uri} permanent
+}
+
+https://{$DA_PUBLIC_HOST}:8443 {
+	tls /run/secrets/pilot-tls-cert /run/secrets/pilot-tls-key
+
+	request_body {
+		max_size 1MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	route {
+		@internal path /api/internal/* /internal/*
+		handle @internal {
+			respond 404
+		}
+
+		@api path /api/*
+		handle @api {
+			uri strip_prefix /api
+			reverse_proxy api:8000 {
+				header_down -Server
+				header_up -Forwarded
+				header_up -X-Forwarded-*
+				header_up X-Forwarded-Proto https
+				header_up Host {host}
+			}
+		}
+
+		@mcp path /mcp /mcp/*
+		handle @mcp {
+			reverse_proxy mcp:8001 {
+				header_down -Server
+				header_up -Forwarded
+				header_up -X-Forwarded-*
+				header_up X-Forwarded-Proto https
+				header_up Host {host}
+			}
+		}
+
+		@ui path / /cases /auth/* /bff/* /assets/* /health/live /health/ready
+		handle @ui {
+			reverse_proxy pilot-ui:8080 {
+				header_down -Server
+				header_up -Forwarded
+				header_up -X-Forwarded-*
+				header_up X-Forwarded-Proto https
+				header_up Host {host}
+			}
+		}
+
+		respond 404
+	}
+}
+
+https://{$DA_IDENTITY_HOST}:8443 {
+	tls /run/secrets/pilot-tls-cert /run/secrets/pilot-tls-key
+	request_body {
+		max_size 1MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy keycloak:8080 {
+		header_down -Server
+		header_up -Forwarded
+		header_up -X-Forwarded-*
+		header_up X-Forwarded-Proto https
+		header_up Host {host}
+	}
+}
