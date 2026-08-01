@@ -224,8 +224,8 @@ jobs:
   keycloak-oidc-e2e:
     runs-on: ubuntu-latest
     env:
-      DA_KEYCLOAK_BOOTSTRAP_OUTPUT: ${{ runner.temp }}/keycloak-bootstrap-output.log
-      DA_KEYCLOAK_RUNTIME_OUTPUT: ${{ runner.temp }}/keycloak-runtime-output.log
+      DA_KEYCLOAK_BOOTSTRAP_OUTPUT: /tmp/keycloak-bootstrap-output.log
+      DA_KEYCLOAK_RUNTIME_OUTPUT: /tmp/keycloak-runtime-output.log
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -275,8 +275,14 @@ jobs:
         run: |
           test "$(docker inspect --format '{{.Config.User}}' decision-assurance-keycloak-local-keycloak-1)" = "1000:0"
           test "$(docker exec decision-assurance-keycloak-local-keycloak-postgres-1 stat -c '%u' /proc/1)" != "0"
-          ! docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' decision-assurance-keycloak-local-keycloak-1 | grep -q 'keycloak-admin'
-          ! docker exec decision-assurance-keycloak-local-keycloak-1 bash -ec 'tr "\0" "\n" < /proc/1/environ | grep -Eq "^(KC_BOOTSTRAP_ADMIN_|DA_KEYCLOAK_BOOTSTRAP_)"'
+          if docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' decision-assurance-keycloak-local-keycloak-1 | grep -q 'keycloak-admin'; then
+            echo "Regular Keycloak container has a bootstrap secret mount."
+            exit 1
+          fi
+          if docker exec decision-assurance-keycloak-local-keycloak-1 bash -ec 'tr "\0" "\n" < /proc/1/environ | grep -Eq "^(KC_BOOTSTRAP_ADMIN_|DA_KEYCLOAK_BOOTSTRAP_)"'; then
+            echo "Regular Keycloak container has a bootstrap environment variable."
+            exit 1
+          fi
       - name: Keycloak OIDC PKCE, tenant and Research E2E
         env:
           DA_RUN_KEYCLOAK_E2E: "1"
