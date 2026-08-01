@@ -25,6 +25,8 @@ jobs:
         run: ruff check src tests scripts/security
       - name: Mypy strict
         run: mypy src
+      - name: Actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
       - name: Non-PostgreSQL test suite
         run: python -m pytest -q -m "not postgresql and not keycloak_e2e and not live_provider"
       - name: Gold benchmark
@@ -49,6 +51,47 @@ jobs:
             docs/openapi-v0.4.json
             benchmarks/intake
             .pytest_cache
+
+  pilot-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: ui
+        run: npm ci --ignore-scripts
+      - name: UI typecheck, unit tests and build
+        working-directory: ui
+        run: npm run lint && npm test && npm run build
+      - name: Frontend dependency audit
+        working-directory: ui
+        run: npm audit --audit-level=high
+      - name: Install Chromium
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: Two-tenant browser E2E
+        working-directory: ui
+        run: npm run e2e
+      - name: Compose controlled-pilot contract
+        env:
+          DA_COMMIT_SHA: ${{ github.sha }}
+          DA_BUILD_TIMESTAMP: "2026-08-01T00:00:00Z"
+        run: |
+          for example in .secrets/*.example; do cp "$example" "${example%.example}"; done
+          docker compose -f compose.controlled-pilot.yaml config --quiet
+          docker run --rm -v "$PWD/deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --validate=false
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pilot-browser-e2e-artifacts
+          path: |
+            ui/playwright-report
+            ui/test-results
+          if-no-files-found: ignore
 
   postgresql:
     runs-on: ubuntu-latest
@@ -134,12 +177,16 @@ jobs:
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.worker -t decision-assurance-worker:"$GITHUB_SHA" .
           docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.mcp -t decision-assurance-mcp:"$GITHUB_SHA" .
           docker build -f Dockerfile.keycloak -t decision-assurance-keycloak:"$GITHUB_SHA" .
+          docker build --build-arg DA_COMMIT_SHA="$GITHUB_SHA" --build-arg DA_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" -f Dockerfile.pilot-ui -t decision-assurance-pilot-ui:"$GITHUB_SHA" .
+          docker build -f Dockerfile.edge -t decision-assurance-edge:"$GITHUB_SHA" .
       - name: Smoke immutable non-root runtimes
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-api:"$GITHUB_SHA")" = "10001:10001"
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-worker:"$GITHUB_SHA")" = "10001:10001"
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-mcp:"$GITHUB_SHA")" = "10001:10001"
           test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-keycloak:"$GITHUB_SHA")" = "1000"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-pilot-ui:"$GITHUB_SHA")" = "10001:10001"
+          test "$(docker image inspect --format '{{.Config.User}}' decision-assurance-edge:"$GITHUB_SHA")" = "1000:1000"
           docker run --rm --entrypoint python decision-assurance-api:"$GITHUB_SHA" -c "import decision_assurance; assert decision_assurance.__version__ == '0.5.0'"
           docker run --rm --entrypoint python decision-assurance-worker:"$GITHUB_SHA" -c "from decision_assurance.api.worker_runtime import load_worker; assert callable(load_worker)"
           docker run --rm --entrypoint python decision-assurance-mcp:"$GITHUB_SHA" -c "from decision_assurance.mcp.runtime import load_mcp_runtime; assert callable(load_mcp_runtime)"
@@ -175,6 +222,22 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+      - name: Scan Pilot UI image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-pilot-ui:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Scan Edge image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-edge:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
       - name: Create API CycloneDX SBOM
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
@@ -202,6 +265,20 @@ jobs:
           image-ref: decision-assurance-keycloak:${{ github.sha }}
           format: cyclonedx
           output: keycloak.sbom.cdx.json
+          exit-code: "0"
+      - name: Create Pilot UI CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-pilot-ui:${{ github.sha }}
+          format: cyclonedx
+          output: pilot-ui.sbom.cdx.json
+          exit-code: "0"
+      - name: Create Edge CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: decision-assurance-edge:${{ github.sha }}
+          format: cyclonedx
+          output: edge.sbom.cdx.json
           exit-code: "0"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -302,7 +379,7 @@ jobs:
 
   release-evidence:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    needs: [verify, postgresql, restore-verification, container-security, secret-scan, keycloak-oidc-e2e]
+    needs: [verify, pilot-ui, postgresql, restore-verification, container-security, secret-scan, keycloak-oidc-e2e]
     env:
       DA_EVIDENCE_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:

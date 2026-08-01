@@ -26,6 +26,10 @@ TENANT_TABLES = (
     "research_jobs",
     "research_job_events",
     "tenant_runtime_limits",
+    "tenant_retention_policies",
+    "legal_holds",
+    "deletion_requests",
+    "lifecycle_audit_events",
 )
 
 
@@ -77,6 +81,11 @@ def test_database_roles_are_separate_non_owner_and_cannot_bypass_rls() -> None:
 def test_public_and_packaged_postgresql_migrations_are_byte_identical() -> None:
     packaged = ROOT / "src" / "decision_assurance" / "migrations" / "postgresql"
     names = sorted(item.name for item in MIGRATIONS.glob("*.sql"))
-    assert names == ["001_v0_4_baseline.sql", "002_production_foundation_v0_5.sql", "roles.sql"]
+    assert names == [
+        "001_v0_4_baseline.sql",
+        "002_production_foundation_v0_5.sql",
+        "003_controlled_pilot_v0_8.sql",
+        "roles.sql",
+    ]
     for name in names:
         assert (MIGRATIONS / name).read_bytes() == (packaged / name).read_bytes()

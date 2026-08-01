@@ -45,6 +45,7 @@ def test_realm_roles_are_exact_and_clients_are_least_privilege() -> None:
     clients = {item["clientId"]: item for item in realm["clients"]}  # type: ignore[index]
     assert set(clients) == {
         "decision-assurance-api",
+        "decision-assurance-pilot-ui",
         "decision-assurance-ui",
         "decision-assurance-e2e",
     }
@@ -55,7 +56,11 @@ def test_realm_roles_are_exact_and_clients_are_least_privilege() -> None:
     assert api["serviceAccountsEnabled"] is False
     assert api["standardFlowEnabled"] is False
 
-    for client_id in ("decision-assurance-ui", "decision-assurance-e2e"):
+    for client_id in (
+        "decision-assurance-ui",
+        "decision-assurance-pilot-ui",
+        "decision-assurance-e2e",
+    ):
         client = clients[client_id]
         assert client["publicClient"] is True
         assert client["standardFlowEnabled"] is True
