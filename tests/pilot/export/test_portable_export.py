@@ -206,3 +206,48 @@ def test_export_rejects_branched_decision_audit_chain() -> None:
 
     with pytest.raises(ExportValidationError, match="INVALID_EXPORT_AUDIT_CHAIN"):
         validate_export(archive.content)
+
+
+def test_export_rejects_reset_root_inside_decision_audit_chain() -> None:
+    snapshot = _snapshot()
+    first = {"event_id": "a", "previous_event_hash": None}
+    second = {"event_id": "b", "previous_event_hash": _event_hash(first)}
+    reset = {"event_id": "c", "previous_event_hash": None}
+    snapshot["audit/decision-events.json"] = [first, second, reset]
+    archive = PilotExportService(
+        InMemoryExportRepository({("tenant-a", "quote-1"): snapshot}),
+        version="0.8.0",
+        commit_sha="a" * 40,
+        policy_versions={"sales-quote": "1"},
+        clock=lambda: NOW,
+    ).build(_identity(), "quote-1")
+
+    with pytest.raises(ExportValidationError, match="INVALID_EXPORT_AUDIT_CHAIN"):
+        validate_export(archive.content)
+
+
+def test_export_accepts_separate_linear_intake_and_research_streams() -> None:
+    snapshot = _snapshot()
+    intake_a = {"event_id": "intake-a:intake-audit:1", "previous_event_hash": None}
+    intake_a_next = {
+        "event_id": "intake-a:intake-audit:2",
+        "previous_event_hash": _event_hash(intake_a),
+    }
+    intake_b = {"event_id": "intake-b:intake-audit:1", "previous_event_hash": None}
+    research_a = {"event_id": "run-a:research-audit:1", "previous_event_hash": None}
+    research_a_next = {
+        "event_id": "run-a:egress:2",
+        "previous_event_hash": _event_hash(research_a),
+    }
+    research_b = {"event_id": "run-b:research-audit:1", "previous_event_hash": None}
+    snapshot["audit/intake-events.json"] = [intake_a, intake_a_next, intake_b]
+    snapshot["audit/research-events.json"] = [research_a, research_a_next, research_b]
+    archive = PilotExportService(
+        InMemoryExportRepository({("tenant-a", "quote-1"): snapshot}),
+        version="0.8.0",
+        commit_sha="a" * 40,
+        policy_versions={"sales-quote": "1"},
+        clock=lambda: NOW,
+    ).build(_identity(), "quote-1")
+
+    assert validate_export(archive.content).valid

@@ -113,12 +113,16 @@ def _validate_audit_chains(members: dict[str, object]) -> None:
         events = members[name]
         if not isinstance(events, list) or any(not isinstance(item, dict) for item in events):
             raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
-        previous_hash: str | None = None
+        core_previous_by_stream: dict[str, str] = {}
         for event in cast(list[dict[str, object]], events):
+            stream = _audit_stream(name, event)
             previous = event.get("previous_event_hash")
-            if previous is not None and previous != previous_hash:
+            if stream not in core_previous_by_stream:
+                if previous is not None:
+                    raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+            elif previous != core_previous_by_stream[stream]:
                 raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
-            previous_hash = _prefixed_hash(event)
+            core_previous_by_stream[stream] = _prefixed_hash(event)
 
     lifecycle = members["audit/lifecycle-events.json"]
     if not isinstance(lifecycle, list) or any(not isinstance(item, dict) for item in lifecycle):
@@ -147,6 +151,26 @@ def _prefixed_hash(value: object) -> str:
         "utf-8"
     )
     return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def _audit_stream(name: str, event: dict[str, object]) -> str:
+    if name == "audit/decision-events.json":
+        return "decision"
+    event_id = event.get("event_id")
+    if not isinstance(event_id, str):
+        raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+    markers = (
+        ("audit/intake-events.json", (":intake-audit:",)),
+        ("audit/research-events.json", (":research-audit:", ":egress:")),
+    )
+    for member, candidates in markers:
+        if name == member:
+            for marker in candidates:
+                if marker in event_id:
+                    stream = event_id.rsplit(marker, 1)[0]
+                    if stream:
+                        return stream
+    raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
 
 
 def main() -> None:
