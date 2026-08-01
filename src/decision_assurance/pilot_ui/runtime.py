@@ -8,7 +8,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 
-from ..observability.metrics import InMemoryMetrics
+from ..observability.metrics import InMemoryMetrics, initialize_pilot_metrics
 from ..oidc.jwks import CachedJwksProvider
 from ..oidc.mfa import MfaPolicy
 from ..persistence.postgresql import PostgresConnectionProvider, PostgresSettings
@@ -72,6 +72,8 @@ def load_pilot_ui(
         envelope_key=secrets.resolve(pilot.session_envelope_key_secret).value.encode(),
         required_mfa_policy_version="controlled-pilot-mfa-v1",
     )
+    runtime_metrics = InMemoryMetrics()
+    initialize_pilot_metrics(runtime_metrics)
     return create_pilot_ui_app(
         PilotUiSettings(
             allowed_hosts=pilot.allowed_hosts,
@@ -94,7 +96,7 @@ def load_pilot_ui(
         browser_oidc,
         api_client,
         session_store=session_store,
-        metrics=InMemoryMetrics(),
+        metrics=runtime_metrics,
     )
 
 

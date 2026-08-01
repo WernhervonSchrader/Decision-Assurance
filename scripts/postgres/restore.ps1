@@ -19,6 +19,9 @@ if ([string]::IsNullOrWhiteSpace($databaseDsn)) { throw "RESTORE_DSN_UNAVAILABLE
 if ($LASTEXITCODE -ne 0) { throw "PG_RESTORE_FAILED" }
 
 $env:DA_RESTORE_DSN = $databaseDsn
+if ([string]::IsNullOrWhiteSpace($env:DA_RECOVERY_COMMIT_SHA)) { throw "DA_RECOVERY_COMMIT_SHA_REQUIRED" }
+if ([string]::IsNullOrWhiteSpace($env:DA_RECOVERY_ENVIRONMENT)) { throw "DA_RECOVERY_ENVIRONMENT_REQUIRED" }
+if ([string]::IsNullOrWhiteSpace($env:DA_RECOVERY_SOURCE_DATABASE)) { throw "DA_RECOVERY_SOURCE_DATABASE_REQUIRED" }
 & python (Join-Path $PSScriptRoot "verify_restore.py")
 if ($LASTEXITCODE -ne 0) { throw "RESTORE_VERIFICATION_FAILED" }
 Remove-Item Env:DA_RESTORE_DSN

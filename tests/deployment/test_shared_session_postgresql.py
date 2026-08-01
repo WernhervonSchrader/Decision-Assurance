@@ -8,6 +8,8 @@ import psycopg
 import pytest
 from cryptography.fernet import Fernet
 
+from decision_assurance.deployment.postgresql import PostgresAcceptanceAudit
+from decision_assurance.events.registry import EventEnvelope
 from decision_assurance.persistence.postgresql import (
     PostgresConnectionProvider,
     PostgresMigrationRunner,
@@ -89,3 +91,30 @@ def test_two_bff_instances_share_and_revoke_encrypted_session() -> None:
         connections, **kwargs, required_mfa_policy_version="mfa-v2"
     )
     assert changed_policy.get(stale.session_id) is None
+
+
+def test_pilot_acceptance_event_is_persisted_in_tenant_scoped_append_only_ledger() -> None:
+    dsn = os.environ["DA_TEST_POSTGRES_DSN"]
+    with psycopg.connect(dsn, autocommit=True) as bootstrap:
+        bootstrap.execute((MIGRATIONS / "roles.sql").read_text(encoding="utf-8"))
+    settings = PostgresSettings(SecretValue(dsn))
+    PostgresMigrationRunner(settings, MIGRATIONS).migrate()
+    event = EventEnvelope(
+        "deployment.pilot-accepted",
+        "1.0.0",
+        f"acceptance-event-{datetime.now(timezone.utc).timestamp()}",
+        datetime.now(timezone.utc),
+        "tenant-a",
+        "reviewer-a",
+        "correlation-a",
+        "deployment-evidence",
+        {"deployment_id": "pilot-eu-1", "commit_sha": "a" * 40, "creator": "operator-a"},
+    )
+    PostgresAcceptanceAudit(PostgresConnectionProvider(settings)).append(event)
+    with psycopg.connect(dsn) as inspection:
+        row = inspection.execute(
+            "SELECT tenant_id,event_json->>'event_type' "
+            "FROM deployment_acceptance_events WHERE event_id = %s",
+            (event.event_id,),
+        ).fetchone()
+    assert row == ("tenant-a", "deployment.pilot-accepted")

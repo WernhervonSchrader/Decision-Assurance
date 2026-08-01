@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,6 +13,8 @@ from decision_assurance.deployment.evidence import (
     DeploymentBundle,
     EvidenceItem,
     EvidenceStatus,
+    InMemoryAcceptanceAudit,
+    InMemoryEvidenceArtifactResolver,
     PilotAcceptanceGate,
     PilotAcceptanceTransition,
     TlsEvidence,
@@ -19,7 +22,7 @@ from decision_assurance.deployment.evidence import (
 )
 from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.observability.alerts import AlertEvaluator, default_alert_rules
-from decision_assurance.observability.metrics import InMemoryMetrics
+from decision_assurance.observability.metrics import InMemoryMetrics, initialize_pilot_metrics
 from decision_assurance.recovery.evidence import RecoveryEvidence
 from decision_assurance.tenancy import TenantContext
 
@@ -43,19 +46,21 @@ REQUIRED = {
 
 
 def _bundle(*, verified: bool = True, creator: str = "operator-a") -> DeploymentBundle:
-    items = tuple(
-        EvidenceItem(
-            kind,
-            verified,
-            NOW,
-            "sha256:" + f"{index:064x}",
-            "MEASURED",
-            "pilot-eu-1",
-            "tenant-a",
-            "a" * 40,
+    items = []
+    for kind in sorted(REQUIRED):
+        artifact = _artifact_bytes(kind, verified, NOW, "MEASURED", "tenant-a")
+        items.append(
+            EvidenceItem(
+                kind,
+                verified,
+                NOW,
+                "sha256:" + hashlib.sha256(artifact).hexdigest(),
+                "MEASURED",
+                "pilot-eu-1",
+                "tenant-a",
+                "a" * 40,
+            )
         )
-        for index, kind in enumerate(sorted(REQUIRED), 1)
-    )
     return DeploymentBundle(
         schema_version="1.0.0",
         deployment_id="pilot-eu-1",
@@ -65,7 +70,7 @@ def _bundle(*, verified: bool = True, creator: str = "operator-a") -> Deployment
         image_digests={"api": "sha256:" + "b" * 64, "pilot-ui": "sha256:" + "c" * 64},
         sbom_checksums={"api": "sha256:" + "d" * 64},
         config_checksums={"pilot": "sha256:" + "e" * 64},
-        evidence=items,
+        evidence=tuple(items),
         provider_residency_status="ACCESS_BLOCKED",
         open_risks=("real public deployment evidence is pending",),
         creator=creator,
@@ -73,28 +78,63 @@ def _bundle(*, verified: bool = True, creator: str = "operator-a") -> Deployment
     )
 
 
+def _artifact_bytes(
+    kind: str, verified: bool, observed_at: datetime, source: str, tenant_id: str
+) -> bytes:
+    return json.dumps(
+        {
+            "kind": kind,
+            "deployment_id": "pilot-eu-1",
+            "tenant_id": tenant_id,
+            "commit_sha": "a" * 40,
+            "verified": verified,
+            "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
+            "source": source,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+
+
+def _artifact_for(item: EvidenceItem) -> bytes:
+    return _artifact_bytes(item.kind, item.verified, item.observed_at, item.source, item.tenant_id)
+
+
+def _gate(bundle: DeploymentBundle, max_age: timedelta) -> PilotAcceptanceGate:
+    return PilotAcceptanceGate(
+        max_age=max_age,
+        evidence_resolver=InMemoryEvidenceArtifactResolver(
+            {item.digest: _artifact_for(item) for item in bundle.evidence}
+        ),
+    )
+
+
 def test_technical_gate_never_auto_accepts_and_human_transition_is_independent() -> None:
-    result = PilotAcceptanceGate(max_age=timedelta(days=7)).evaluate(_bundle(), now=NOW)
+    bundle = _bundle()
+    result = _gate(bundle, timedelta(days=7)).evaluate(bundle, now=NOW)
     assert result.status is EvidenceStatus.PILOT_REVIEW_REQUIRED
     assert result.reasons == ()
 
-    transition = PilotAcceptanceTransition()
+    audit = InMemoryAcceptanceAudit()
+    transition = PilotAcceptanceTransition(audit, clock=lambda: NOW)
     creator = Identity("operator-a", TenantContext("tenant-a"), Role.REVIEWER, ActorKind.HUMAN)
     reviewer = Identity("reviewer-b", TenantContext("tenant-a"), Role.REVIEWER, ActorKind.HUMAN)
     with pytest.raises(ValueError, match="ACCEPTANCE_ACTOR_INDEPENDENCE_REQUIRED"):
-        transition.accept(_bundle(), result, reviewer=creator)
-    accepted = transition.accept(_bundle(), result, reviewer=reviewer)
+        transition.accept(bundle, result, reviewer=creator, correlation_id="accept-1")
+    accepted = transition.accept(bundle, result, reviewer=reviewer, correlation_id="accept-2")
     assert accepted.status is EvidenceStatus.PILOT_ACCEPTED
     assert accepted.reviewer == "reviewer-b"
+    assert len(audit.events) == 1
+    assert audit.events[0].event_type == "deployment.pilot-accepted"
+    assert accepted.audit_event_id == audit.events[0].event_id
     with pytest.raises(ValueError, match="ACCEPTANCE_RECORD_REQUIRED"):
         _bundle().as_dict(EvidenceStatus.PILOT_ACCEPTED)
     with pytest.raises(ValueError, match="TECHNICAL_EVIDENCE_GATE_REQUIRED"):
         transition.accept(
             _bundle(),
-            PilotAcceptanceGate(max_age=timedelta(seconds=0)).evaluate(
-                _bundle(), now=NOW + timedelta(seconds=1)
-            ),
+            _gate(bundle, timedelta(seconds=0)).evaluate(bundle, now=NOW + timedelta(seconds=1)),
             reviewer=reviewer,
+            correlation_id="accept-3",
         )
 
     for invalid in (
@@ -103,13 +143,15 @@ def test_technical_gate_never_auto_accepts_and_human_transition_is_independent()
         Identity("auditor", TenantContext("tenant-a"), Role.AUDITOR, ActorKind.HUMAN),
     ):
         with pytest.raises(ValueError):
-            transition.accept(_bundle(), result, reviewer=invalid)
+            transition.accept(bundle, result, reviewer=invalid, correlation_id="accept-invalid")
 
 
 def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
-    gate = PilotAcceptanceGate(max_age=timedelta(hours=24))
     incomplete = _bundle(verified=False)
-    assert gate.evaluate(incomplete, now=NOW).status is EvidenceStatus.BLOCKED
+    assert (
+        _gate(incomplete, timedelta(hours=24)).evaluate(incomplete, now=NOW).status
+        is EvidenceStatus.BLOCKED
+    )
 
     with pytest.raises(ValueError, match="INVALID_EVIDENCE_DIGEST"):
         EvidenceItem(
@@ -124,7 +166,9 @@ def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
         )
 
     stale = _bundle().with_created_at(NOW - timedelta(days=2))
-    assert gate.evaluate(stale, now=NOW).status is EvidenceStatus.BLOCKED
+    assert (
+        _gate(stale, timedelta(hours=24)).evaluate(stale, now=NOW).status is EvidenceStatus.BLOCKED
+    )
     stale_items = tuple(
         EvidenceItem(
             item.kind,
@@ -138,7 +182,8 @@ def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
         )
         for item in _bundle().evidence
     )
-    stale_result = gate.evaluate(_bundle().with_evidence(stale_items), now=NOW)
+    stale_bundle = _bundle().with_evidence(stale_items)
+    stale_result = _gate(stale_bundle, timedelta(hours=24)).evaluate(stale_bundle, now=NOW)
     assert stale_result.status is EvidenceStatus.BLOCKED
     assert "STALE_REQUIRED_EVIDENCE" in stale_result.reasons
     declared = list(_bundle().evidence)
@@ -153,7 +198,9 @@ def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
         declared[0].commit_sha,
     )
     assert (
-        gate.evaluate(_bundle().with_evidence(tuple(declared)), now=NOW).status
+        _gate(_bundle().with_evidence(tuple(declared)), timedelta(hours=24))
+        .evaluate(_bundle().with_evidence(tuple(declared)), now=NOW)
+        .status
         is EvidenceStatus.BLOCKED
     )
 
@@ -239,9 +286,15 @@ def test_gate_rejects_cross_tenant_or_commit_evidence_replay() -> None:
             for item in original.evidence
         )
     )
-    result = PilotAcceptanceGate(max_age=timedelta(days=1)).evaluate(replayed, now=NOW)
+    result = PilotAcceptanceGate(
+        max_age=timedelta(days=1),
+        evidence_resolver=InMemoryEvidenceArtifactResolver(
+            {item.digest: _artifact_for(item) for item in original.evidence}
+        ),
+    ).evaluate(replayed, now=NOW)
     assert result.status is EvidenceStatus.BLOCKED
     assert "EVIDENCE_BINDING_MISMATCH" in result.reasons
+    assert "EVIDENCE_ARTIFACT_UNRESOLVED" in result.reasons
 
 
 def test_recovery_evidence_reports_observed_not_promised_rpo_rto() -> None:
@@ -287,6 +340,19 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels() -> None:
         {"export_signature_failures_total": 1.0, "session_store_available": 1.0}
     )
     assert "ExportSignatureFailure" in firing
+    missing = AlertEvaluator(rules).evaluate({})
+    assert "SessionStoreUnavailable" in missing
+    assert "BackupFailure" in missing
+    assert "RestoreFailure" in missing
+    assert "CertificateExpiring" in missing
+    assert "KeycloakUnavailable" in missing
+
+    baseline = InMemoryMetrics()
+    initialize_pilot_metrics(baseline)
+    baseline_rendered = baseline.render_prometheus()
+    assert "backup_success 0" in baseline_rendered
+    assert "restore_success 0" in baseline_rendered
+    assert "keycloak_available 0" in baseline_rendered
 
 
 def test_evidence_schemas_are_packaged_and_alert_rules_are_bounded() -> None:
@@ -305,6 +371,9 @@ def test_evidence_schemas_are_packaged_and_alert_rules_are_bounded() -> None:
     raw = json.dumps(groups).casefold()
     assert all(name not in raw for name in ("tenant_id", "actor_id", "decision_id", "url", "claim"))
     assert any(rule["alert"] == "ExportSignatureFailure" for rule in groups[0]["rules"])
+    assert "absent(session_store_available)" in raw
+    assert "absent(restore_success)" in raw
+    assert "absent(keycloak_available)" in raw
 
 
 def test_deployment_bundle_round_trip_rejects_secret_fields() -> None:

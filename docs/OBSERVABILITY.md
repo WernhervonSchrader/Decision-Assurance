@@ -5,6 +5,12 @@ evaluator proves firing. A real pilot must connect actual Prometheus-compatible 
 notification receiver, trigger a canary alert and record receipt as deployment evidence.
 Rule expressions use the exact names accepted and rendered by the bounded metrics backend; the local
 test passes a real counter/gauge through Prometheus rendering before evaluating the alert.
+Controlled-pilot runtimes publish every operational gauge from their first scrape with a fail-closed
+zero baseline. The BFF refreshes the shared-session gauge from a real PostgreSQL probe and updates
+Keycloak availability around the token exchange; MFA policy denials increment their dedicated
+counter. Backup, restore and TLS remain unhealthy until the deployment collector supplies measured
+success/expiry values. Critical availability rules also use `absent(...)`, so a missing exporter or
+missing series fires instead of silently evaluating to healthy.
 
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only

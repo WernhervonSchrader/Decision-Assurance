@@ -1,6 +1,28 @@
 CREATE SCHEMA IF NOT EXISTS decision_assurance_private;
 REVOKE ALL ON SCHEMA decision_assurance_private FROM PUBLIC;
 
+CREATE TABLE IF NOT EXISTS deployment_acceptance_events (
+    tenant_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL,
+    event_json JSONB NOT NULL,
+    PRIMARY KEY (tenant_id, event_id)
+);
+ALTER TABLE deployment_acceptance_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deployment_acceptance_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS deployment_acceptance_events_tenant_isolation
+ON deployment_acceptance_events;
+CREATE POLICY deployment_acceptance_events_tenant_isolation
+ON deployment_acceptance_events
+USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''))
+WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
+REVOKE ALL ON deployment_acceptance_events FROM PUBLIC;
+REVOKE UPDATE, DELETE, TRUNCATE ON deployment_acceptance_events
+FROM decision_assurance_application;
+GRANT SELECT, INSERT ON deployment_acceptance_events TO decision_assurance_application;
+GRANT SELECT ON deployment_acceptance_events
+TO decision_assurance_operations_readonly, decision_assurance_audit_export;
+
 CREATE TABLE IF NOT EXISTS decision_assurance_private.browser_sessions (
     session_digest TEXT PRIMARY KEY CHECK (session_digest ~ '^sha256:[0-9a-f]{64}$'),
     tenant_id TEXT NOT NULL,
@@ -20,8 +42,14 @@ DROP POLICY IF EXISTS browser_sessions_tenant_isolation
 ON decision_assurance_private.browser_sessions;
 CREATE POLICY browser_sessions_tenant_isolation
 ON decision_assurance_private.browser_sessions
-USING (tenant_id = current_setting('decision_assurance.tenant_id', true))
-WITH CHECK (tenant_id = current_setting('decision_assurance.tenant_id', true));
+USING (
+    tenant_id = current_setting('decision_assurance.tenant_id', true)
+    OR session_digest = current_setting('decision_assurance.session_digest', true)
+)
+WITH CHECK (
+    tenant_id = current_setting('decision_assurance.tenant_id', true)
+    OR session_digest = current_setting('decision_assurance.session_digest', true)
+);
 REVOKE ALL ON decision_assurance_private.browser_sessions FROM PUBLIC;
 REVOKE ALL ON decision_assurance_private.browser_sessions FROM decision_assurance_application;
 
@@ -73,6 +101,12 @@ REVOKE ALL ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,
 REVOKE ALL ON FUNCTION da_get_browser_session(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION da_revoke_browser_session(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION da_revoke_actor_sessions(TEXT,TEXT) FROM PUBLIC;
+ALTER TABLE decision_assurance_private.browser_sessions OWNER TO decision_assurance_session_owner;
+ALTER FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) OWNER TO decision_assurance_session_owner;
+ALTER FUNCTION da_get_browser_session(TEXT) OWNER TO decision_assurance_session_owner;
+ALTER FUNCTION da_revoke_browser_session(TEXT) OWNER TO decision_assurance_session_owner;
+ALTER FUNCTION da_revoke_actor_sessions(TEXT,TEXT) OWNER TO decision_assurance_session_owner;
+GRANT USAGE ON SCHEMA decision_assurance_private TO decision_assurance_session_owner;
 GRANT EXECUTE ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) TO decision_assurance_application;
 GRANT EXECUTE ON FUNCTION da_get_browser_session(TEXT) TO decision_assurance_application;
 GRANT EXECUTE ON FUNCTION da_revoke_browser_session(TEXT) TO decision_assurance_application;

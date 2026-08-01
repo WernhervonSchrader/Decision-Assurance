@@ -117,6 +117,8 @@ class BrowserSession:
 
 
 class BrowserSessionStore(Protocol):
+    def ready(self) -> bool: ...
+
     def create(
         self,
         access_token: SensitiveToken,
@@ -169,6 +171,9 @@ class SessionStore:
             )
             self._values[session.session_id] = session
             return session
+
+    def ready(self) -> bool:
+        return True
 
     def get(self, session_id: str | None) -> BrowserSession | None:
         if session_id is None or len(session_id) > 256:

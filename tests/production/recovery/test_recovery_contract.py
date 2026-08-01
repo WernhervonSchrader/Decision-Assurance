@@ -1,6 +1,64 @@
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
+from scripts.postgres.generate_recovery_evidence import load_verification_report
+
 ROOT = Path(__file__).parents[3]
+
+
+def _verification_report() -> dict[str, object]:
+    return {
+        "schema_version": "0.5.0",
+        "commit_sha": "a" * 40,
+        "environment": "github-actions-postgresql-16",
+        "source_database": "decision_assurance",
+        "restore_database": "decision_assurance_restore",
+        "server_version_num": "160009",
+        "verification_completed_at": datetime.now(timezone.utc).isoformat(),
+        "database_schema_version": "004",
+        "rls_tables_verified": 13,
+        "session_store_verified": True,
+        "drill_data_verified": True,
+        "drill_counts": {
+            "decisions": 2,
+            "audit_events": 2,
+            "research_runs": 2,
+            "browser_sessions": 2,
+        },
+        "post_backup_data_absent": True,
+        "audit_chains_valid": True,
+        "exports_valid": True,
+        "tenant_isolation_valid": True,
+        "session_decryption_valid": True,
+        "status": "PASS",
+    }
+
+
+def test_recovery_report_is_bound_to_full_drill_commit_and_environment() -> None:
+    report = _verification_report()
+    loaded = load_verification_report(
+        json.dumps(report).encode(),
+        expected_commit_sha="a" * 40,
+        expected_environment="github-actions-postgresql-16",
+    )
+    assert loaded["restore_database"] == "decision_assurance_restore"
+
+    with pytest.raises(ValueError, match="RECOVERY_VERIFICATION_REPORT_INVALID"):
+        load_verification_report(
+            json.dumps({"status": "PASS", "audit_chains_valid": True}).encode(),
+            expected_commit_sha="a" * 40,
+            expected_environment="github-actions-postgresql-16",
+        )
+    report["commit_sha"] = "b" * 40
+    with pytest.raises(ValueError, match="RECOVERY_VERIFICATION_REPORT_FAILED"):
+        load_verification_report(
+            json.dumps(report).encode(),
+            expected_commit_sha="a" * 40,
+            expected_environment="github-actions-postgresql-16",
+        )
 
 
 def test_backup_and_restore_are_checksum_verified_and_fail_fast() -> None:

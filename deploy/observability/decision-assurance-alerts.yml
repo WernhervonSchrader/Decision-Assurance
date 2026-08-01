@@ -5,7 +5,7 @@ groups:
         expr: increase(export_signature_failures_total[5m]) > 0
         labels: {severity: critical}
       - alert: SessionStoreUnavailable
-        expr: session_store_available < 1
+        expr: absent(session_store_available) or session_store_available < 1
         labels: {severity: critical}
       - alert: MfaDenialBurst
         expr: increase(mfa_denials_total[5m]) > 5
@@ -14,10 +14,10 @@ groups:
         expr: increase(audit_failures_total[5m]) > 0
         labels: {severity: critical}
       - alert: RestoreVerificationFailure
-        expr: restore_success < 1
+        expr: absent(restore_success) or restore_success < 1
         labels: {severity: critical}
       - alert: CertificateExpiring
-        expr: tls_certificate_days_remaining < 14
+        expr: absent(tls_certificate_days_remaining) or tls_certificate_days_remaining < 14
         labels: {severity: warning}
       - alert: AuthenticationFailureBurst
         expr: increase(authentication_failures_total[5m]) > 10
@@ -32,7 +32,7 @@ groups:
         expr: increase(provider_failures_total[5m]) > 5
         labels: {severity: warning}
       - alert: BackupFailure
-        expr: backup_success < 1
+        expr: absent(backup_success) or backup_success < 1
         labels: {severity: critical}
       - alert: LegalHoldViolation
         expr: increase(legal_hold_violation_attempts_total[5m]) > 0
@@ -41,7 +41,7 @@ groups:
         expr: assurance_block_review_rate > 0.8
         labels: {severity: warning}
       - alert: KeycloakUnavailable
-        expr: keycloak_available < 1
+        expr: absent(keycloak_available) or keycloak_available < 1
         labels: {severity: critical}
       - alert: DeletionActivityBurst
         expr: increase(deletion_activity_total[5m]) > 20

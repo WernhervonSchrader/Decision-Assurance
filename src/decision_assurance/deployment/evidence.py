@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from importlib.resources import files
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from ..events.registry import EventEnvelope
 from ..identity import ActorKind, Identity, Role
 
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -147,9 +149,22 @@ class GateResult:
     reasons: tuple[str, ...]
 
 
+class EvidenceArtifactResolver(Protocol):
+    def resolve(self, digest: str) -> bytes | None: ...
+
+
+class InMemoryEvidenceArtifactResolver:
+    def __init__(self, artifacts: Mapping[str, bytes]):
+        self._artifacts = dict(artifacts)
+
+    def resolve(self, digest: str) -> bytes | None:
+        return self._artifacts.get(digest)
+
+
 class PilotAcceptanceGate:
-    def __init__(self, *, max_age: timedelta):
+    def __init__(self, *, max_age: timedelta, evidence_resolver: EvidenceArtifactResolver):
         self._max_age = max_age
+        self._evidence_resolver = evidence_resolver
 
     def evaluate(self, bundle: DeploymentBundle, *, now: datetime) -> GateResult:
         reasons: list[str] = []
@@ -168,6 +183,11 @@ class PilotAcceptanceGate:
             for item in by_kind.values()
         ):
             reasons.append("EVIDENCE_BINDING_MISMATCH")
+        for item in by_kind.values():
+            artifact = self._evidence_resolver.resolve(item.digest)
+            if artifact is None or not _artifact_matches(item, artifact):
+                reasons.append("EVIDENCE_ARTIFACT_UNRESOLVED")
+                break
         instant = now.astimezone(timezone.utc)
         if any(
             instant - item.observed_at.astimezone(timezone.utc) > self._max_age
@@ -190,15 +210,38 @@ class AcceptanceRecord:
     deployment_id: str
     creator: str
     reviewer: str
+    audit_event_id: str
+
+
+class AcceptanceAuditPort(Protocol):
+    def append(self, event: EventEnvelope) -> None: ...
+
+
+class InMemoryAcceptanceAudit:
+    def __init__(self) -> None:
+        self.events: list[EventEnvelope] = []
+
+    def append(self, event: EventEnvelope) -> None:
+        self.events.append(event)
 
 
 class PilotAcceptanceTransition:
+    def __init__(
+        self,
+        audit: AcceptanceAuditPort,
+        *,
+        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    ):
+        self._audit = audit
+        self._clock = clock
+
     def accept(
         self,
         bundle: DeploymentBundle,
         technical_result: GateResult,
         *,
         reviewer: Identity,
+        correlation_id: str,
     ) -> AcceptanceRecord:
         if technical_result.status is not EvidenceStatus.PILOT_REVIEW_REQUIRED:
             raise ValueError("TECHNICAL_EVIDENCE_GATE_REQUIRED")
@@ -208,11 +251,38 @@ class PilotAcceptanceTransition:
             raise ValueError("ACCEPTANCE_TENANT_MISMATCH")
         if hmac.compare_digest(bundle.creator, reviewer.actor_id):
             raise ValueError("ACCEPTANCE_ACTOR_INDEPENDENCE_REQUIRED")
+        if not correlation_id.strip():
+            raise ValueError("ACCEPTANCE_CORRELATION_REQUIRED")
+        occurred_at = self._clock().astimezone(timezone.utc)
+        event_id = (
+            "pilot-accepted-"
+            + hashlib.sha256(
+                f"{bundle.deployment_id}:{reviewer.actor_id}:{correlation_id}".encode()
+            ).hexdigest()[:24]
+        )
+        self._audit.append(
+            EventEnvelope(
+                "deployment.pilot-accepted",
+                "1.0.0",
+                event_id,
+                occurred_at,
+                bundle.tenant_id,
+                reviewer.actor_id,
+                correlation_id,
+                "deployment-evidence",
+                {
+                    "deployment_id": bundle.deployment_id,
+                    "commit_sha": bundle.commit_sha,
+                    "creator": bundle.creator,
+                },
+            )
+        )
         return AcceptanceRecord(
             EvidenceStatus.PILOT_ACCEPTED,
             bundle.deployment_id,
             bundle.creator,
             reviewer.actor_id,
+            event_id,
         )
 
 
@@ -322,3 +392,26 @@ def _certificate_name_matches(host: str, certificate_name: str) -> bool:
     suffix = certificate_name[2:]
     label, separator, remainder = host.partition(".")
     return bool(label and separator) and hmac.compare_digest(remainder, suffix)
+
+
+def _artifact_matches(item: EvidenceItem, artifact: bytes) -> bool:
+    if len(artifact) > 2_000_000 or not _constant_digest(artifact, item.digest):
+        return False
+    try:
+        raw: object = json.loads(artifact)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    return raw == {
+        "kind": item.kind,
+        "deployment_id": item.deployment_id,
+        "tenant_id": item.tenant_id,
+        "commit_sha": item.commit_sha,
+        "verified": item.verified,
+        "observed_at": item.observed_at.isoformat().replace("+00:00", "Z"),
+        "source": item.source,
+    }
+
+
+def _constant_digest(content: bytes, expected: str) -> bool:
+    actual = "sha256:" + hashlib.sha256(content).hexdigest()
+    return hmac.compare_digest(actual, expected)

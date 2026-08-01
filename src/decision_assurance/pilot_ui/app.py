@@ -132,6 +132,8 @@ def create_pilot_ui_app(
     )
     allowed_hosts = frozenset(host.casefold().rstrip(".") for host in settings.allowed_hosts)
     trusted_networks = tuple(ipaddress.ip_network(value) for value in settings.trusted_proxy_cidrs)
+    if metrics is not None:
+        metrics.set_gauge("session_store_available", 1 if sessions.ready() else 0)
 
     @app.middleware("http")
     async def security_boundary(
@@ -180,8 +182,14 @@ def create_pilot_ui_app(
         return {"status": "ok"}
 
     @app.get("/health/ready")
-    def ready() -> dict[str, str]:
-        return {"status": "ok"}
+    def ready() -> JSONResponse:
+        available = sessions.ready()
+        if metrics is not None:
+            metrics.set_gauge("session_store_available", 1 if available else 0)
+        return JSONResponse(
+            {"status": "ok" if available else "unavailable"},
+            status_code=200 if available else 503,
+        )
 
     if metrics is not None:
 
@@ -209,7 +217,14 @@ def create_pilot_ui_app(
     @app.get("/auth/callback")
     def callback(request: Request, code: str, state: str) -> RedirectResponse:
         transaction = logins.consume(state, request.cookies.get(LOGIN_COOKIE, ""))
-        tokens = oidc.exchange(code, transaction)
+        try:
+            tokens = oidc.exchange(code, transaction)
+        except BrowserOidcError:
+            if metrics is not None:
+                metrics.set_gauge("keycloak_available", 0)
+            raise
+        if metrics is not None:
+            metrics.set_gauge("keycloak_available", 1)
         identity = api.session(tokens.access_token, request.state.correlation_id)
         if settings.mfa_policy is not None:
             roles = identity.get("roles")
@@ -223,6 +238,8 @@ def create_pilot_ui_app(
                     frozenset(roles), evidence, now=datetime.now(timezone.utc)
                 )
             except MfaRequired:
+                if metrics is not None:
+                    metrics.increment("mfa_denials_total")
                 raise BrowserOidcError("OIDC_MFA_REQUIRED") from None
             if evidence is not None:
                 identity = {

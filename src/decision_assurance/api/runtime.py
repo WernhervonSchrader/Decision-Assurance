@@ -23,7 +23,7 @@ from ..lifecycle.postgresql import PostgresLifecycleRepository
 from ..lifecycle.service import PilotLifecycleService
 from ..observability.health import HealthService, ReadinessDependency, StaticHealthProbe
 from ..observability.logging import JsonEventLogger
-from ..observability.metrics import InMemoryMetrics
+from ..observability.metrics import InMemoryMetrics, initialize_pilot_metrics
 from ..oidc.factory import create_authenticator
 from ..persistence.factory import create_persistence
 from ..production.config import RuntimeConfig, load_config
@@ -355,6 +355,8 @@ def _load_configured_runtime(
         lifecycle_service = PilotLifecycleService(
             PostgresLifecycleRepository(persistence.connections), lifecycle_secret
         )
+    runtime_metrics = InMemoryMetrics()
+    initialize_pilot_metrics(runtime_metrics)
     app = create_app(
         persistence.decisions,
         authenticator,
@@ -367,7 +369,7 @@ def _load_configured_runtime(
         research_submission_service=submission,
         health_service=health,
         logger=logger,
-        metrics=InMemoryMetrics(),
+        metrics=runtime_metrics,
         api_version="0.5.0",
         build_metadata=build_metadata,
         security_events=LoggingSecurityEventSink(logger),

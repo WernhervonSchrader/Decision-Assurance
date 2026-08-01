@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,15 +41,34 @@ TENANT_TABLES = (
     "legal_hold_audit_events",
     "deletion_requests",
     "lifecycle_audit_events",
+    "deployment_acceptance_events",
 )
 
 DRILL_PRE_BACKUP_DECISIONS = ("recovery-decision-1", "recovery-decision-2")
 DRILL_POST_BACKUP_DECISION = "recovery-post-backup"
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
 def verify(dsn: str) -> dict[str, object]:
     verify_drill_data = os.getenv("DA_RECOVERY_EXPECT_DRILL_DATA") == "true"
+    commit_sha = os.getenv("DA_RECOVERY_COMMIT_SHA", "")
+    environment = os.getenv("DA_RECOVERY_ENVIRONMENT", "")
+    source_database = os.getenv("DA_RECOVERY_SOURCE_DATABASE", "")
+    if not _COMMIT_SHA.fullmatch(commit_sha):
+        raise RuntimeError("RECOVERY_COMMIT_SHA_INVALID")
+    if not environment or len(environment) > 128:
+        raise RuntimeError("RECOVERY_ENVIRONMENT_INVALID")
+    if not source_database or len(source_database) > 63:
+        raise RuntimeError("RECOVERY_SOURCE_DATABASE_INVALID")
     with psycopg.connect(dsn) as connection:
+        database_row = connection.execute(
+            "SELECT current_database(), current_setting('server_version_num')"
+        ).fetchone()
+        if database_row is None:
+            raise RuntimeError("RECOVERY_DATABASE_IDENTITY_UNAVAILABLE")
+        restore_database, server_version_num = map(str, database_row)
+        if restore_database == source_database:
+            raise RuntimeError("RECOVERY_RESTORE_TARGET_NOT_ISOLATED")
         version = connection.execute("SELECT max(version) FROM schema_migrations").fetchone()
         if version != ("004",):
             raise RuntimeError("DATABASE_SCHEMA_VERSION_MISMATCH")
@@ -151,6 +171,12 @@ def verify(dsn: str) -> dict[str, object]:
     session_valid = _verify_restored_sessions(dsn) if verify_drill_data else False
     return {
         "schema_version": "0.5.0",
+        "commit_sha": commit_sha,
+        "environment": environment,
+        "source_database": source_database,
+        "restore_database": restore_database,
+        "server_version_num": server_version_num,
+        "verification_completed_at": datetime.now(timezone.utc).isoformat(),
         "database_schema_version": "004",
         "rls_tables_verified": len(TENANT_TABLES),
         "session_store_verified": True,

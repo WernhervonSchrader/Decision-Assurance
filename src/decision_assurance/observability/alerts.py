@@ -11,6 +11,7 @@ class AlertRule:
     operator: str
     threshold: float
     labels: frozenset[str] = frozenset({"severity"})
+    alert_on_missing: bool = False
 
 
 def default_alert_rules() -> tuple[AlertRule, ...]:
@@ -22,13 +23,21 @@ def default_alert_rules() -> tuple[AlertRule, ...]:
         AlertRule("ResearchJobBacklog", "research_jobs_queued", ">", 100),
         AlertRule("ProviderFailure", "provider_failures_total", ">", 5),
         AlertRule("ExportSignatureFailure", "export_signature_failures_total", ">", 0),
-        AlertRule("SessionStoreUnavailable", "session_store_available", "<", 1),
-        AlertRule("BackupFailure", "backup_success", "<", 1),
-        AlertRule("RestoreFailure", "restore_success", "<", 1),
-        AlertRule("CertificateExpiring", "tls_certificate_days_remaining", "<", 14),
+        AlertRule(
+            "SessionStoreUnavailable", "session_store_available", "<", 1, alert_on_missing=True
+        ),
+        AlertRule("BackupFailure", "backup_success", "<", 1, alert_on_missing=True),
+        AlertRule("RestoreFailure", "restore_success", "<", 1, alert_on_missing=True),
+        AlertRule(
+            "CertificateExpiring",
+            "tls_certificate_days_remaining",
+            "<",
+            14,
+            alert_on_missing=True,
+        ),
         AlertRule("LegalHoldViolation", "legal_hold_violation_attempts_total", ">", 0),
         AlertRule("AssuranceEscalationRate", "assurance_block_review_rate", ">", 0.8),
-        AlertRule("KeycloakUnavailable", "keycloak_available", "<", 1),
+        AlertRule("KeycloakUnavailable", "keycloak_available", "<", 1, alert_on_missing=True),
         AlertRule("DeletionActivityBurst", "deletion_activity_total", ">", 20),
     )
 
@@ -42,6 +51,8 @@ class AlertEvaluator:
         for rule in self._rules:
             value = metrics.get(rule.metric)
             if value is None:
+                if rule.alert_on_missing:
+                    firing.append(rule.name)
                 continue
             matched = value > rule.threshold if rule.operator == ">" else value < rule.threshold
             if matched:

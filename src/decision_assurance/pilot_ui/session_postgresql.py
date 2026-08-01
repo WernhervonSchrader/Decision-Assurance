@@ -8,9 +8,10 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 
 from cryptography.fernet import Fernet, InvalidToken
+from psycopg import Error as PostgresError
 from psycopg.types.json import Jsonb
 
-from ..persistence.postgresql import PostgresConnectionProvider
+from ..persistence.postgresql import PersistenceUnavailable, PostgresConnectionProvider
 from ..tenancy import TenantContext
 from .errors import BrowserOidcError
 from .session import BrowserSession, SensitiveToken, _safe_identity
@@ -38,6 +39,14 @@ class PostgresSessionStore:
         self._ttl = ttl_seconds
         self._required_mfa_policy_version = required_mfa_policy_version
         self._clock = clock
+
+    def ready(self) -> bool:
+        try:
+            with self._connections.worker_connection() as connection:
+                row = connection.execute("SELECT 1 AS ready").fetchone()
+                return row is not None and row["ready"] == 1
+        except (PostgresError, PersistenceUnavailable):
+            return False
 
     def create(
         self,
@@ -77,9 +86,14 @@ class PostgresSessionStore:
     def get(self, session_id: str | None) -> BrowserSession | None:
         if session_id is None or len(session_id) > 256:
             return None
+        digest = self._digest(session_id)
         with self._connections.worker_connection() as connection:
+            connection.execute(
+                "SELECT set_config('decision_assurance.session_digest', %s, true)",
+                (digest,),
+            )
             row = connection.execute(
-                "SELECT * FROM da_get_browser_session(%s)", (self._digest(session_id),)
+                "SELECT * FROM da_get_browser_session(%s)", (digest,)
             ).fetchone()
         if row is None:
             return None
@@ -115,8 +129,13 @@ class PostgresSessionStore:
     def destroy(self, session_id: str | None) -> None:
         if session_id is None or len(session_id) > 256:
             return
+        digest = self._digest(session_id)
         with self._connections.worker_connection() as connection:
-            connection.execute("SELECT da_revoke_browser_session(%s)", (self._digest(session_id),))
+            connection.execute(
+                "SELECT set_config('decision_assurance.session_digest', %s, true)",
+                (digest,),
+            )
+            connection.execute("SELECT da_revoke_browser_session(%s)", (digest,))
 
     def revoke_actor(self, tenant_id: str, actor_id: str) -> None:
         with self._connections.tenant_connection(TenantContext(tenant_id)) as connection:

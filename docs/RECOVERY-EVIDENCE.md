@@ -7,5 +7,8 @@ latest restored record, audit/export/tenant-integrity checks and target versus o
 CI creates a PostgreSQL custom-format backup, restores fresh infrastructure, recomputes audit hash
 links, exercises application-role tenant isolation, verifies an Ed25519 export built from restored
 tenant data and decrypts pre-backup sessions through the shared store. The report generator consumes
-that exact verifier JSON and binds its SHA-256 digest; it cannot assert the checks independently. A
+that exact verifier JSON and binds its SHA-256 digest; it cannot assert the checks independently.
+The verifier report has an exact field set and is bound to the CI head, named environment, distinct
+source/restore databases, PostgreSQL 16, schema 004, all forced-RLS tables, drill row counts,
+post-backup data absence and completion timestamp. Minimal or relabeled `PASS` JSON is rejected. A
 real pilot must repeat this with representative scale on actual infrastructure.

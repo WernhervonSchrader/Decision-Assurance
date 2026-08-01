@@ -5,8 +5,47 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from decision_assurance.recovery.evidence import RecoveryEvidence
+
+_EXPECTED_VERIFICATION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "commit_sha",
+        "environment",
+        "source_database",
+        "restore_database",
+        "server_version_num",
+        "verification_completed_at",
+        "database_schema_version",
+        "rls_tables_verified",
+        "session_store_verified",
+        "drill_data_verified",
+        "drill_counts",
+        "post_backup_data_absent",
+        "audit_chains_valid",
+        "exports_valid",
+        "tenant_isolation_valid",
+        "session_decryption_valid",
+        "status",
+    }
+)
+_BOOLEAN_CHECKS = (
+    "session_store_verified",
+    "drill_data_verified",
+    "post_backup_data_absent",
+    "audit_chains_valid",
+    "exports_valid",
+    "tenant_isolation_valid",
+    "session_decryption_valid",
+)
+_MINIMUM_DRILL_COUNTS = {
+    "decisions": 2,
+    "audit_events": 2,
+    "research_runs": 2,
+    "browser_sessions": 2,
+}
 
 
 def _instant(value: str) -> datetime:
@@ -14,6 +53,43 @@ def _instant(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise argparse.ArgumentTypeError("timestamp must include timezone")
     return parsed
+
+
+def load_verification_report(
+    content: bytes, *, expected_commit_sha: str, expected_environment: str
+) -> dict[str, Any]:
+    try:
+        verification = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("RECOVERY_VERIFICATION_REPORT_INVALID") from None
+    if not isinstance(verification, dict) or set(verification) != _EXPECTED_VERIFICATION_FIELDS:
+        raise ValueError("RECOVERY_VERIFICATION_REPORT_INVALID")
+    counts: Any = verification.get("drill_counts")
+    valid_counts = isinstance(counts, dict) and set(counts) == set(_MINIMUM_DRILL_COUNTS)
+    if valid_counts:
+        valid_counts = all(
+            isinstance(counts[name], int) and counts[name] >= minimum
+            for name, minimum in _MINIMUM_DRILL_COUNTS.items()
+        )
+    try:
+        completed = _instant(str(verification["verification_completed_at"]))
+    except (argparse.ArgumentTypeError, ValueError):
+        raise ValueError("RECOVERY_VERIFICATION_REPORT_FAILED") from None
+    if (
+        verification.get("status") != "PASS"
+        or verification.get("schema_version") != "0.5.0"
+        or verification.get("commit_sha") != expected_commit_sha
+        or verification.get("environment") != expected_environment
+        or verification.get("database_schema_version") != "004"
+        or verification.get("rls_tables_verified") != 13
+        or not str(verification.get("server_version_num", "")).startswith("16")
+        or verification.get("source_database") == verification.get("restore_database")
+        or any(verification.get(name) is not True for name in _BOOLEAN_CHECKS)
+        or not valid_counts
+        or completed > datetime.now(completed.tzinfo)
+    ):
+        raise ValueError("RECOVERY_VERIFICATION_REPORT_FAILED")
+    return verification
 
 
 def main() -> None:
@@ -33,17 +109,11 @@ def main() -> None:
     parser.add_argument("--target-rto-seconds", type=int, default=900)
     arguments = parser.parse_args()
     verification_bytes = arguments.verification_report.read_bytes()
-    verification = json.loads(verification_bytes)
-    required = (
-        "audit_chains_valid",
-        "exports_valid",
-        "tenant_isolation_valid",
-        "session_decryption_valid",
+    verification = load_verification_report(
+        verification_bytes,
+        expected_commit_sha=arguments.commit_sha,
+        expected_environment=arguments.environment,
     )
-    if verification.get("status") != "PASS" or any(
-        verification.get(name) is not True for name in required
-    ):
-        raise ValueError("RECOVERY_VERIFICATION_REPORT_FAILED")
     report = RecoveryEvidence(
         schema_version="1.0.0",
         environment=arguments.environment,

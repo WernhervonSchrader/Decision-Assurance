@@ -98,6 +98,20 @@ class InMemoryMetrics:
         return name, tuple(sorted(values.items()))
 
 
+def initialize_pilot_metrics(metrics: InMemoryMetrics) -> None:
+    """Publish every pilot gauge with a fail-closed baseline before the first scrape."""
+    for name in (
+        "backup_success",
+        "restore_success",
+        "tls_certificate_days_remaining",
+        "session_store_available",
+        "keycloak_available",
+        "research_jobs_queued",
+        "assurance_block_review_rate",
+    ):
+        metrics.set_gauge(name, 0)
+
+
 def _labels(labels: tuple[tuple[str, str], ...]) -> str:
     if not labels:
         return ""

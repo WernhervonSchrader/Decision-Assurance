@@ -80,7 +80,10 @@ Secure/HttpOnly/SameSite=Lax cookie. Callback access logging is disabled. Every 
 requires CSRF and rejects tenant/actor overrides. The Caddy edge discards inbound forwarding headers,
 sets its own trusted values. Controlled-pilot sessions are encrypted in a private PostgreSQL schema
 with forced RLS; tenant-aware create and bulk-revocation functions bind the validated tenant context,
-so one tenant cannot revoke another tenant's sessions. The edge
+while opaque-session lookup/revocation is constrained to the exact HMAC digest. Functions and the
+table are owned by a dedicated `NOBYPASSRLS` role rather than a migration superuser, so forced RLS is
+also effective in the deployed owner topology. One tenant cannot revoke another tenant's sessions.
+The edge
 limits bodies and serves only allowlisted hosts/routes, including an
 explicit public Keycloak OIDC/login-resource allowlist. Retrieved research
 and submitted text remain untrusted; the UI uses text nodes and never derives an assurance outcome.

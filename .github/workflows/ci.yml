@@ -175,6 +175,8 @@ jobs:
           DA_RECOVERY_EXPECT_DRILL_DATA=true \
             DA_RECOVERY_SESSION_STATE=/tmp/recovery-session-state.json \
             DA_RECOVERY_COMMIT_SHA="$DA_RECOVERY_COMMIT_SHA" \
+            DA_RECOVERY_ENVIRONMENT=github-actions-postgresql-16 \
+            DA_RECOVERY_SOURCE_DATABASE=decision_assurance \
             DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore \
             python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
           python -m scripts.postgres.generate_recovery_evidence \
