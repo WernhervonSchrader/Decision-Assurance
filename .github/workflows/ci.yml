@@ -87,7 +87,7 @@ jobs:
             -e DA_PUBLIC_HOST=research.pilot.example \
             -e DA_IDENTITY_HOST=identity.pilot.example \
             -v "$PWD/deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --validate=false
+            caddy:2.11.4-alpine caddy adapt --config /etc/caddy/Caddyfile --validate=false
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
