@@ -10,6 +10,7 @@ FROM quay.io/keycloak/keycloak:26.7.0
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY --chown=keycloak:keycloak --chmod=0555 integrations/keycloak/entrypoint.sh /opt/keycloak/bin/decision-assurance-entrypoint.sh
+COPY --chown=keycloak:keycloak --chmod=0555 integrations/keycloak/bootstrap-entrypoint.sh /opt/keycloak/bin/decision-assurance-bootstrap-entrypoint.sh
 
 USER 1000
 ENTRYPOINT ["/opt/keycloak/bin/decision-assurance-entrypoint.sh"]

@@ -5,14 +5,24 @@ isolated E2E verification. It is not a production deployment or evidence of prod
 Keycloak establishes identity; Decision Assurance remains the authority for permissions, tenant
 isolation, lifecycle transitions and actor independence.
 
-## Start and stop
+## Initial bootstrap, start and stop
 
 Copy the three placeholder files under `.secrets/` to names without `.example`, replace every
 placeholder with a unique random value and restrict them to the current OS user. Never put a real
 secret in Compose, the realm export, an environment committed to Git or a command transcript.
 
+Bootstrap is an explicit one-time operation against a fresh Keycloak database. Do not start the
+regular Keycloak node first, and never repeat bootstrap as part of a normal restart. The dedicated
+service uses Keycloak's supported `bootstrap-admin user` command and is available only through the
+`bootstrap` Compose profile:
+
 ```powershell
-docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build
+docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --wait keycloak-postgres
+docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml --profile bootstrap build keycloak-bootstrap
+$bootstrap = Start-Process docker -ArgumentList @("compose", "-p", "decision-assurance-keycloak-local", "-f", "compose.keycloak.yaml", "--profile", "bootstrap", "run", "--rm", "--no-deps", "keycloak-bootstrap") -Wait -PassThru -NoNewWindow -RedirectStandardOutput ".local/keycloak-bootstrap.stdout.log" -RedirectStandardError ".local/keycloak-bootstrap.stderr.log"
+if ($bootstrap.ExitCode -ne 0) { throw "Keycloak bootstrap failed; captured output withheld." }
+python scripts/security/assert_no_secret_values.py --secret-file .secrets/keycloak-admin-username --secret-file .secrets/keycloak-admin-password --secret-file .secrets/keycloak-db-password --input-file .local/keycloak-bootstrap.stdout.log --input-file .local/keycloak-bootstrap.stderr.log
+docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait keycloak
 docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml ps
 $env:DA_CONFIG_PATH = "config/deployment/keycloak-development.example.json"
 $env:DA_DATABASE_PATH = ".local/keycloak-development.db"
@@ -25,17 +35,26 @@ when `allow_insecure_loopback` is explicitly true and both issuer and JWKS endpo
 Staging and production reject that option. Stop without deleting the PostgreSQL volume with
 `docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml down`.
 
-The realm import contains no users or secrets. The bootstrap administrator exists only to manage
-the isolated instance. Automated E2E creates random temporary identities through the Admin API,
+The realm import contains no users or secrets. Establish a permanent, individually accountable
+administrator after initial login and remove the temporary bootstrap identity immediately. The
+regular Keycloak service mounts only the database password; the bootstrap username and password are
+unavailable to it. The bootstrap-only entrypoint preserves all command output except event
+`KC-SERVICES0077`, whose credential-bearing payload is replaced by a fixed marker. It does not
+suppress any logger. Never display captured bootstrap output; retain it only long enough to run the
+canary scan, then delete it according to local secure-handling policy.
+
+Automated E2E creates random temporary identities through the Admin API,
 uses Authorization Code with S256 PKCE, and deletes those identities afterward. Password grant is
 used only by the test harness to obtain isolated administrative setup authority; application users
 and production clients never use it.
 
 ## Realm, clients and claims
 
-The `decision-assurance` realm has exactly these application roles: `da_admin`, `tenant_admin`,
+The `decision-assurance` realm has exactly these case-sensitive external application roles: `da_admin`, `tenant_admin`,
 `decision_author`, `decision_reviewer`, `decision_approver`, `auditor`, `research_operator` and
-`readonly`. Users may hold several roles. The API maps them centrally but still enforces the
+`readonly`. Users may hold several roles. No spelling variant, alias or internal enum value maps to
+a permission. Unknown values are ignored and a token without at least one exact approved role fails
+with `AUTH_ROLE_REQUIRED`. The API maps approved values centrally but still enforces the
 Decision Assurance permission matrix and human actor-independence rules.
 
 | Client | Type and allowed use |
@@ -71,9 +90,11 @@ credentials for Keycloak.
 
 For signing-key rotation, publish the replacement public key before issuing tokens with its `kid`;
 retain the old public key for the maximum access-token lifetime plus clock skew. Rotate bootstrap,
-database and any future confidential-client secrets by replacing their secret-store values and
-restarting the local stack without displaying them. A realm export containing a `secret` field is
-not eligible for commit.
+database and any future confidential-client secrets through the secret store without displaying
+them. Changing bootstrap files does not change an existing administrator and normal restart must not
+invoke bootstrap. For recovery, stop every Keycloak node, use the separate bootstrap command once,
+restore permanent administration, remove the temporary identity, then restart normally. A realm
+export containing a `secret` field is not eligible for commit.
 
 ## Production gate
 

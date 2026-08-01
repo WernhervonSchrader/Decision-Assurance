@@ -292,12 +292,17 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
     )
     api = TestClient(app)
     tokens = {
-        f"{tenant}:{role.lower()}": _token(private, tenant, f"{tenant}-{role.lower()}", role)
+        f"{tenant}:{label}": _token(private, tenant, f"{tenant}-{label}", external_role)
         for tenant in TENANTS
-        for role in ("GENERATOR", "VALIDATOR", "APPROVER", "AUDITOR")
+        for label, external_role in (
+            ("generator", "decision_author"),
+            ("validator", "decision_reviewer"),
+            ("approver", "decision_approver"),
+            ("auditor", "auditor"),
+        )
     }
     tokens["pilot-tenant-a:agent-approver"] = _token(
-        private, "pilot-tenant-a", "pilot-agent", "APPROVER", "AGENT"
+        private, "pilot-tenant-a", "pilot-agent", "decision_approver", "AGENT"
     )
 
     approved = _create_intake_and_compile(

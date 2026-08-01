@@ -210,8 +210,18 @@ def restart_keycloak() -> None:
     docker = shutil.which("docker")
     if docker is None:
         raise RuntimeError("KEYCLOAK_DOCKER_UNAVAILABLE")
+    project = os.getenv("DA_KEYCLOAK_COMPOSE_PROJECT", "decision-assurance-keycloak-local")
     completed = subprocess.run(  # noqa: S603 - fixed argv and resolved Docker executable
-        [docker, "compose", "-f", "compose.keycloak.yaml", "restart", "keycloak"],
+        [
+            docker,
+            "compose",
+            "-p",
+            project,
+            "-f",
+            "compose.keycloak.yaml",
+            "restart",
+            "keycloak",
+        ],
         check=False,
         capture_output=True,
         text=True,

@@ -20,9 +20,9 @@ jobs:
       - name: Install project
         run: python -m pip install -e ".[dev]"
       - name: Ruff format
-        run: ruff format --check src tests
+        run: ruff format --check src tests scripts/security
       - name: Ruff lint
-        run: ruff check src tests
+        run: ruff check src tests scripts/security
       - name: Mypy strict
         run: mypy src
       - name: Non-PostgreSQL test suite
@@ -223,6 +223,9 @@ jobs:
 
   keycloak-oidc-e2e:
     runs-on: ubuntu-latest
+    env:
+      DA_KEYCLOAK_BOOTSTRAP_OUTPUT: ${{ runner.temp }}/keycloak-bootstrap-output.log
+      DA_KEYCLOAK_RUNTIME_OUTPUT: ${{ runner.temp }}/keycloak-runtime-output.log
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -236,24 +239,57 @@ jobs:
         run: |
           umask 077
           mkdir -p .secrets
-          printf '%s' 'keycloak-ci-admin' > .secrets/keycloak-admin-username
+          printf 'kc-canary-%s' "$(openssl rand -hex 16)" > .secrets/keycloak-admin-username
           openssl rand -hex 32 > .secrets/keycloak-admin-password
           openssl rand -hex 32 > .secrets/keycloak-db-password
           chmod 0444 .secrets/keycloak-admin-username .secrets/keycloak-admin-password .secrets/keycloak-db-password
-      - name: Start isolated Keycloak and PostgreSQL 16
+      - name: Start isolated PostgreSQL 16
         run: |
-          if ! docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait --wait-timeout 180; then
-            docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml logs --no-color keycloak
+          docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --wait --wait-timeout 120 keycloak-postgres
+          docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml --profile bootstrap build keycloak-bootstrap
+      - name: Bootstrap temporary administrator without retained credentials
+        run: |
+          if ! docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml --profile bootstrap run --rm --no-deps keycloak-bootstrap > "$DA_KEYCLOAK_BOOTSTRAP_OUTPUT" 2>&1; then
+            echo "Keycloak bootstrap failed; captured output withheld."
+            exit 1
+          fi
+          python scripts/security/assert_no_secret_values.py \
+            --secret-file .secrets/keycloak-admin-username \
+            --secret-file .secrets/keycloak-admin-password \
+            --secret-file .secrets/keycloak-db-password \
+            --input-file "$DA_KEYCLOAK_BOOTSTRAP_OUTPUT"
+      - name: Start regular Keycloak without bootstrap credentials
+        run: |
+          if ! docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml up -d --build --wait --wait-timeout 180 keycloak; then
+            docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml logs --no-color keycloak > "$DA_KEYCLOAK_RUNTIME_OUTPUT" 2>&1
+            python scripts/security/assert_no_secret_values.py \
+              --secret-file .secrets/keycloak-admin-username \
+              --secret-file .secrets/keycloak-admin-password \
+              --secret-file .secrets/keycloak-db-password \
+              --input-file "$DA_KEYCLOAK_BOOTSTRAP_OUTPUT" \
+              --input-file "$DA_KEYCLOAK_RUNTIME_OUTPUT"
+            echo "Keycloak start failed; captured output withheld."
             exit 1
           fi
       - name: Verify Keycloak non-root runtime
         run: |
           test "$(docker inspect --format '{{.Config.User}}' decision-assurance-keycloak-local-keycloak-1)" = "1000:0"
           test "$(docker exec decision-assurance-keycloak-local-keycloak-postgres-1 stat -c '%u' /proc/1)" != "0"
+          ! docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' decision-assurance-keycloak-local-keycloak-1 | grep -q 'keycloak-admin'
+          ! docker exec decision-assurance-keycloak-local-keycloak-1 bash -ec 'tr "\0" "\n" < /proc/1/environ | grep -Eq "^(KC_BOOTSTRAP_ADMIN_|DA_KEYCLOAK_BOOTSTRAP_)"'
       - name: Keycloak OIDC PKCE, tenant and Research E2E
         env:
           DA_RUN_KEYCLOAK_E2E: "1"
         run: python -m pytest tests/keycloak -q --basetemp /tmp/pytest-keycloak
+      - name: Verify bootstrap and runtime output contain no credential canaries
+        run: |
+          docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml logs --no-color keycloak > "$DA_KEYCLOAK_RUNTIME_OUTPUT" 2>&1
+          python scripts/security/assert_no_secret_values.py \
+            --secret-file .secrets/keycloak-admin-username \
+            --secret-file .secrets/keycloak-admin-password \
+            --secret-file .secrets/keycloak-db-password \
+            --input-file "$DA_KEYCLOAK_BOOTSTRAP_OUTPUT" \
+            --input-file "$DA_KEYCLOAK_RUNTIME_OUTPUT"
       - name: Stop isolated Keycloak environment
         if: always()
         run: docker compose -p decision-assurance-keycloak-local -f compose.keycloak.yaml down --volumes

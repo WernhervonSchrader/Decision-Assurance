@@ -72,8 +72,15 @@ overlap window; revoke it after successful verification.
 
 For Keycloak signing-key rotation, publish the new public key before issuing tokens with its `kid`,
 retain the prior public key for access-token lifetime plus clock skew, verify controlled unknown-key
-JWKS refresh, then retire the old key. Rotate bootstrap/database/client secrets only through the
-secret provider or ignored local secret files. Never export, log or commit them. A Keycloak/JWKS
+JWKS refresh, then retire the old key. Rotate database/client secrets only through the secret
+provider or ignored local secret files. Never export, log or commit them. Bootstrap credentials are
+not regular runtime configuration: all Keycloak nodes must be stopped, the profile-gated
+`keycloak-bootstrap` service runs `bootstrap-admin user` once, and its captured output must pass
+`scripts/security/assert_no_secret_values.py` before it can be retained. Establish or recover a
+permanent administrator, remove the temporary identity, and restart only the regular service. Do not
+mount bootstrap username/password files into that service or invoke bootstrap on restart. Event
+`KC-SERVICES0077` is payload-redacted only inside the bootstrap entrypoint; broad logger suppression
+is prohibited. A Keycloak/JWKS
 outage blocks unknown keys and new authentication; do not bypass signature verification or fall back
 to static identity in a production profile.
 

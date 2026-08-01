@@ -164,13 +164,9 @@ class OidcAuthenticator:
             raise AuthenticationFailed("AUTH_ROLE_REQUIRED")
         mapped: set[Role] = set()
         for item in raw_roles:
-            if item in KEYCLOAK_ROLE_MAP:
-                mapped.add(KEYCLOAK_ROLE_MAP[item])
-                continue
-            try:
-                mapped.add(Role(item))
-            except ValueError:
-                continue
+            mapped_role = KEYCLOAK_ROLE_MAP.get(item)
+            if mapped_role is not None:
+                mapped.add(mapped_role)
         if not mapped:
             raise AuthenticationFailed("AUTH_ROLE_REQUIRED")
         return frozenset(mapped)

@@ -19,8 +19,6 @@ load_secret() {
   unset value
 }
 
-load_secret KC_BOOTSTRAP_ADMIN_USERNAME /run/secrets/keycloak-admin-username
-load_secret KC_BOOTSTRAP_ADMIN_PASSWORD /run/secrets/keycloak-admin-password
 load_secret KC_DB_PASSWORD /run/secrets/keycloak-db-password
 
 exec /opt/keycloak/bin/kc.sh "$@"
