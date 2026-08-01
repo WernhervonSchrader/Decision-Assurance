@@ -1,5 +1,12 @@
 # Security Model
 
+## v0.9 provenance boundary
+
+Ed25519 binds export manifests and member digests. Private keys remain behind file/KMS/HSM adapters.
+Shared sessions persist only HMAC handles and encrypted tokens in a private PostgreSQL schema.
+Critical-role sessions bind validated MFA context and policy version. Unknown evidence/event versions
+and self-declaration fail closed.
+
 Authentication is an injected boundary; the reference static-token adapter is
 for local evaluation only. Authorization is centralized and enforced before
 object access. Repository lookup always includes tenant. Cross-tenant misses
@@ -71,7 +78,16 @@ The pilot browser uses Authorization Code + S256 PKCE with one-time state/nonce 
 initiating browser, bounded server-side sessions and an opaque `__Host-da_session`
 Secure/HttpOnly/SameSite=Lax cookie. Callback access logging is disabled. Every BFF mutation
 requires CSRF and rejects tenant/actor overrides. The Caddy edge discards inbound forwarding headers,
-sets its own trusted values, limits bodies and serves only allowlisted hosts/routes, including an
+sets its own trusted values. Controlled-pilot sessions are encrypted in a private PostgreSQL schema
+with forced RLS; tenant-aware create and bulk-revocation functions bind the validated tenant context,
+while opaque-session lookup/revocation is constrained to the exact HMAC digest. Functions and the
+table are owned by a dedicated `NOBYPASSRLS` role rather than a migration superuser, so forced RLS is
+also effective in the deployed owner topology. One tenant cannot revoke another tenant's sessions.
+The one-shot migration role alone may transfer these objects to the session-owner role; application
+and worker roles have no such membership. CI repeats all migrations through an actual non-superuser
+migration login so superuser execution cannot mask ownership or schema-grant errors.
+The edge
+limits bodies and serves only allowlisted hosts/routes, including an
 explicit public Keycloak OIDC/login-resource allowlist. Retrieved research
 and submitted text remain untrusted; the UI uses text nodes and never derives an assurance outcome.
 

@@ -1,11 +1,18 @@
 # Backup and restore
 
+The restore job emits a v1 report with target and observed RPO/RTO. Local/CI measurements are not
+service commitments. See `RECOVERY-EVIDENCE.md`.
+
 `scripts/postgres/backup.ps1` creates a PostgreSQL custom-format logical backup plus a manifest with
 schema version, size and SHA-256 checksum. The destination must be an access-controlled,
 platform-encrypted store with immutable retention. The script does not make local disk encrypted.
 
 Restore is permitted only into a fresh isolated database. `restore.ps1` verifies the manifest and
 checksum before `pg_restore --single-transaction --exit-on-error`, then runs `verify_restore.py`.
+The CI recovery drill seeds two tenants with multiple decisions, audit events, research runs and
+server-side sessions before backup. It then writes a post-backup marker and proves after restore that
+the pre-backup records are present while the marker is absent; this observed loss window is evidence,
+not a service-level promise.
 Verification blocks on migration mismatch, missing/disabled/unenforced RLS, unsafe database roles or
 audit ordering anomalies. Afterward, run the full two-tenant RLS, OIDC, queue recovery and controlled
 pilot smoke suites before any traffic switch.

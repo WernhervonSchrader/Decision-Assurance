@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
 from .errors import BrowserOidcError
 
@@ -115,6 +116,22 @@ class BrowserSession:
         return "BrowserSession(**redacted**)"
 
 
+class BrowserSessionStore(Protocol):
+    def ready(self) -> bool: ...
+
+    def create(
+        self,
+        access_token: SensitiveToken,
+        identity: Mapping[str, object],
+        *,
+        token_expires_in: int,
+    ) -> BrowserSession: ...
+
+    def get(self, session_id: str | None) -> BrowserSession | None: ...
+
+    def destroy(self, session_id: str | None) -> None: ...
+
+
 class SessionStore:
     def __init__(
         self,
@@ -155,6 +172,9 @@ class SessionStore:
             self._values[session.session_id] = session
             return session
 
+    def ready(self) -> bool:
+        return True
+
     def get(self, session_id: str | None) -> BrowserSession | None:
         if session_id is None or len(session_id) > 256:
             return None
@@ -176,8 +196,9 @@ class SessionStore:
 
 
 def _safe_identity(identity: Mapping[str, object]) -> dict[str, object]:
-    allowed = {"actor_id", "tenant_id", "actor_kind", "roles"}
-    if set(identity) != allowed:
+    required = {"actor_id", "tenant_id", "actor_kind", "roles"}
+    optional = {"acr", "amr", "authenticated_at", "mfa_policy_version"}
+    if not required.issubset(identity) or set(identity).difference(required | optional):
         raise BrowserOidcError("OIDC_IDENTITY_INVALID")
     actor_id = identity.get("actor_id")
     tenant_id = identity.get("tenant_id")
@@ -194,9 +215,35 @@ def _safe_identity(identity: Mapping[str, object]) -> dict[str, object]:
         or any(not isinstance(role, str) or not role for role in roles)
     ):
         raise BrowserOidcError("OIDC_IDENTITY_INVALID")
-    return {
+    safe: dict[str, object] = {
         "actor_id": actor_id,
         "tenant_id": tenant_id,
         "actor_kind": actor_kind,
         "roles": list(roles),
     }
+    if optional.intersection(identity):
+        acr = identity.get("acr")
+        amr = identity.get("amr")
+        authenticated_at = identity.get("authenticated_at")
+        policy_version = identity.get("mfa_policy_version")
+        if (
+            not isinstance(acr, str)
+            or not acr
+            or not isinstance(amr, list)
+            or not amr
+            or any(not isinstance(item, str) or not item for item in amr)
+            or not isinstance(authenticated_at, str)
+            or not authenticated_at
+            or not isinstance(policy_version, str)
+            or not policy_version
+        ):
+            raise BrowserOidcError("OIDC_IDENTITY_INVALID")
+        safe.update(
+            {
+                "acr": acr,
+                "amr": list(amr),
+                "authenticated_at": authenticated_at,
+                "mfa_policy_version": policy_version,
+            }
+        )
+    return safe

@@ -1,5 +1,9 @@
 # CI and release verification
 
+CI emits commit-bound recovery evidence and runs provenance, event, MFA, alert, evidence-schema and
+PostgreSQL multi-instance tests. These artifacts are repository/integration evidence, not real-host
+TLS, KMS custody, organizational acceptance or production approval.
+
 Decision Assurance v0.5 treats publication as a computed result, not a manually asserted label.
 Every push and pull request runs formatting, lint, strict typing, unit/contract/E2E tests, Bandit,
 dependency audit, build and OpenAPI drift checks. Separate jobs exercise a real PostgreSQL 16

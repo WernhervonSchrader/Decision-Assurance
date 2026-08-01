@@ -1,0 +1,48 @@
+groups:
+  - name: decision-assurance-controlled-pilot
+    rules:
+      - alert: ExportSignatureFailure
+        expr: increase(export_signature_failures_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: SessionStoreUnavailable
+        expr: absent(session_store_available) or session_store_available < 1
+        labels: {severity: critical}
+      - alert: MfaDenialBurst
+        expr: increase(mfa_denials_total[5m]) > 5
+        labels: {severity: warning}
+      - alert: AuditPersistenceFailure
+        expr: increase(audit_failures_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: RestoreVerificationFailure
+        expr: absent(restore_success) or restore_success < 1
+        labels: {severity: critical}
+      - alert: CertificateExpiring
+        expr: absent(tls_certificate_days_remaining) or tls_certificate_days_remaining < 14
+        labels: {severity: warning}
+      - alert: AuthenticationFailureBurst
+        expr: increase(authentication_failures_total[5m]) > 10
+        labels: {severity: warning}
+      - alert: TenantConflict
+        expr: increase(tenant_conflicts_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: ResearchJobBacklog
+        expr: research_jobs_queued > 100
+        labels: {severity: warning}
+      - alert: ProviderFailure
+        expr: increase(provider_failures_total[5m]) > 5
+        labels: {severity: warning}
+      - alert: BackupFailure
+        expr: absent(backup_success) or backup_success < 1
+        labels: {severity: critical}
+      - alert: LegalHoldViolation
+        expr: increase(legal_hold_violation_attempts_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: AssuranceEscalationRate
+        expr: assurance_block_review_rate > 0.8
+        labels: {severity: warning}
+      - alert: KeycloakUnavailable
+        expr: absent(keycloak_available) or keycloak_available < 1
+        labels: {severity: critical}
+      - alert: DeletionActivityBurst
+        expr: increase(deletion_activity_total[5m]) > 20
+        labels: {severity: warning}

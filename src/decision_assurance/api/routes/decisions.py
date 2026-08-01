@@ -241,6 +241,8 @@ def transition(
         request.app.state.metrics.increment(
             "pilot_approval_total", labels={"status": transition_request.target.lower()}
         )
+    if request.app.state.assurance_outcomes is not None:
+        request.app.state.assurance_outcomes.record(transition_request.target)
     return updated
 
 

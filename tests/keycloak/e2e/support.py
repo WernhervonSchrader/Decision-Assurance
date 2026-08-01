@@ -57,6 +57,21 @@ def _admin_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {_admin_token()}"}
 
 
+def required_action_providers() -> dict[str, bool]:
+    response = httpx.get(
+        f"{KEYCLOAK_URL}/admin/realms/{REALM}/authentication/required-actions",
+        headers=_admin_headers(),
+        timeout=10.0,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"KEYCLOAK_REQUIRED_ACTIONS_FAILED:{response.status_code // 100}xx")
+    return {
+        str(item["providerId"]): bool(item["enabled"])
+        for item in response.json()
+        if isinstance(item, dict) and "providerId" in item
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class TemporaryUser:
     user_id: str

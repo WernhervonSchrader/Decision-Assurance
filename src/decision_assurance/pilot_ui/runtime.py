@@ -1,22 +1,38 @@
 from __future__ import annotations
 
 import os
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 import uvicorn
 from fastapi import FastAPI
 
-from ..observability.metrics import InMemoryMetrics
+from ..observability.metrics import (
+    InMemoryMetrics,
+    PilotOperationalEvidenceCollector,
+    initialize_pilot_metrics,
+)
 from ..oidc.jwks import CachedJwksProvider
+from ..oidc.mfa import MfaPolicy
+from ..persistence.postgresql import PostgresConnectionProvider, PostgresSettings
 from ..production.config import load_config
 from ..production.contracts import OperatingMode
+from ..production.ports import SecretProviderPort
+from ..production.secrets import FileSecretProvider
 from .api_client import HttpPilotApiClient
 from .app import PilotUiSettings, create_pilot_ui_app
 from .oidc import OidcBrowserClient
+from .session_postgresql import PostgresSessionStore
+
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
-def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
+def load_pilot_ui(
+    environment: dict[str, str] | None = None,
+    external_secrets: SecretProviderPort | None = None,
+) -> FastAPI:
     values = environment if environment is not None else os.environ
     config_path = values.get("DA_CONFIG_PATH")
     if not config_path:
@@ -50,6 +66,47 @@ def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
         algorithms=config.oidc.policy.algorithms,
     )
     api_client = HttpPilotApiClient(api_url, httpx.Client(follow_redirects=False, timeout=15.0))
+    secrets = external_secrets
+    if secrets is None:
+        secret_directory = values.get("DA_SECRET_DIRECTORY")
+        if not secret_directory:
+            raise RuntimeError("PILOT_SECRET_PROVIDER_REQUIRED")
+        secrets = FileSecretProvider(Path(secret_directory))
+    database_dsn = secrets.resolve(config.database_dsn_secret)
+    session_store = PostgresSessionStore(
+        PostgresConnectionProvider(PostgresSettings(database_dsn)),
+        session_pepper=secrets.resolve(pilot.session_pepper_secret).value.encode(),
+        envelope_key=secrets.resolve(pilot.session_envelope_key_secret).value.encode(),
+        required_mfa_policy_version="controlled-pilot-mfa-v1",
+    )
+    runtime_metrics = InMemoryMetrics()
+    initialize_pilot_metrics(runtime_metrics)
+    tls_evidence_path = values.get("DA_PILOT_TLS_EVIDENCE_PATH")
+    recovery_evidence_path = values.get("DA_PILOT_RECOVERY_EVIDENCE_PATH")
+    evidence_commit = values.get("DA_COMMIT_SHA", "")
+    evidence_environment = values.get("DA_PILOT_EVIDENCE_ENVIRONMENT", "")
+    evidence_deployment_id = values.get("DA_PILOT_DEPLOYMENT_ID", "")
+    if (
+        not _COMMIT_SHA.fullmatch(evidence_commit)
+        or not evidence_environment.strip()
+        or not evidence_deployment_id.strip()
+    ):
+        raise RuntimeError("PILOT_EVIDENCE_BINDING_REQUIRED")
+    collector = PilotOperationalEvidenceCollector(runtime_metrics)
+
+    def operational_readiness() -> bool:
+        if not tls_evidence_path or not recovery_evidence_path:
+            return False
+        return collector.load_files(
+            tls_evidence=Path(tls_evidence_path),
+            recovery_evidence=Path(recovery_evidence_path),
+            now=datetime.now(timezone.utc),
+            expected_commit_sha=evidence_commit,
+            expected_environment=evidence_environment,
+            expected_deployment_id=evidence_deployment_id,
+            allowed_hosts=pilot.allowed_hosts,
+        )
+
     return create_pilot_ui_app(
         PilotUiSettings(
             allowed_hosts=pilot.allowed_hosts,
@@ -59,10 +116,21 @@ def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
             oidc_end_session_endpoint=(
                 config.oidc.policy.issuer.rstrip("/") + "/protocol/openid-connect/logout"
             ),
+            mfa_policy=MfaPolicy(
+                version="controlled-pilot-mfa-v1",
+                required_roles=frozenset(
+                    {"SYSTEM_ADMINISTRATOR", "TENANT_ADMIN", "APPROVER", "AUDITOR"}
+                ),
+                allowed_acr=frozenset({"urn:da:pilot:mfa", "2"}),
+                allowed_methods=frozenset({"otp", "webauthn"}),
+                max_auth_age=timedelta(minutes=15),
+            ),
+            operational_readiness=operational_readiness,
         ),
         browser_oidc,
         api_client,
-        metrics=InMemoryMetrics(),
+        session_store=session_store,
+        metrics=runtime_metrics,
     )
 
 

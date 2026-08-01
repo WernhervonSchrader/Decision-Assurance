@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from ..provenance.config import SigningSettings
 from .contracts import (
     AuthenticationMode,
     DatabaseBackend,
@@ -105,6 +106,9 @@ _CONTROLLED_PILOT_FIELDS = frozenset(
         "audit_persistence",
         "backup_configuration_ref",
         "lifecycle_pseudonymization_secret",
+        "session_pepper_secret",
+        "session_envelope_key_secret",
+        "export_signing",
         "retention_days",
         "pilot_tenant",
         "health_path",
@@ -123,6 +127,9 @@ class ControlledPilotConfig:
     audit_persistence: bool
     backup_configuration_ref: str
     lifecycle_pseudonymization_secret: SecretReference
+    session_pepper_secret: SecretReference
+    session_envelope_key_secret: SecretReference
+    export_signing: SigningSettings
     retention_days: int
     pilot_tenant: str
     health_path: str
@@ -518,6 +525,9 @@ def _controlled_pilot_config(raw: object) -> ControlledPilotConfig:
         lifecycle_pseudonymization_secret=_pilot_secret_reference(
             raw, "lifecycle_pseudonymization_secret"
         ),
+        session_pepper_secret=_pilot_secret_reference(raw, "session_pepper_secret"),
+        session_envelope_key_secret=_pilot_secret_reference(raw, "session_envelope_key_secret"),
+        export_signing=SigningSettings.from_mapping(_required_mapping(raw, "export_signing")),
         retention_days=int(raw.get("retention_days", 0)),
         pilot_tenant=_required(raw, "pilot_tenant"),
         health_path=_required(raw, "health_path"),
@@ -533,6 +543,13 @@ def _pilot_secret_reference(raw: Mapping[str, Any], key: str) -> SecretReference
         return SecretReference(value)
     except ValueError:
         raise ValueError("PILOT_SECRET_REFERENCE_REQUIRED") from None
+
+
+def _required_mapping(raw: Mapping[str, Any], key: str) -> Mapping[str, object]:
+    value = raw.get(key)
+    if not isinstance(value, Mapping):
+        raise ValueError(f"INVALID_CONFIG_VALUE:{key}")
+    return value
 
 
 def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:

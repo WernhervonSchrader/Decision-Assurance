@@ -1,5 +1,12 @@
 # Deployment
 
+## v0.9 secret and signing modes
+
+Development uses local `.secrets/` references; controlled pilot uses protected file/secret-store
+references; production adapters use provider-neutral KMS/HSM/vault ports. Pilot BFF instances share
+PostgreSQL sessions using separate pepper and envelope-key references. No private material belongs in
+configuration, images or evidence.
+
 ## Supported production paths
 
 Use one repository profile as a reviewed starting point:

@@ -19,9 +19,12 @@ def test_public_and_packaged_production_schemas_are_byte_identical() -> None:
     names = sorted(item.name for item in PUBLIC.glob("*.schema.json"))
     assert names == [
         "data-lifecycle.schema.json",
+        "deployment-evidence.schema.json",
         "health-report.schema.json",
+        "pilot-export-v0.9.schema.json",
         "pilot-export.schema.json",
         "pilot-profile.schema.json",
+        "recovery-evidence.schema.json",
         "release-verification.schema.json",
         "research-job.schema.json",
     ]

@@ -82,6 +82,9 @@ class MetricsPort(Protocol):
     def observe(
         self, name: str, value: float, *, labels: Mapping[str, str] | None = None
     ) -> None: ...
+    def set_gauge(
+        self, name: str, value: float, *, labels: Mapping[str, str] | None = None
+    ) -> None: ...
     def render_prometheus(self) -> str: ...
 
 

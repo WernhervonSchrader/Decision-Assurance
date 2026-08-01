@@ -80,6 +80,7 @@ def test_realm_emits_tenant_actor_roles_scope_and_api_audience() -> None:
     assert {"basic", "da.api", "roles"}.issubset(scopes)
     basic_mappers = scopes["basic"]["protocolMappers"]
     assert any(item["protocolMapper"] == "oidc-sub-mapper" for item in basic_mappers)
+    assert any(item["protocolMapper"] == "oidc-amr-mapper" for item in basic_mappers)
     mappers = scopes["da.api"]["protocolMappers"]
     mapper_names = {item["name"] for item in mappers}
     assert {"tenant_id", "actor_kind", "organization", "api-audience"}.issubset(mapper_names)
@@ -99,3 +100,14 @@ def test_realm_manages_security_identity_attributes_as_admin_only() -> None:
     assert {"tenant_id", "actor_kind", "organization"}.issubset(attributes)
     for attribute in (attributes[name] for name in ("tenant_id", "actor_kind", "organization")):
         assert attribute["permissions"] == {"view": ["admin"], "edit": ["admin"]}
+
+
+def test_realm_supports_strong_totp_and_webauthn_without_insecure_recovery() -> None:
+    realm = _realm()
+    assert realm["otpPolicyType"] == "totp"
+    assert realm["otpPolicyAlgorithm"] == "HmacSHA256"
+    assert realm["webAuthnPolicyUserVerificationRequirement"] == "required"
+    actions = {item["providerId"]: item for item in realm["requiredActions"]}  # type: ignore[index]
+    assert actions["CONFIGURE_TOTP"]["enabled"] is True
+    assert actions["webauthn-register"]["enabled"] is True
+    assert "security-question" not in actions

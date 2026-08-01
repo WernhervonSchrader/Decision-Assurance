@@ -474,6 +474,14 @@ class PostgresJobRepository:
             ).fetchone()
         return row is not None and row["status"] == JobStatus.CANCELLED.value
 
+    def queued_count(self) -> int:
+        """Return the measured global worker backlog without exposing tenant labels."""
+        with self._connections.worker_connection() as connection:
+            row = connection.execute("SELECT da_research_queue_depth() AS queued_count").fetchone()
+        if row is None:
+            raise RuntimeError("JOB_QUEUE_MEASUREMENT_FAILED")
+        return int(row["queued_count"])
+
     @staticmethod
     def _lease_hash(token: LeaseToken) -> str:
         return "sha256:" + hashlib.sha256(token.value.encode("utf-8")).hexdigest()

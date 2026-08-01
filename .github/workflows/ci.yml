@@ -80,6 +80,8 @@ jobs:
         env:
           DA_COMMIT_SHA: ${{ github.sha }}
           DA_BUILD_TIMESTAMP: "2026-08-01T00:00:00Z"
+          DA_PILOT_EVIDENCE_ENVIRONMENT: github-actions-controlled-pilot
+          DA_PILOT_DEPLOYMENT_ID: github-actions-controlled-pilot
         run: |
           for example in .secrets/*.example; do cp "$example" "${example%.example}"; done
           docker compose -f compose.controlled-pilot.yaml config --quiet
@@ -124,11 +126,25 @@ jobs:
         run: python -m pip install --upgrade "pip>=26.1.2"
       - name: Install project
         run: python -m pip install -e ".[dev]"
+      - name: Migration parity with non-superuser identity
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -f migrations/postgresql/roles.sql
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE da_ci_migrator LOGIN PASSWORD 'postgres' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+          GRANT decision_assurance_migration TO da_ci_migrator;
+          CREATE DATABASE da_ci_migration OWNER da_ci_migrator;
+          SQL
+          python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://da_ci_migrator:postgres@localhost:5432/da_ci_migration'))).migrate()"
       - name: PostgreSQL integration and E2E
         run: python -m pytest -m postgresql -q
 
   restore-verification:
     runs-on: ubuntu-latest
+    env:
+      DA_RECOVERY_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PGPASSWORD: postgres
     services:
       postgres:
         image: postgres:16
@@ -143,8 +159,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -158,15 +172,46 @@ jobs:
           python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://postgres:postgres@localhost:5432/decision_assurance'))).migrate()"
       - name: Backup and restore into a fresh database
         run: |
-          pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner --no-privileges --file=/tmp/decision-assurance.dump
+          python -m scripts.postgres.seed_recovery_drill \
+            --dsn postgresql://postgres:postgres@localhost:5432/decision_assurance \
+            --session-state /tmp/recovery-session-state.json
+          BACKUP_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner --file=/tmp/decision-assurance.dump
+          BACKUP_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO decisions (tenant_id, decision_id, document_json) VALUES ('recovery-tenant-a', 'recovery-post-backup', '{\"status\":\"DRAFT\"}')"
+          FAILURE_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           createdb -h localhost -U postgres decision_assurance_restore
-          pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --no-privileges --exit-on-error /tmp/decision-assurance.dump
-          DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
+          RESTORE_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --exit-on-error /tmp/decision-assurance.dump
+          RESTORE_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          DA_RECOVERY_EXPECT_DRILL_DATA=true \
+            DA_RECOVERY_SESSION_STATE=/tmp/recovery-session-state.json \
+            DA_RECOVERY_COMMIT_SHA="$DA_RECOVERY_COMMIT_SHA" \
+            DA_RECOVERY_ENVIRONMENT=github-actions-postgresql-16 \
+            DA_RECOVERY_SOURCE_DATABASE=decision_assurance \
+            DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore \
+            python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
+          python -m scripts.postgres.generate_recovery_evidence \
+            --output /tmp/recovery-evidence.json \
+            --environment github-actions-postgresql-16 \
+            --deployment-id github-actions-controlled-pilot \
+            --commit-sha "$DA_RECOVERY_COMMIT_SHA" \
+            --data-bytes "$(stat -c %s /tmp/decision-assurance.dump)" \
+            --backup-started "$BACKUP_STARTED" \
+            --backup-completed "$BACKUP_COMPLETED" \
+            --failure-at "$FAILURE_AT" \
+            --restore-started "$RESTORE_STARTED" \
+            --restore-completed "$RESTORE_COMPLETED" \
+            --latest-restored-record-at "$BACKUP_COMPLETED" \
+            --verification-report /tmp/restore-verification.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: restore-verification
-          path: /tmp/restore-verification.json
+          path: |
+            /tmp/restore-verification.json
+            /tmp/recovery-evidence.json
           if-no-files-found: warn
 
   container-security:

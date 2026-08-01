@@ -51,8 +51,8 @@ services:
         DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
     environment:
       DA_CONFIG_PATH: /app/config/deployment/controlled-pilot.example.json
-      DA_POLICIES_PATH: /app/config/pilot/intake-policies.example.json
       DA_SECRET_DIRECTORY: /run/secrets
+      DA_POLICIES_PATH: /app/config/pilot/intake-policies.example.json
       DA_DATABASE_ROLE: decision_assurance_application
       DA_HOST: 0.0.0.0
       DA_PORT: "8000"
@@ -67,6 +67,8 @@ services:
         target: FIRECRAWL_API_KEY
       - source: lifecycle-pepper
         target: pilot-lifecycle-pepper
+      - source: export-signing-key
+        target: pilot-export-signing-key
     depends_on:
       migrate: {condition: service_completed_successfully}
     read_only: true
@@ -214,9 +216,26 @@ services:
         DA_BUILD_TIMESTAMP: ${DA_BUILD_TIMESTAMP:?DA_BUILD_TIMESTAMP is required}
     environment:
       DA_CONFIG_PATH: /app/config/deployment/controlled-pilot.example.json
+      DA_SECRET_DIRECTORY: /run/secrets
       DA_INTERNAL_API_URL: http://api:8000
       DA_PILOT_UI_HOST: 0.0.0.0
       DA_PILOT_UI_PORT: "8080"
+      DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+      DA_PILOT_EVIDENCE_ENVIRONMENT: ${DA_PILOT_EVIDENCE_ENVIRONMENT:?DA_PILOT_EVIDENCE_ENVIRONMENT is required}
+      DA_PILOT_DEPLOYMENT_ID: ${DA_PILOT_DEPLOYMENT_ID:?DA_PILOT_DEPLOYMENT_ID is required}
+      DA_PILOT_TLS_EVIDENCE_PATH: /run/secrets/pilot-tls-evidence
+      DA_PILOT_RECOVERY_EVIDENCE_PATH: /run/secrets/pilot-recovery-evidence
+    secrets:
+      - source: database-dsn
+        target: decision-assurance-database-dsn
+      - source: session-pepper
+        target: pilot-session-pepper
+      - source: session-envelope-key
+        target: pilot-session-envelope-key
+      - source: pilot-tls-evidence
+        target: pilot-tls-evidence
+      - source: pilot-recovery-evidence
+        target: pilot-recovery-evidence
     depends_on:
       api: {condition: service_started}
       keycloak: {condition: service_started}
@@ -265,8 +284,13 @@ secrets:
   openai-api-key: {file: ./.secrets/OPENAI_API_KEY}
   firecrawl-api-key: {file: ./.secrets/FIRECRAWL_API_KEY}
   lifecycle-pepper: {file: ./.secrets/pilot-lifecycle-pepper}
+  session-pepper: {file: ./.secrets/pilot-session-pepper}
+  session-envelope-key: {file: ./.secrets/pilot-session-envelope-key}
+  export-signing-key: {file: ./.secrets/pilot-export-signing-key}
   keycloak-admin-username: {file: ./.secrets/keycloak-admin-username}
   keycloak-admin-password: {file: ./.secrets/keycloak-admin-password}
   keycloak-db-password: {file: ./.secrets/keycloak-db-password}
   pilot-tls-cert: {file: ./.secrets/pilot-tls-cert}
   pilot-tls-key: {file: ./.secrets/pilot-tls-key}
+  pilot-tls-evidence: {file: ./.secrets/pilot-tls-evidence}
+  pilot-recovery-evidence: {file: ./.secrets/pilot-recovery-evidence}

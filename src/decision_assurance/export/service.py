@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from ..authorization import Permission, authorize
+from ..events.registry import EventRegistry, EventVersionError
 from ..identity import Identity
 from .ports import ExportRepository
+from .signing import ExportSigner
 
 EXPORT_MEMBERS = (
     "decision/decision-file.json",
@@ -58,6 +60,8 @@ class PilotExportService:
         version: str,
         commit_sha: str,
         policy_versions: Mapping[str, str],
+        signer: ExportSigner | None = None,
+        event_schema_version: str = "0.8.0",
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ):
         if not version.strip() or len(commit_sha) not in {40, 64}:
@@ -66,6 +70,8 @@ class PilotExportService:
         self._version = version
         self._commit_sha = commit_sha
         self._policy_versions = dict(policy_versions)
+        self._signer = signer
+        self._event_schema_version = event_schema_version
         self._clock = clock
 
     def build(self, identity: Identity, decision_id: str) -> ExportArchive:
@@ -77,6 +83,11 @@ class PilotExportService:
             raise ExportRejected("INCOMPLETE_EXPORT_SNAPSHOT")
         if _contains_sensitive_field(snapshot):
             raise ExportRejected("SENSITIVE_EXPORT_FIELD")
+        if self._signer is not None:
+            try:
+                _validate_export_events(snapshot)
+            except EventVersionError:
+                raise ExportRejected("EXPORT_EVENT_VERSION_OR_TYPE_UNSUPPORTED") from None
         members = {name: _canonical_json(snapshot[name]) for name in EXPORT_MEMBERS}
         generated_at = self._clock().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         export_seed = _canonical_json(
@@ -87,8 +98,9 @@ class PilotExportService:
                 "commit": self._commit_sha,
             }
         )
-        manifest = {
-            "schema_version": "0.8.0",
+        schema_version = "0.9.0" if self._signer is not None else "0.8.0"
+        manifest: dict[str, object] = {
+            "schema_version": schema_version,
             "export_id": "export-" + hashlib.sha256(export_seed).hexdigest()[:24],
             "case_ref": decision_id,
             "generated_at": generated_at,
@@ -103,11 +115,26 @@ class PilotExportService:
                 for name, content in members.items()
             ],
         }
+        if self._signer is not None:
+            manifest.update(
+                {
+                    "tenant_id": identity.tenant.tenant_id,
+                    "decision_id": decision_id,
+                    "event_schema_version": self._event_schema_version,
+                }
+            )
+        manifest_bytes = _canonical_json(manifest)
         output = io.BytesIO()
         with zipfile.ZipFile(
             output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
         ) as archive:
-            _write_member(archive, "manifest.json", _canonical_json(manifest))
+            _write_member(archive, "manifest.json", manifest_bytes)
+            if self._signer is not None:
+                _write_member(
+                    archive,
+                    "signature.json",
+                    _canonical_json(self._signer.sign(manifest_bytes).as_dict()),
+                )
             for name, content in members.items():
                 _write_member(archive, name, content)
         return ExportArchive(output.getvalue())
@@ -138,3 +165,15 @@ def _contains_sensitive_field(value: object) -> bool:
     elif isinstance(value, (list, tuple)):
         return any(_contains_sensitive_field(item) for item in value)
     return False
+
+
+def _validate_export_events(snapshot: Mapping[str, object]) -> None:
+    registry = EventRegistry()
+    for member in EXPORT_MEMBERS:
+        if not member.startswith("audit/"):
+            continue
+        events = snapshot[member]
+        if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+            raise EventVersionError("EVENT_ENVELOPE_INVALID")
+        for event in events:
+            registry.validate_export_event(member, event)

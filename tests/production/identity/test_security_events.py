@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from decision_assurance.api.app import create_app
 from decision_assurance.api.dependencies import get_identity
 from decision_assurance.identity import ActorKind, Identity, Role, StaticTokenAuthenticator
+from decision_assurance.observability.metrics import InMemoryMetrics
 from decision_assurance.security_events import InMemorySecurityEventSink, SecurityEvent
 from decision_assurance.tenancy import TenantContext
 
@@ -29,6 +30,12 @@ class SpyRepository:
         self.calls.append("create_decision")
 
 
+class FailingSecurityEventSink:
+    def record(self, event: SecurityEvent) -> None:
+        del event
+        raise RuntimeError("AUDIT_PERSISTENCE_FAILED")
+
+
 def _client(
     role: Role = Role.GENERATOR,
 ) -> tuple[TestClient, SpyRepository, InMemorySecurityEventSink]:
@@ -46,6 +53,7 @@ def _client(
         repository,
         StaticTokenAuthenticator({"valid-token": identity}),
         security_events=events,
+        metrics=InMemoryMetrics(),
     )
     return TestClient(app), repository, events
 
@@ -78,6 +86,21 @@ def test_security_event_contract_rejects_secret_bearing_or_unknown_data() -> Non
     assert "bearer" not in raw and "authorization" not in raw and "password" not in raw
 
 
+def test_audit_persistence_failure_is_counted_and_request_fails_closed() -> None:
+    repository = SpyRepository()
+    metrics = InMemoryMetrics()
+    app = create_app(  # type: ignore[arg-type]
+        repository,
+        StaticTokenAuthenticator({}),
+        security_events=FailingSecurityEventSink(),
+        metrics=metrics,
+    )
+    response = TestClient(app, raise_server_exceptions=False).get("/v1/decisions/missing")
+    assert response.status_code == 500
+    assert metrics.counter("audit_failures_total") == 1
+    assert repository.calls == []
+
+
 def test_missing_and_invalid_tokens_emit_stable_secret_free_events() -> None:
     client, repository, events = _client()
 
@@ -97,6 +120,18 @@ def test_missing_and_invalid_tokens_emit_stable_secret_free_events() -> None:
     ]
     assert "do-not-log-this-token" not in repr(events.events)
     assert repository.calls == []
+    assert (
+        client.app.state.metrics.counter(
+            "authentication_failures_total", {"reason": "AUTH_TOKEN_MISSING"}
+        )
+        == 1
+    )
+    assert (
+        client.app.state.metrics.counter(
+            "authentication_failures_total", {"reason": "AUTH_TOKEN_INVALID"}
+        )
+        == 1
+    )
 
 
 def test_header_tenant_conflict_is_denied_before_repository_access() -> None:
@@ -114,6 +149,7 @@ def test_header_tenant_conflict_is_denied_before_repository_access() -> None:
     assert response.json()["details"]["reason_code"] == "AUTH_TENANT_MISMATCH"
     assert repository.calls == []
     assert events.events[-1].reason_code == "AUTH_TENANT_MISMATCH"
+    assert client.app.state.metrics.counter("tenant_conflicts_total") == 1
 
 
 def test_path_tenant_conflict_is_denied_before_route_or_repository_access() -> None:

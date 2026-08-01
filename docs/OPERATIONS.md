@@ -1,5 +1,9 @@
 # Production operations runbook
 
+Follow `KEY-ROTATION.md`, `MFA.md`, `RECOVERY-EVIDENCE.md` and `DEPLOYMENT-EVIDENCE.md`. Stop the
+pilot on signing, MFA downgrade, session-store, audit, restore, tenant-isolation or legal-hold
+failure. Metrics must not label tenant, actor, decision, URL or claim values.
+
 Production telemetry, security logs, business events and tenant audit records are distinct. Never
 log bearer tokens, complete Decision Files, Research queries, extracted text, raw provider responses
 or unnecessary personal data.

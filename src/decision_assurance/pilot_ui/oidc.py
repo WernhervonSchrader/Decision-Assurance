@@ -4,13 +4,14 @@ import base64
 import hashlib
 import hmac
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from urllib.parse import urlencode, urlsplit
 
 import httpx
 import jwt
 
-from ..oidc.jwks import CachedJwksProvider
+from ..oidc.jwks import CachedJwksProvider, JwksResolutionError
 from .errors import BrowserOidcError
 from .session import LoginTransaction, SensitiveToken
 
@@ -22,6 +23,7 @@ _PKCE_VERIFIER = re.compile(r"^[A-Za-z0-9._~-]{43,128}$")
 class TokenSet:
     access_token: SensitiveToken
     expires_in: int
+    authentication_claims: Mapping[str, object] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         return "TokenSet(**redacted**)"
@@ -102,6 +104,15 @@ class OidcBrowserClient:
             )
             response.raise_for_status()
             payload = response.json()
+        except (httpx.TimeoutException, httpx.NetworkError):
+            raise BrowserOidcError("OIDC_PROVIDER_UNAVAILABLE") from None
+        except httpx.HTTPStatusError as error:
+            code = (
+                "OIDC_PROVIDER_UNAVAILABLE"
+                if error.response.status_code >= 500
+                else "OIDC_CODE_EXCHANGE_FAILED"
+            )
+            raise BrowserOidcError(code) from None
         except (httpx.HTTPError, ValueError):
             raise BrowserOidcError("OIDC_CODE_EXCHANGE_FAILED") from None
         if not isinstance(payload, dict):
@@ -116,10 +127,10 @@ class OidcBrowserClient:
             or not 1 <= expires_in <= 3600
         ):
             raise BrowserOidcError("OIDC_TOKEN_INVALID")
-        self._validate_id_token(id_token, transaction.nonce)
-        return TokenSet(SensitiveToken(access_token), expires_in)
+        claims = self._validate_id_token(id_token, transaction.nonce)
+        return TokenSet(SensitiveToken(access_token), expires_in, claims)
 
-    def _validate_id_token(self, token: str, expected_nonce: str) -> None:
+    def _validate_id_token(self, token: str, expected_nonce: str) -> dict[str, object]:
         try:
             header = jwt.get_unverified_header(token)
             algorithm = header.get("alg")
@@ -145,7 +156,16 @@ class OidcBrowserClient:
             nonce = claims.get("nonce")
             if not isinstance(nonce, str) or not hmac.compare_digest(nonce, expected_nonce):
                 raise BrowserOidcError("OIDC_NONCE_INVALID")
+            return {key: claims[key] for key in ("acr", "amr", "auth_time") if key in claims}
         except BrowserOidcError:
             raise
+        except JwksResolutionError as error:
+            reason = str(error)
+            code = (
+                "OIDC_PROVIDER_UNAVAILABLE"
+                if reason == "JWKS_UNAVAILABLE" or reason.startswith("INVALID_JWKS_")
+                else "OIDC_ID_TOKEN_INVALID"
+            )
+            raise BrowserOidcError(code) from None
         except (jwt.PyJWTError, TypeError, ValueError):
             raise BrowserOidcError("OIDC_ID_TOKEN_INVALID") from None

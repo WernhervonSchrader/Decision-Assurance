@@ -27,18 +27,28 @@ def _record(
     reason_code: str,
     permission: str | None = None,
 ) -> None:
-    _events(request).record(
-        SecurityEvent.create(
-            event_type=event_type,
-            decision=decision,
-            actor_ref=actor_ref,
-            tenant_id=tenant_id,
-            client_id=client_id,
-            correlation_id=request.state.correlation_id,
-            reason_code=reason_code,
-            permission=permission,
+    try:
+        _events(request).record(
+            SecurityEvent.create(
+                event_type=event_type,
+                decision=decision,
+                actor_ref=actor_ref,
+                tenant_id=tenant_id,
+                client_id=client_id,
+                correlation_id=request.state.correlation_id,
+                reason_code=reason_code,
+                permission=permission,
+            )
         )
-    )
+    except Exception:
+        metrics = request.app.state.metrics
+        if metrics is not None:
+            metrics.increment("audit_failures_total")
+        raise
+    if event_type == "authentication.failed" and request.app.state.metrics is not None:
+        request.app.state.metrics.increment(
+            "authentication_failures_total", labels={"reason": reason_code}
+        )
 
 
 def _anonymous_ref(token: str | None) -> str:
@@ -121,6 +131,8 @@ async def get_identity(
         if isinstance(body, dict) and isinstance(body.get("tenant_id"), str):
             asserted_tenants.append(body["tenant_id"])
     if any(value != identity.tenant.tenant_id for value in asserted_tenants):
+        if request.app.state.metrics is not None:
+            request.app.state.metrics.increment("tenant_conflicts_total")
         reason_code = (
             "AUTH_CROSS_TENANT_DENIED"
             if Role.SYSTEM_ADMINISTRATOR in identity.roles

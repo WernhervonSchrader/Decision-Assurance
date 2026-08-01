@@ -1,5 +1,36 @@
 # Observability contract
 
+Reference rules live in `deploy/observability/decision-assurance-alerts.yml`; a deterministic local
+evaluator proves firing. A real pilot must connect actual Prometheus-compatible collection and a
+notification receiver, trigger a canary alert and record receipt as deployment evidence.
+Rule expressions use the exact names accepted and rendered by the bounded metrics backend; the local
+test passes a real counter/gauge through Prometheus rendering before evaluating the alert.
+Controlled-pilot runtimes publish every operational gauge from their first scrape with a fail-closed
+zero baseline. The BFF refreshes the shared-session gauge from a real PostgreSQL probe and updates
+Keycloak availability around the token exchange; MFA policy denials increment their dedicated
+counter. Tenant conflicts, audit-persistence failures, export-signing failures and legal-hold delete
+attempts are incremented at their fail-closed runtime boundaries. Client-side OIDC rejection no
+longer marks Keycloak unavailable; only network/timeouts and provider 5xx do. Backup, restore and TLS
+remain unhealthy until the operational evidence collector supplies a measured, integrity-valid
+recovery report and verified certificate lifetime. Critical availability rules use `absent(...)`, so a missing exporter or
+missing series fires instead of silently evaluating to healthy.
+
+The controlled-pilot BFF reads those signed-off measurements from protected, read-only files named
+by `DA_PILOT_TLS_EVIDENCE_PATH` and `DA_PILOT_RECOVERY_EVIDENCE_PATH`. The Compose profile mounts
+them as `pilot-tls-evidence` and `pilot-recovery-evidence` secrets. Missing, oversized, malformed,
+expired or failed evidence keeps `/health/ready` at HTTP 503. Example files are placeholders only and
+must never be interpreted as pilot acceptance evidence. The API measures the global Research backlog
+from its PostgreSQL worker connection at scrape time; authentication, deletion and assurance-outcome
+series are emitted at their authoritative runtime boundaries.
+Every readiness probe reloads both bounded files, re-evaluates certificate expiry against current
+UTC time and requires the recovery report's `commit_sha` and `environment` to equal
+`DA_COMMIT_SHA`, `DA_PILOT_EVIDENCE_ENVIRONMENT` and `DA_PILOT_DEPLOYMENT_ID`; TLS evidence must
+also name one of the configured public hosts. A stale or replaced file therefore revokes readiness
+without restarting the BFF.
+The in-process assurance escalation gauge is intentionally a per-instance, since-start operational
+signal; Prometheus must retain the instance label and must not present it as an authoritative
+cross-instance business rate. Tenant-scoped audit events remain the authoritative outcome history.
+
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only
 allowlisted operational fields; request bodies, raw Intake text, extracted content, bearer tokens,

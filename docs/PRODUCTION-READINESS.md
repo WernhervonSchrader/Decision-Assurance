@@ -1,5 +1,12 @@
 # Production readiness — v0.5
 
+## v0.9 evidence boundary
+
+Repository code can generate and validate signed exports, recovery reports and deployment bundles.
+Production remains blocked until a concrete operator supplies measured DNS/TLS, MFA enrollment and
+recovery, representative RPO/RTO, live alert delivery, immutable image digests, provider residency or
+disabled access, multi-instance evidence and independent organizational acceptance.
+
 Status: **controlled-pilot candidate**. A CI `PASS` proves the repository's technical gates; it is not
 a certification or permission to deploy real customer data.
 

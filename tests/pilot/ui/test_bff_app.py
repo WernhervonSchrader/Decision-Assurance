@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi.testclient import TestClient
 
+from decision_assurance.oidc.mfa import MfaPolicy
 from decision_assurance.pilot_ui.app import PilotUiSettings, create_pilot_ui_app
 from decision_assurance.pilot_ui.oidc import TokenSet
 from decision_assurance.pilot_ui.session import LoginTransaction, SensitiveToken
@@ -99,6 +101,23 @@ def test_login_rotates_to_secure_cookie_and_exposes_only_safe_identity() -> None
     assert client.get("/bff/session").headers["strict-transport-security"]
 
 
+def test_readiness_requires_measured_operational_evidence() -> None:
+    unavailable = TestClient(
+        create_pilot_ui_app(
+            PilotUiSettings(
+                allowed_hosts=("pilot.example",),
+                trusted_proxy_cidrs=("172.30.0.0/24",),
+                post_logout_redirect_uri="https://pilot.example/",
+                operational_readiness=lambda: False,
+            ),
+            FakeOidc(),
+            FakeApi(),
+        ),
+        base_url="https://pilot.example",
+    )
+    assert unavailable.get("/health/ready").status_code == 503
+
+
 def test_callback_is_bound_to_the_browser_that_started_login() -> None:
     application = create_pilot_ui_app(
         PilotUiSettings(
@@ -124,6 +143,67 @@ def test_callback_is_bound_to_the_browser_that_started_login() -> None:
         ).status_code
         == 303
     )
+
+
+def test_critical_role_requires_validated_mfa_context() -> None:
+    class ApproverApi(FakeApi):
+        def session(self, token: SensitiveToken, correlation_id: str) -> dict[str, object]:
+            identity = super().session(token, correlation_id)
+            identity["roles"] = ["APPROVER"]
+            return identity
+
+    class MfaOidc(FakeOidc):
+        def __init__(self, methods: list[str]):
+            self._methods = methods
+
+        def exchange(self, code: str, transaction: LoginTransaction) -> TokenSet:
+            base = super().exchange(code, transaction)
+            return TokenSet(
+                base.access_token,
+                base.expires_in,
+                {
+                    "acr": "urn:da:pilot:mfa",
+                    "amr": self._methods,
+                    "auth_time": int(datetime.now(timezone.utc).timestamp()),
+                },
+            )
+
+    policy = MfaPolicy(
+        "mfa-v1",
+        frozenset({"APPROVER"}),
+        frozenset({"urn:da:pilot:mfa"}),
+        frozenset({"otp", "webauthn"}),
+        timedelta(minutes=15),
+    )
+
+    def client(methods: list[str]) -> TestClient:
+        return TestClient(
+            create_pilot_ui_app(
+                PilotUiSettings(
+                    allowed_hosts=("pilot.example",),
+                    trusted_proxy_cidrs=("172.30.0.0/24",),
+                    post_logout_redirect_uri="https://pilot.example/",
+                    mfa_policy=policy,
+                ),
+                MfaOidc(methods),
+                ApproverApi(),
+            ),
+            base_url="https://pilot.example",
+        )
+
+    denied = client(["pwd"])
+    login = denied.get("/auth/login", follow_redirects=False)
+    state = parse_qs(urlsplit(login.headers["location"]).query)["state"][0]
+    assert (
+        denied.get(
+            f"/auth/callback?code=valid-code&state={state}", follow_redirects=False
+        ).status_code
+        == 400
+    )
+
+    allowed = client(["pwd", "webauthn"])
+    session, _ = _login(allowed)
+    assert session["identity"]["acr"] == "urn:da:pilot:mfa"
 
 
 def test_proxy_requires_session_csrf_and_allowlisted_path() -> None:

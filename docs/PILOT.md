@@ -1,5 +1,9 @@
 # Controlled Sales Quote Review pilot
 
+The v0.9 sequence is evidence collection, technical validation, independent review,
+`PILOT_REVIEW_REQUIRED`, then distinct authorized human acceptance. Software never emits
+`PILOT_ACCEPTED` automatically.
+
 The v0.5 pilot is a bounded operational verification profile, not general production authorization.
 Its configuration is `config/pilot/sales-quote-review.json`: at most 25 users, three tenants, two
 concurrent Research jobs, 100 provider cost units and 30-day retention. Only business-contact, quote

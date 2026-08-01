@@ -1,5 +1,9 @@
 # Testing Strategy — Public Draft v0.5
 
+v0.9 adds signed/legacy export mutation tests, offline CLI verification, event migration, MFA
+downgrade/staleness, two-store PostgreSQL sessions, recovery evidence, TLS/bundle gates and synthetic
+alert firing. Public DNS, CA, KMS and provider checks remain opt-in deployment evidence.
+
 Controlled Intake v0.3 adds contract, extraction/provenance, verification, confirmation,
 compiler, SQLite isolation, CLI/API E2E, prompt-injection and metamorphic tests under
 `tests/intake/`. The separate 13-case corpus under `benchmarks/intake/cases/` executes both

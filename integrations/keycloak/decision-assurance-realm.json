@@ -26,6 +26,17 @@
   "offlineSessionMaxLifespan": 5184000,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA256",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "webAuthnPolicyRpEntityName": "Decision Assurance",
+  "webAuthnPolicySignatureAlgorithms": ["ES256", "RS256"],
+  "webAuthnPolicyUserVerificationRequirement": "required",
+  "requiredActions": [
+    {"alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": false, "priority": 10},
+    {"alias": "webauthn-register", "name": "Webauthn Register", "providerId": "webauthn-register", "enabled": true, "defaultAction": false, "priority": 20}
+  ],
   "components": {
     "org.keycloak.userprofile.UserProfileProvider": [
       {
@@ -78,6 +89,13 @@
           "protocolMapper": "oidc-sub-mapper",
           "consentRequired": false,
           "config": {"access.token.claim": "true", "introspection.token.claim": "true"}
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {"access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "false"}
         }
       ]
     },
