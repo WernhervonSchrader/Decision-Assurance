@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from ..authorization import Permission, authorize
+from ..events.registry import EventRegistry, EventVersionError
 from ..identity import Identity
 from .ports import ExportRepository
 from .signing import ExportSigner
@@ -82,6 +83,11 @@ class PilotExportService:
             raise ExportRejected("INCOMPLETE_EXPORT_SNAPSHOT")
         if _contains_sensitive_field(snapshot):
             raise ExportRejected("SENSITIVE_EXPORT_FIELD")
+        if self._signer is not None:
+            try:
+                _validate_export_events(snapshot)
+            except EventVersionError:
+                raise ExportRejected("EXPORT_EVENT_VERSION_OR_TYPE_UNSUPPORTED") from None
         members = {name: _canonical_json(snapshot[name]) for name in EXPORT_MEMBERS}
         generated_at = self._clock().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         export_seed = _canonical_json(
@@ -159,3 +165,15 @@ def _contains_sensitive_field(value: object) -> bool:
     elif isinstance(value, (list, tuple)):
         return any(_contains_sensitive_field(item) for item in value)
     return False
+
+
+def _validate_export_events(snapshot: Mapping[str, object]) -> None:
+    registry = EventRegistry()
+    for member in EXPORT_MEMBERS:
+        if not member.startswith("audit/"):
+            continue
+        events = snapshot[member]
+        if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+            raise EventVersionError("EVENT_ENVELOPE_INVALID")
+        for event in events:
+            registry.validate_export_event(member, event)

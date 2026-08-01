@@ -78,7 +78,10 @@ The pilot browser uses Authorization Code + S256 PKCE with one-time state/nonce 
 initiating browser, bounded server-side sessions and an opaque `__Host-da_session`
 Secure/HttpOnly/SameSite=Lax cookie. Callback access logging is disabled. Every BFF mutation
 requires CSRF and rejects tenant/actor overrides. The Caddy edge discards inbound forwarding headers,
-sets its own trusted values, limits bodies and serves only allowlisted hosts/routes, including an
+sets its own trusted values. Controlled-pilot sessions are encrypted in a private PostgreSQL schema
+with forced RLS; tenant-aware create and bulk-revocation functions bind the validated tenant context,
+so one tenant cannot revoke another tenant's sessions. The edge
+limits bodies and serves only allowlisted hosts/routes, including an
 explicit public Keycloak OIDC/login-resource allowlist. Retrieved research
 and submitted text remain untrusted; the UI uses text nodes and never derives an assurance outcome.
 

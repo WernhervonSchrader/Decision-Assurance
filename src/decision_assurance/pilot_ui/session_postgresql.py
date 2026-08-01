@@ -11,6 +11,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from psycopg.types.json import Jsonb
 
 from ..persistence.postgresql import PostgresConnectionProvider
+from ..tenancy import TenantContext
 from .errors import BrowserOidcError
 from .session import BrowserSession, SensitiveToken, _safe_identity
 
@@ -54,7 +55,9 @@ class PostgresSessionStore:
             seconds=min(self._ttl, token_expires_in)
         )
         encrypted = self._fernet.encrypt(access_token.value.encode()).decode("ascii")
-        with self._connections.worker_connection() as connection:
+        with self._connections.tenant_connection(
+            TenantContext(str(safe_identity["tenant_id"]))
+        ) as connection:
             connection.execute(
                 "SELECT da_create_browser_session(%s,%s,%s,%s,%s,%s,%s)",
                 (
@@ -116,7 +119,7 @@ class PostgresSessionStore:
             connection.execute("SELECT da_revoke_browser_session(%s)", (self._digest(session_id),))
 
     def revoke_actor(self, tenant_id: str, actor_id: str) -> None:
-        with self._connections.worker_connection() as connection:
+        with self._connections.tenant_connection(TenantContext(tenant_id)) as connection:
             connection.execute("SELECT da_revoke_actor_sessions(%s,%s)", (tenant_id, actor_id))
 
     def _digest(self, value: str) -> str:

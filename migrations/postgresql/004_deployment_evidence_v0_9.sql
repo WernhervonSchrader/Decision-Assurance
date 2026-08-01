@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS decision_assurance_private.browser_sessions (
 );
 CREATE INDEX IF NOT EXISTS browser_sessions_actor_idx
 ON decision_assurance_private.browser_sessions (tenant_id, actor_id);
+ALTER TABLE decision_assurance_private.browser_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE decision_assurance_private.browser_sessions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS browser_sessions_tenant_isolation
+ON decision_assurance_private.browser_sessions;
+CREATE POLICY browser_sessions_tenant_isolation
+ON decision_assurance_private.browser_sessions
+USING (tenant_id = current_setting('decision_assurance.tenant_id', true))
+WITH CHECK (tenant_id = current_setting('decision_assurance.tenant_id', true));
 REVOKE ALL ON decision_assurance_private.browser_sessions FROM PUBLIC;
 REVOKE ALL ON decision_assurance_private.browser_sessions FROM decision_assurance_application;
 
@@ -26,7 +34,8 @@ SET search_path = pg_catalog, public, decision_assurance_private
 AS $$
     INSERT INTO decision_assurance_private.browser_sessions
         (session_digest, tenant_id, actor_id, identity_json, csrf_token, token_ciphertext, expires_at)
-    VALUES (p_digest, p_tenant, p_actor, p_identity, p_csrf, p_token, p_expires);
+    SELECT p_digest, p_tenant, p_actor, p_identity, p_csrf, p_token, p_expires
+    WHERE p_tenant = current_setting('decision_assurance.tenant_id', true);
 $$;
 
 CREATE OR REPLACE FUNCTION da_get_browser_session(p_digest TEXT)
@@ -56,7 +65,8 @@ SET search_path = pg_catalog, public, decision_assurance_private
 AS $$
     UPDATE decision_assurance_private.browser_sessions
     SET revoked_at = CURRENT_TIMESTAMP
-    WHERE tenant_id = p_tenant AND actor_id = p_actor AND revoked_at IS NULL;
+    WHERE tenant_id = p_tenant AND actor_id = p_actor AND revoked_at IS NULL
+      AND p_tenant = current_setting('decision_assurance.tenant_id', true);
 $$;
 
 REVOKE ALL ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) FROM PUBLIC;

@@ -6,10 +6,12 @@ provider residency state and open risks. Required evidence covers TLS/host/edge/
 recovery, monitoring/alert test, multi-instance sessions, signed export, lifecycle/legal hold and an
 independent technical review.
 
-Self-declaration cannot satisfy the technical gate. Provider access may be `VERIFIED` or deliberately
-`BLOCKED`; an unverified enabled provider is invalid. Replay/staleness, bad digests, missing evidence
-and secret-shaped fields block validation.
+Self-declaration cannot satisfy the technical gate. Provider residency may be `VERIFIED`, or provider
+access must be explicitly `ACCESS_BLOCKED`; an unverified enabled provider is invalid. Every item is
+bound to the exact deployment, tenant and commit. Replay/staleness, bad digests, missing evidence and
+secret-shaped fields block validation.
 
-Software can produce only `INCOMPLETE`, `BLOCKED` or `PILOT_REVIEW_REQUIRED`. A separate authorized
-human reviewer, different from the creator, may record `PILOT_ACCEPTED`. This does not imply
-production or regulatory approval.
+Software can produce only `INCOMPLETE`, `BLOCKED` or `PILOT_REVIEW_REQUIRED`. Only a validated
+OIDC-backed `HUMAN` identity with the server-side `REVIEWER` role, matching tenant and different from
+the creator, may record `PILOT_ACCEPTED`; a bundle cannot serialize itself as accepted. This does not
+imply production or regulatory approval.

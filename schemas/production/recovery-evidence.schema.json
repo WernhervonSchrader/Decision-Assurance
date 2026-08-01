@@ -4,7 +4,7 @@
   "title": "Decision Assurance recovery evidence v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "environment", "commit_sha", "data_bytes", "target_rpo_seconds", "observed_rpo_seconds", "target_rto_seconds", "observed_rto_seconds", "target_met", "scope"],
+  "required": ["schema_version", "environment", "commit_sha", "data_bytes", "target_rpo_seconds", "observed_rpo_seconds", "target_rto_seconds", "observed_rto_seconds", "target_met", "audit_chains_valid", "exports_valid", "tenant_isolation_valid", "session_decryption_valid", "verification_report_sha256", "scope"],
   "properties": {
     "schema_version": {"const": "1.0.0"},
     "environment": {"type": "string", "minLength": 1},
@@ -15,6 +15,11 @@
     "target_rto_seconds": {"type": "integer", "minimum": 0},
     "observed_rto_seconds": {"type": "integer", "minimum": 0},
     "target_met": {"type": "boolean"},
+    "audit_chains_valid": {"const": true},
+    "exports_valid": {"const": true},
+    "tenant_isolation_valid": {"const": true},
+    "session_decryption_valid": {"const": true},
+    "verification_report_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "scope": {"const": "TEST_OBSERVATION_NOT_SERVICE_COMMITMENT"}
   }
 }

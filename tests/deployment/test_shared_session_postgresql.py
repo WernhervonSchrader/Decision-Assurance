@@ -16,6 +16,7 @@ from decision_assurance.persistence.postgresql import (
 from decision_assurance.pilot_ui.session import SensitiveToken
 from decision_assurance.pilot_ui.session_postgresql import PostgresSessionStore
 from decision_assurance.production.contracts import SecretValue
+from decision_assurance.tenancy import TenantContext
 
 pytestmark = pytest.mark.postgresql
 MIGRATIONS = Path(__file__).parents[2] / "migrations" / "postgresql"
@@ -39,6 +40,12 @@ def test_two_bff_instances_share_and_revoke_encrypted_session() -> None:
     }
     first = PostgresSessionStore(connections, **kwargs)
     second = PostgresSessionStore(connections, **kwargs)
+    with psycopg.connect(dsn) as inspection:
+        rls = inspection.execute(
+            "SELECT relrowsecurity, relforcerowsecurity FROM pg_class "
+            "WHERE oid = 'decision_assurance_private.browser_sessions'::regclass"
+        ).fetchone()
+    assert rls == (True, True)
     identity = {
         "actor_id": "approver-a",
         "tenant_id": "tenant-a",
@@ -50,6 +57,20 @@ def test_two_bff_instances_share_and_revoke_encrypted_session() -> None:
     )
     assert second.get(created.session_id) is not None
     assert second.get(created.session_id).identity["tenant_id"] == "tenant-a"  # type: ignore[union-attr]
+
+    other = second.create(
+        SensitiveToken("other-token"),
+        {
+            "actor_id": "same-actor",
+            "tenant_id": "tenant-b",
+            "actor_kind": "HUMAN",
+            "roles": ["AUDITOR"],
+        },
+        token_expires_in=300,
+    )
+    with connections.tenant_connection(TenantContext("tenant-a")) as connection:
+        connection.execute("SELECT da_revoke_actor_sessions(%s,%s)", ("tenant-b", "same-actor"))
+    assert second.get(other.session_id) is not None
 
     with psycopg.connect(dsn) as connection:
         row = connection.execute(

@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.resources import files
@@ -13,6 +14,7 @@ from typing import Any, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from ..events.registry import EventRegistry, EventVersionError
 from .service import EXPORT_MEMBERS
 from .signing import (
     InMemoryVerificationKeyResolver,
@@ -98,6 +100,11 @@ def validate_export(
             except (json.JSONDecodeError, UnicodeDecodeError):
                 raise ExportValidationError("INVALID_EXPORT_MEMBER") from None
         _validate_audit_chains(parsed_members)
+        if version == "0.9.0":
+            try:
+                _validate_export_event_versions(parsed_members)
+            except EventVersionError:
+                raise ExportValidationError("EXPORT_EVENT_VERSION_OR_TYPE_UNSUPPORTED") from None
         provenance_status = "LEGACY_UNSIGNED"
         tenant_id: str | None = None
         key_id: str | None = None
@@ -164,7 +171,7 @@ def _validate_signature(
     if (
         signed_at.tzinfo is None
         or not key.usable_at(signed_at)
-        or not key.usable_at(verification_time)
+        or (key.revoked_at is not None and key.revoked_at <= verification_time)
     ):
         raise ExportValidationError("EXPORT_SIGNING_KEY_UNUSABLE")
     signature_envelope = SignatureEnvelope(
@@ -232,6 +239,23 @@ def _validate_audit_chains(members: dict[str, object]) -> None:
         if not _constant_equal(event_hash, _prefixed_hash(hash_payload)):
             raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
         previous_by_stream[request_id] = event_hash
+
+
+def _validate_export_event_versions(members: Mapping[str, object]) -> None:
+    registry = EventRegistry()
+    for member in (
+        "audit/decision-events.json",
+        "audit/intake-events.json",
+        "audit/research-events.json",
+        "audit/lifecycle-events.json",
+    ):
+        events = members[member]
+        if not isinstance(events, list):
+            raise EventVersionError("EVENT_ENVELOPE_INVALID")
+        for event in events:
+            if not isinstance(event, dict):
+                raise EventVersionError("EVENT_ENVELOPE_INVALID")
+            registry.validate_export_event(member, event)
 
 
 def _prefixed_hash(value: object) -> str:

@@ -19,6 +19,8 @@ class RecoveryEvidence:
     audit_chains_valid: bool
     exports_valid: bool
     tenant_isolation_valid: bool
+    session_decryption_valid: bool
+    verification_report_sha256: str
     target_rpo_seconds: int
     target_rto_seconds: int
 
@@ -40,7 +42,17 @@ class RecoveryEvidence:
             or min(self.target_rpo_seconds, self.target_rto_seconds) < 0
         ):
             raise ValueError("INVALID_RECOVERY_EVIDENCE")
-        if not (self.audit_chains_valid and self.exports_valid and self.tenant_isolation_valid):
+        if (
+            not self.verification_report_sha256.startswith("sha256:")
+            or len(self.verification_report_sha256) != 71
+        ):
+            raise ValueError("INVALID_RECOVERY_VERIFICATION_BINDING")
+        if not (
+            self.audit_chains_valid
+            and self.exports_valid
+            and self.tenant_isolation_valid
+            and self.session_decryption_valid
+        ):
             raise ValueError("RECOVERY_INTEGRITY_FAILED")
         observed_rpo = int((self.failure_at - self.latest_restored_record_at).total_seconds())
         observed_rto = int((self.restore_completed - self.failure_at).total_seconds())
@@ -55,5 +67,10 @@ class RecoveryEvidence:
             "observed_rto_seconds": observed_rto,
             "target_met": observed_rpo <= self.target_rpo_seconds
             and observed_rto <= self.target_rto_seconds,
+            "audit_chains_valid": self.audit_chains_valid,
+            "exports_valid": self.exports_valid,
+            "tenant_isolation_valid": self.tenant_isolation_valid,
+            "session_decryption_valid": self.session_decryption_valid,
+            "verification_report_sha256": self.verification_report_sha256,
             "scope": "TEST_OBSERVATION_NOT_SERVICE_COMMITMENT",
         }

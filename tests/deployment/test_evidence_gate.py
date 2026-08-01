@@ -17,8 +17,11 @@ from decision_assurance.deployment.evidence import (
     TlsEvidence,
     load_deployment_bundle,
 )
+from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.observability.alerts import AlertEvaluator, default_alert_rules
+from decision_assurance.observability.metrics import InMemoryMetrics
 from decision_assurance.recovery.evidence import RecoveryEvidence
+from decision_assurance.tenancy import TenantContext
 
 NOW = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
 ROOT = Path(__file__).parents[2]
@@ -41,7 +44,16 @@ REQUIRED = {
 
 def _bundle(*, verified: bool = True, creator: str = "operator-a") -> DeploymentBundle:
     items = tuple(
-        EvidenceItem(kind, verified, NOW, "sha256:" + f"{index:064x}", "MEASURED")
+        EvidenceItem(
+            kind,
+            verified,
+            NOW,
+            "sha256:" + f"{index:064x}",
+            "MEASURED",
+            "pilot-eu-1",
+            "tenant-a",
+            "a" * 40,
+        )
         for index, kind in enumerate(sorted(REQUIRED), 1)
     )
     return DeploymentBundle(
@@ -54,7 +66,7 @@ def _bundle(*, verified: bool = True, creator: str = "operator-a") -> Deployment
         sbom_checksums={"api": "sha256:" + "d" * 64},
         config_checksums={"pilot": "sha256:" + "e" * 64},
         evidence=items,
-        provider_residency_status="BLOCKED",
+        provider_residency_status="ACCESS_BLOCKED",
         open_risks=("real public deployment evidence is pending",),
         creator=creator,
         created_at=NOW,
@@ -67,24 +79,31 @@ def test_technical_gate_never_auto_accepts_and_human_transition_is_independent()
     assert result.reasons == ()
 
     transition = PilotAcceptanceTransition()
+    creator = Identity("operator-a", TenantContext("tenant-a"), Role.REVIEWER, ActorKind.HUMAN)
+    reviewer = Identity("reviewer-b", TenantContext("tenant-a"), Role.REVIEWER, ActorKind.HUMAN)
     with pytest.raises(ValueError, match="ACCEPTANCE_ACTOR_INDEPENDENCE_REQUIRED"):
-        transition.accept(
-            _bundle(), result, reviewer="operator-a", reviewer_roles={"PILOT_REVIEWER"}
-        )
-    accepted = transition.accept(
-        _bundle(), result, reviewer="reviewer-b", reviewer_roles={"PILOT_REVIEWER"}
-    )
+        transition.accept(_bundle(), result, reviewer=creator)
+    accepted = transition.accept(_bundle(), result, reviewer=reviewer)
     assert accepted.status is EvidenceStatus.PILOT_ACCEPTED
     assert accepted.reviewer == "reviewer-b"
+    with pytest.raises(ValueError, match="ACCEPTANCE_RECORD_REQUIRED"):
+        _bundle().as_dict(EvidenceStatus.PILOT_ACCEPTED)
     with pytest.raises(ValueError, match="TECHNICAL_EVIDENCE_GATE_REQUIRED"):
         transition.accept(
             _bundle(),
             PilotAcceptanceGate(max_age=timedelta(seconds=0)).evaluate(
                 _bundle(), now=NOW + timedelta(seconds=1)
             ),
-            reviewer="reviewer-b",
-            reviewer_roles={"PILOT_REVIEWER"},
+            reviewer=reviewer,
         )
+
+    for invalid in (
+        Identity("service-agent", TenantContext("tenant-a"), Role.REVIEWER, ActorKind.SERVICE),
+        Identity("reviewer-c", TenantContext("tenant-b"), Role.REVIEWER, ActorKind.HUMAN),
+        Identity("auditor", TenantContext("tenant-a"), Role.AUDITOR, ActorKind.HUMAN),
+    ):
+        with pytest.raises(ValueError):
+            transition.accept(_bundle(), result, reviewer=invalid)
 
 
 def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
@@ -93,12 +112,46 @@ def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
     assert gate.evaluate(incomplete, now=NOW).status is EvidenceStatus.BLOCKED
 
     with pytest.raises(ValueError, match="INVALID_EVIDENCE_DIGEST"):
-        EvidenceItem("ALERT_TEST_EVIDENCE", True, NOW, "not-a-digest", "MEASURED")
+        EvidenceItem(
+            "ALERT_TEST_EVIDENCE",
+            True,
+            NOW,
+            "not-a-digest",
+            "MEASURED",
+            "pilot-eu-1",
+            "tenant-a",
+            "a" * 40,
+        )
 
     stale = _bundle().with_created_at(NOW - timedelta(days=2))
     assert gate.evaluate(stale, now=NOW).status is EvidenceStatus.BLOCKED
+    stale_items = tuple(
+        EvidenceItem(
+            item.kind,
+            True,
+            NOW - timedelta(days=3650),
+            item.digest,
+            item.source,
+            item.deployment_id,
+            item.tenant_id,
+            item.commit_sha,
+        )
+        for item in _bundle().evidence
+    )
+    stale_result = gate.evaluate(_bundle().with_evidence(stale_items), now=NOW)
+    assert stale_result.status is EvidenceStatus.BLOCKED
+    assert "STALE_REQUIRED_EVIDENCE" in stale_result.reasons
     declared = list(_bundle().evidence)
-    declared[0] = EvidenceItem(declared[0].kind, True, NOW, declared[0].digest, "SELF_DECLARED")
+    declared[0] = EvidenceItem(
+        declared[0].kind,
+        True,
+        NOW,
+        declared[0].digest,
+        "SELF_DECLARED",
+        declared[0].deployment_id,
+        declared[0].tenant_id,
+        declared[0].commit_sha,
+    )
     assert (
         gate.evaluate(_bundle().with_evidence(tuple(declared)), now=NOW).status
         is EvidenceStatus.BLOCKED
@@ -156,6 +209,39 @@ def test_tls_evidence_checks_host_validity_chain_and_measurement() -> None:
     ):
         with pytest.raises(ValueError):
             changed.verify("research.pilot.example", NOW)
+    partial_wildcard = TlsEvidence(
+        "researchfoo.example",
+        ("research*.example",),
+        valid.not_before,
+        valid.not_after,
+        True,
+        "1.3",
+        "MEASURED",
+    )
+    with pytest.raises(ValueError, match="TLS_CERTIFICATE_HOST_MISMATCH"):
+        partial_wildcard.verify("researchfoo.example", NOW)
+
+
+def test_gate_rejects_cross_tenant_or_commit_evidence_replay() -> None:
+    original = _bundle()
+    replayed = original.with_evidence(
+        tuple(
+            EvidenceItem(
+                item.kind,
+                item.verified,
+                item.observed_at,
+                item.digest,
+                item.source,
+                item.deployment_id,
+                "tenant-b",
+                item.commit_sha,
+            )
+            for item in original.evidence
+        )
+    )
+    result = PilotAcceptanceGate(max_age=timedelta(days=1)).evaluate(replayed, now=NOW)
+    assert result.status is EvidenceStatus.BLOCKED
+    assert "EVIDENCE_BINDING_MISMATCH" in result.reasons
 
 
 def test_recovery_evidence_reports_observed_not_promised_rpo_rto() -> None:
@@ -173,6 +259,8 @@ def test_recovery_evidence_reports_observed_not_promised_rpo_rto() -> None:
         audit_chains_valid=True,
         exports_valid=True,
         tenant_isolation_valid=True,
+        session_decryption_valid=True,
+        verification_report_sha256="sha256:" + "f" * 64,
         target_rpo_seconds=60,
         target_rto_seconds=120,
     )
@@ -189,8 +277,14 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels() -> None:
         not rule.labels.intersection({"tenant", "actor", "decision", "url", "claim"})
         for rule in rules
     )
+    metrics = InMemoryMetrics()
+    metrics.increment("export_signature_failures_total")
+    metrics.set_gauge("session_store_available", 1)
+    rendered = metrics.render_prometheus()
+    assert "export_signature_failures_total 1" in rendered
+    assert "session_store_available 1" in rendered
     firing = AlertEvaluator(rules).evaluate(
-        {"da_export_signature_failures_total": 2.0, "da_session_store_available": 1.0}
+        {"export_signature_failures_total": 1.0, "session_store_available": 1.0}
     )
     assert "ExportSignatureFailure" in firing
 

@@ -15,18 +15,21 @@ class AlertRule:
 
 def default_alert_rules() -> tuple[AlertRule, ...]:
     return (
-        AlertRule("AuthenticationFailureBurst", "da_auth_failures_total", ">", 10),
-        AlertRule("MfaDenialBurst", "da_mfa_denials_total", ">", 5),
-        AlertRule("TenantConflict", "da_tenant_conflicts_total", ">", 0),
-        AlertRule("AuditPersistenceFailure", "da_audit_failures_total", ">", 0),
-        AlertRule("ResearchJobBacklog", "da_research_jobs_queued", ">", 100),
-        AlertRule("ProviderFailure", "da_provider_failures_total", ">", 5),
-        AlertRule("ExportSignatureFailure", "da_export_signature_failures_total", ">", 0),
-        AlertRule("SessionStoreUnavailable", "da_session_store_available", "<", 1),
-        AlertRule("BackupFailure", "da_backup_success", "<", 1),
-        AlertRule("RestoreFailure", "da_restore_success", "<", 1),
-        AlertRule("CertificateExpiring", "da_tls_certificate_days_remaining", "<", 14),
-        AlertRule("LegalHoldViolation", "da_legal_hold_violation_attempts_total", ">", 0),
+        AlertRule("AuthenticationFailureBurst", "authentication_failures_total", ">", 10),
+        AlertRule("MfaDenialBurst", "mfa_denials_total", ">", 5),
+        AlertRule("TenantConflict", "tenant_conflicts_total", ">", 0),
+        AlertRule("AuditPersistenceFailure", "audit_failures_total", ">", 0),
+        AlertRule("ResearchJobBacklog", "research_jobs_queued", ">", 100),
+        AlertRule("ProviderFailure", "provider_failures_total", ">", 5),
+        AlertRule("ExportSignatureFailure", "export_signature_failures_total", ">", 0),
+        AlertRule("SessionStoreUnavailable", "session_store_available", "<", 1),
+        AlertRule("BackupFailure", "backup_success", "<", 1),
+        AlertRule("RestoreFailure", "restore_success", "<", 1),
+        AlertRule("CertificateExpiring", "tls_certificate_days_remaining", "<", 14),
+        AlertRule("LegalHoldViolation", "legal_hold_violation_attempts_total", ">", 0),
+        AlertRule("AssuranceEscalationRate", "assurance_block_review_rate", ">", 0.8),
+        AlertRule("KeycloakUnavailable", "keycloak_available", "<", 1),
+        AlertRule("DeletionActivityBurst", "deletion_activity_total", ">", 20),
     )
 
 

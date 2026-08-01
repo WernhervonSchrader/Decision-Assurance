@@ -342,6 +342,8 @@ def _load_configured_runtime(
             )
         if signer is None:
             raise RuntimeError("EXTERNAL_EXPORT_SIGNER_REQUIRED")
+        if signer.key_id != signing.key_id:
+            raise RuntimeError("EXPORT_SIGNER_KEY_ID_MISMATCH")
         export_service = PilotExportService(
             PostgresExportRepository(persistence.connections),
             version=build_metadata.version,

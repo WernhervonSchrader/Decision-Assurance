@@ -18,3 +18,7 @@ Signing configuration has exactly three provider-neutral modes: `development` re
 `.secrets/` PEM; `controlled-pilot` references a protected absolute file/secret-store mount;
 `production-adapter` references a KMS/HSM/vault identifier and requires an injected conforming
 signer. No cloud SDK is a core dependency.
+
+Normal public-key expiry is evaluated at the recorded signing time, so retained historical exports
+remain verifiable. Compromise revocation is evaluated at verification time and remains fail-closed;
+it is deliberately distinct from routine signing-key retirement.

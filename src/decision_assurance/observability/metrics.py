@@ -20,6 +20,19 @@ _ALLOWED_NAMES = frozenset(
         "pilot_session_total",
         "pilot_lifecycle_total",
         "pilot_approval_total",
+        "mfa_denials_total",
+        "tenant_conflicts_total",
+        "audit_failures_total",
+        "research_jobs_queued",
+        "export_signature_failures_total",
+        "session_store_available",
+        "backup_success",
+        "restore_success",
+        "tls_certificate_days_remaining",
+        "legal_hold_violation_attempts_total",
+        "assurance_block_review_rate",
+        "keycloak_available",
+        "deletion_activity_total",
     }
 )
 _ALLOWED_LABELS = frozenset({"route", "status", "outcome", "provider", "reason", "retryable"})
@@ -33,6 +46,7 @@ class InMemoryMetrics:
         self._observations: dict[tuple[str, tuple[tuple[str, str], ...]], list[float]] = (
             defaultdict(list)
         )
+        self._gauges: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
         self._lock = Lock()
 
     def increment(self, name: str, *, labels: Mapping[str, str] | None = None) -> None:
@@ -50,14 +64,24 @@ class InMemoryMetrics:
         with self._lock:
             return self._counters[self._key(name, labels)]
 
+    def set_gauge(
+        self, name: str, value: float, *, labels: Mapping[str, str] | None = None
+    ) -> None:
+        if value < 0:
+            raise ValueError("INVALID_METRIC_VALUE")
+        with self._lock:
+            self._gauges[self._key(name, labels)] = value
+
     def render_prometheus(self) -> str:
         lines: list[str] = []
         with self._lock:
-            for (name, labels), value in sorted(self._counters.items()):
-                lines.append(f"{name}{_labels(labels)} {value}")
+            for (name, labels), counter_value in sorted(self._counters.items()):
+                lines.append(f"{name}{_labels(labels)} {counter_value}")
             for (name, labels), values in sorted(self._observations.items()):
                 lines.append(f"{name}_count{_labels(labels)} {len(values)}")
                 lines.append(f"{name}_sum{_labels(labels)} {sum(values):.9g}")
+            for (name, labels), gauge_value in sorted(self._gauges.items()):
+                lines.append(f"{name}{_labels(labels)} {gauge_value:.9g}")
         return "\n".join(lines) + ("\n" if lines else "")
 
     @staticmethod

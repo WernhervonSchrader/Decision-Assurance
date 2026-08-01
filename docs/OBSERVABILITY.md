@@ -3,6 +3,8 @@
 Reference rules live in `deploy/observability/decision-assurance-alerts.yml`; a deterministic local
 evaluator proves firing. A real pilot must connect actual Prometheus-compatible collection and a
 notification receiver, trigger a canary alert and record receipt as deployment evidence.
+Rule expressions use the exact names accepted and rendered by the bounded metrics backend; the local
+test passes a real counter/gauge through Prometheus rendering before evaluating the alert.
 
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only

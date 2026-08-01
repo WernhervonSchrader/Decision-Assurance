@@ -7,11 +7,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from fnmatch import fnmatchcase
 from importlib.resources import files
 from typing import Any, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
+
+from ..identity import ActorKind, Identity, Role
 
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40,64}$")
@@ -49,6 +50,9 @@ class EvidenceItem:
     observed_at: datetime
     digest: str
     source: str
+    deployment_id: str
+    tenant_id: str
+    commit_sha: str
 
     def __post_init__(self) -> None:
         if self.kind not in REQUIRED_EVIDENCE or not _DIGEST.fullmatch(self.digest):
@@ -57,6 +61,8 @@ class EvidenceItem:
             raise ValueError("INVALID_EVIDENCE_SOURCE")
         if self.observed_at.tzinfo is None:
             raise ValueError("INVALID_EVIDENCE_TIME")
+        if not self.deployment_id or not self.tenant_id or not _COMMIT.fullmatch(self.commit_sha):
+            raise ValueError("UNBOUND_DEPLOYMENT_EVIDENCE")
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -65,6 +71,9 @@ class EvidenceItem:
             "observed_at": self.observed_at.isoformat().replace("+00:00", "Z"),
             "digest": self.digest,
             "source": self.source,
+            "deployment_id": self.deployment_id,
+            "tenant_id": self.tenant_id,
+            "commit_sha": self.commit_sha,
         }
 
 
@@ -100,7 +109,7 @@ class DeploymentBundle:
                 raise ValueError("INVALID_DEPLOYMENT_DIGEST")
         if len({item.kind for item in self.evidence}) != len(self.evidence):
             raise ValueError("DUPLICATE_DEPLOYMENT_EVIDENCE")
-        if self.provider_residency_status not in {"VERIFIED", "BLOCKED"}:
+        if self.provider_residency_status not in {"VERIFIED", "ACCESS_BLOCKED"}:
             raise ValueError("INVALID_PROVIDER_RESIDENCY_STATUS")
         if not self.open_risks or any(not risk.strip() for risk in self.open_risks):
             raise ValueError("UNDOCUMENTED_DEPLOYMENT_RISK")
@@ -112,6 +121,8 @@ class DeploymentBundle:
         return replace(self, created_at=created_at)
 
     def as_dict(self, status: EvidenceStatus = EvidenceStatus.INCOMPLETE) -> dict[str, object]:
+        if status is EvidenceStatus.PILOT_ACCEPTED:
+            raise ValueError("ACCEPTANCE_RECORD_REQUIRED")
         return {
             "schema_version": self.schema_version,
             "deployment_id": self.deployment_id,
@@ -150,7 +161,21 @@ class PilotAcceptanceGate:
             reasons.append("UNVERIFIED_EVIDENCE")
         if any(item.source == "SELF_DECLARED" for item in by_kind.values()):
             reasons.append("SELF_DECLARED_EVIDENCE")
+        if any(
+            item.deployment_id != bundle.deployment_id
+            or item.tenant_id != bundle.tenant_id
+            or item.commit_sha != bundle.commit_sha
+            for item in by_kind.values()
+        ):
+            reasons.append("EVIDENCE_BINDING_MISMATCH")
         instant = now.astimezone(timezone.utc)
+        if any(
+            instant - item.observed_at.astimezone(timezone.utc) > self._max_age
+            for item in by_kind.values()
+        ):
+            reasons.append("STALE_REQUIRED_EVIDENCE")
+        if any(item.observed_at.astimezone(timezone.utc) > instant for item in by_kind.values()):
+            reasons.append("FUTURE_REQUIRED_EVIDENCE")
         if instant - bundle.created_at.astimezone(timezone.utc) > self._max_age:
             reasons.append("STALE_DEPLOYMENT_EVIDENCE")
         if bundle.created_at.astimezone(timezone.utc) > instant:
@@ -173,17 +198,21 @@ class PilotAcceptanceTransition:
         bundle: DeploymentBundle,
         technical_result: GateResult,
         *,
-        reviewer: str,
-        reviewer_roles: set[str],
+        reviewer: Identity,
     ) -> AcceptanceRecord:
         if technical_result.status is not EvidenceStatus.PILOT_REVIEW_REQUIRED:
             raise ValueError("TECHNICAL_EVIDENCE_GATE_REQUIRED")
-        if "PILOT_REVIEWER" not in reviewer_roles:
+        if reviewer.kind is not ActorKind.HUMAN or Role.REVIEWER not in reviewer.roles:
             raise ValueError("PILOT_REVIEWER_REQUIRED")
-        if not reviewer or hmac.compare_digest(bundle.creator, reviewer):
+        if reviewer.tenant.tenant_id != bundle.tenant_id:
+            raise ValueError("ACCEPTANCE_TENANT_MISMATCH")
+        if hmac.compare_digest(bundle.creator, reviewer.actor_id):
             raise ValueError("ACCEPTANCE_ACTOR_INDEPENDENCE_REQUIRED")
         return AcceptanceRecord(
-            EvidenceStatus.PILOT_ACCEPTED, bundle.deployment_id, bundle.creator, reviewer
+            EvidenceStatus.PILOT_ACCEPTED,
+            bundle.deployment_id,
+            bundle.creator,
+            reviewer.actor_id,
         )
 
 
@@ -202,11 +231,7 @@ class TlsEvidence:
         names = tuple(value.casefold().rstrip(".") for value in self.certificate_hosts)
         if not hmac.compare_digest(self.host.casefold().rstrip("."), host):
             raise ValueError("TLS_HOST_MISMATCH")
-        if not any(
-            fnmatchcase(host, name)
-            and (not name.startswith("*.") or host.count(".") == name.count("."))
-            for name in names
-        ):
+        if not any(_certificate_name_matches(host, name) for name in names):
             raise ValueError("TLS_CERTIFICATE_HOST_MISMATCH")
         instant = now.astimezone(timezone.utc)
         if (
@@ -244,6 +269,9 @@ def load_deployment_bundle(content: bytes) -> DeploymentBundle:
             _parse_time(item["observed_at"]),
             str(item["digest"]),
             str(item["source"]),
+            str(item["deployment_id"]),
+            str(item["tenant_id"]),
+            str(item["commit_sha"]),
         )
         for item in raw["evidence"]
     )
@@ -284,3 +312,13 @@ def _contains_sensitive_key(value: object) -> bool:
     if isinstance(value, list):
         return any(_contains_sensitive_key(item) for item in value)
     return False
+
+
+def _certificate_name_matches(host: str, certificate_name: str) -> bool:
+    if "*" not in certificate_name:
+        return hmac.compare_digest(host, certificate_name)
+    if not certificate_name.startswith("*.") or certificate_name.count("*") != 1:
+        return False
+    suffix = certificate_name[2:]
+    label, separator, remainder = host.partition(".")
+    return bool(label and separator) and hmac.compare_digest(remainder, suffix)

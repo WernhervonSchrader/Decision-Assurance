@@ -64,6 +64,64 @@ class EventRegistry:
             "session.revoked",
         }
     )
+    _LEGACY_EXPORT_TYPES = {
+        "audit/decision-events.json": frozenset(
+            {
+                "decision.received",
+                "decision.created",
+                "decision.evaluated",
+                "evidence.validated",
+                "finding.created",
+                "governance.decided",
+                "review.requested",
+                "status.transitioned",
+            }
+        ),
+        "audit/intake-events.json": frozenset(
+            {
+                "intake.extracted",
+                "intake.readiness-determined",
+                "intake.fact-confirmed",
+                "intake.fact-corrected",
+                "intake.compiled",
+                "intake.ready",
+            }
+        ),
+        "audit/research-events.json": frozenset(
+            {
+                "research.status-transitioned",
+                "research.egress-decision",
+                "research.evidence-attached",
+            }
+        ),
+        "audit/lifecycle-events.json": frozenset(
+            {
+                "data.deletion-blocked",
+                "data.deletion-completed",
+                "data.deletion-executing",
+                "data.deletion-requested",
+                "data.legal-hold-placed",
+                "data.legal-hold-released",
+            }
+        ),
+    }
+    _LEGACY_EXPORT_VERSIONS = frozenset(
+        {None, "0.3.0", "0.8.0", "research-audit-v1", "research-egress-decision-v1"}
+    )
+
+    def validate_export_event(self, member: str, value: Mapping[str, object]) -> None:
+        """Validate current envelopes or explicitly registered PR #7 legacy events."""
+        version = value.get("schema_version")
+        if version == self._CURRENT:
+            self.parse(value)
+            return
+        event_type = value.get("event_type")
+        if (
+            version not in self._LEGACY_EXPORT_VERSIONS
+            or not isinstance(event_type, str)
+            or event_type not in self._LEGACY_EXPORT_TYPES.get(member, frozenset())
+        ):
+            raise EventVersionError("EXPORT_EVENT_VERSION_OR_TYPE_UNSUPPORTED")
 
     def parse(self, value: Mapping[str, object]) -> EventEnvelope:
         if value.get("schema_version") != self._CURRENT:

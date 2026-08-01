@@ -42,7 +42,9 @@ def _identity(tenant: str = "tenant-a") -> Identity:
     return Identity("auditor", TenantContext(tenant), Role.AUDITOR, ActorKind.HUMAN)
 
 
-def _signed() -> tuple[bytes, InMemoryVerificationKeyResolver]:
+def _signed(
+    snapshot: dict[str, object] | None = None,
+) -> tuple[bytes, InMemoryVerificationKeyResolver]:
     signer = FakeEd25519Signer(key_id="pilot-signing-2026-01", clock=lambda: NOW)
     resolver = InMemoryVerificationKeyResolver(
         {
@@ -56,7 +58,7 @@ def _signed() -> tuple[bytes, InMemoryVerificationKeyResolver]:
     )
     content = (
         PilotExportService(
-            InMemoryExportRepository({("tenant-a", "quote-1"): _snapshot()}),
+            InMemoryExportRepository({("tenant-a", "quote-1"): snapshot or _snapshot()}),
             version="0.9.0",
             commit_sha="b" * 40,
             policy_versions={"sales-quote": "1"},
@@ -68,6 +70,20 @@ def _signed() -> tuple[bytes, InMemoryVerificationKeyResolver]:
         .content
     )
     return content, resolver
+
+
+def test_signed_export_rejects_unknown_embedded_event_version_and_type() -> None:
+    snapshot = _snapshot()
+    snapshot["audit/decision-events.json"] = [
+        {
+            "event_id": "event-unknown",
+            "event_type": "unknown.event",
+            "schema_version": "9.9.9",
+            "previous_event_hash": None,
+        }
+    ]
+    with pytest.raises(ValueError, match="EXPORT_EVENT_VERSION_OR_TYPE_UNSUPPORTED"):
+        _signed(snapshot)
 
 
 def _rewrite(content: bytes, name: str, transform: object) -> bytes:
@@ -139,6 +155,18 @@ def test_v09_rejects_unusable_key(state: str) -> None:
             key_resolver=InMemoryVerificationKeyResolver({key.key_id: replacement}),
             verification_time=NOW,
         )
+
+
+def test_historical_signature_survives_normal_key_expiry() -> None:
+    content, original = _signed()
+    key = original.resolve("pilot-signing-2026-01")
+    assert key is not None
+    report = validate_export(
+        content,
+        key_resolver=original,
+        verification_time=key.not_after + timedelta(days=365),
+    )
+    assert report.provenance_status == "SIGNED_VALID"
 
 
 def test_algorithm_downgrade_and_missing_signature_fail_closed() -> None:
