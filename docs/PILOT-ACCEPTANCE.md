@@ -5,7 +5,10 @@
 - [ ] Ruff, Mypy strict, Python tests, PostgreSQL 16, OpenAPI drift and package builds pass.
 - [ ] UI typecheck/unit/build, Chromium two-tenant E2E and npm audit pass.
 - [ ] Secret/SAST/dependency scans, Compose/Caddy checks, image non-root checks, Trivy and SBOM pass.
-- [ ] Export validates offline; hold/delete/race/isolation tests pass.
+- [ ] Export validates audit chains offline; atomic delete/audit, append-only hold history,
+  lifecycle concurrency, similarly named IDs and tenant-isolation tests pass.
+- [ ] OIDC callback is initiating-browser bound; callback query credentials are absent from logs.
+- [ ] The identity edge exposes only allowlisted realm OIDC/login resource paths, never admin/account.
 
 ## Local integration evidence
 

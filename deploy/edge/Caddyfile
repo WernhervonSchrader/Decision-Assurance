@@ -84,11 +84,25 @@ https://{$DA_IDENTITY_HOST}:8443 {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-	reverse_proxy keycloak:8080 {
-		header_down -Server
-		header_up -Forwarded
-		header_up -X-Forwarded-*
-		header_up X-Forwarded-Proto https
-		header_up Host {host}
+	route {
+		@public_oidc path \
+			/realms/decision-assurance/.well-known/openid-configuration \
+			/realms/decision-assurance/protocol/openid-connect/auth \
+			/realms/decision-assurance/protocol/openid-connect/token \
+			/realms/decision-assurance/protocol/openid-connect/certs \
+			/realms/decision-assurance/protocol/openid-connect/logout \
+			/realms/decision-assurance/login-actions/* \
+			/resources/*
+		handle @public_oidc {
+			reverse_proxy keycloak:8080 {
+				header_down -Server
+				header_up -Forwarded
+				header_up -X-Forwarded-*
+				header_up X-Forwarded-Proto https
+				header_up Host {host}
+			}
+		}
+
+		respond 404
 	}
 }

@@ -110,13 +110,27 @@ class PostgresExportRepository:
                 }
                 for row in connection.execute(
                     """
-                    SELECT event_json, event_hash FROM lifecycle_audit_events
+                    SELECT event_json, event_hash, occurred_at, sequence, 1 AS source_order
+                    FROM lifecycle_audit_events
                     WHERE tenant_id = %s AND request_id IN
                         (SELECT request_id FROM deletion_requests
                          WHERE tenant_id = %s AND decision_id = %s)
-                    ORDER BY sequence
+                    UNION ALL
+                    SELECT event_json, event_hash, occurred_at, sequence, 0 AS source_order
+                    FROM legal_hold_audit_events
+                    WHERE tenant_id = %s AND hold_id IN
+                        (SELECT hold_id FROM legal_holds
+                         WHERE tenant_id = %s AND decision_id = %s)
+                    ORDER BY occurred_at, source_order, sequence
                     """,
-                    (tenant.tenant_id, tenant.tenant_id, decision_id),
+                    (
+                        tenant.tenant_id,
+                        tenant.tenant_id,
+                        decision_id,
+                        tenant.tenant_id,
+                        tenant.tenant_id,
+                        decision_id,
+                    ),
                 ).fetchall()
             ]
             return {

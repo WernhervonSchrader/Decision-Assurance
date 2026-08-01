@@ -4,6 +4,7 @@ import hmac
 import ipaddress
 import json
 import re
+import secrets
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from .session import (
 )
 
 SESSION_COOKIE = "__Host-da_session"
+LOGIN_COOKIE = "__Host-da_login"
 MAX_BODY_BYTES = 1_048_576
 _CORRELATION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _PATHS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -186,12 +188,23 @@ def create_pilot_ui_app(
     @app.get("/auth/login")
     def login(request: Request, return_path: str = "/") -> RedirectResponse:
         del request
-        transaction = logins.create(return_path)
-        return RedirectResponse(oidc.authorization_url(transaction), status_code=303)
+        browser_binding = secrets.token_urlsafe(32)
+        transaction = logins.create(return_path, browser_binding)
+        response = RedirectResponse(oidc.authorization_url(transaction), status_code=303)
+        response.set_cookie(
+            LOGIN_COOKIE,
+            browser_binding,
+            max_age=180,
+            secure=True,
+            httponly=True,
+            samesite="lax",
+            path="/",
+        )
+        return response
 
     @app.get("/auth/callback")
     def callback(request: Request, code: str, state: str) -> RedirectResponse:
-        transaction = logins.consume(state)
+        transaction = logins.consume(state, request.cookies.get(LOGIN_COOKIE, ""))
         tokens = oidc.exchange(code, transaction)
         identity = api.session(tokens.access_token, request.state.correlation_id)
         session = sessions.create(tokens.access_token, identity, token_expires_in=tokens.expires_in)
@@ -199,6 +212,7 @@ def create_pilot_ui_app(
             metrics.increment("pilot_login_total", labels={"status": "success"})
             metrics.increment("pilot_session_total", labels={"status": "created"})
         response = RedirectResponse(transaction.return_path, status_code=303)
+        response.delete_cookie(LOGIN_COOKIE, secure=True, httponly=True, samesite="lax", path="/")
         response.set_cookie(
             SESSION_COOKIE,
             session.session_id,

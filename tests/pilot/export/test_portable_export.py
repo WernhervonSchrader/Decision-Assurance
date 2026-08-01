@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import zipfile
@@ -39,6 +40,24 @@ def _snapshot() -> dict[str, object]:
 
 def _identity(tenant: str = "tenant-a") -> Identity:
     return Identity("auditor", TenantContext(tenant), Role.AUDITOR, ActorKind.HUMAN)
+
+
+def _lifecycle_event(event_id: str, previous: str | None) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "event_id": event_id,
+        "request_id": "delete-1",
+        "case_ref_hash": "sha256:" + "a" * 64,
+        "event_type": "data.deletion-requested",
+        "occurred_at": "2026-08-01T08:00:00Z",
+        "reason_code": "USER_REQUEST",
+        "correlation_id": "correlation-1",
+        "actor_hash": "sha256:" + "b" * 64,
+        "previous_event_hash": previous,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {"schema_version": "0.8.0", **payload, "event_hash": "sha256:" + digest}
 
 
 def test_export_is_portable_deterministic_and_validates_offline() -> None:
@@ -118,3 +137,48 @@ def test_export_denies_cross_tenant_and_rejects_sensitive_fields() -> None:
     )
     with pytest.raises(ExportRejected, match="SENSITIVE_EXPORT_FIELD"):
         unsafe_service.build(_identity(), "quote-1")
+
+
+def test_export_rejects_broken_lifecycle_audit_chain_even_with_valid_checksums() -> None:
+    snapshot = _snapshot()
+    snapshot["audit/lifecycle-events.json"] = [
+        {
+            "schema_version": "0.8.0",
+            "event_id": "delete-1:data.deletion-requested:1:root",
+            "request_id": "delete-1",
+            "case_ref_hash": "sha256:" + "a" * 64,
+            "event_type": "data.deletion-requested",
+            "occurred_at": "2026-08-01T08:00:00Z",
+            "reason_code": "USER_REQUEST",
+            "correlation_id": "correlation-1",
+            "actor_hash": "sha256:" + "b" * 64,
+            "previous_event_hash": "sha256:" + "c" * 64,
+            "event_hash": "sha256:" + "d" * 64,
+        }
+    ]
+    archive = PilotExportService(
+        InMemoryExportRepository({("tenant-a", "quote-1"): snapshot}),
+        version="0.8.0",
+        commit_sha="a" * 40,
+        policy_versions={"sales-quote": "1"},
+        clock=lambda: NOW,
+    ).build(_identity(), "quote-1")
+
+    with pytest.raises(ExportValidationError, match="INVALID_EXPORT_AUDIT_CHAIN"):
+        validate_export(archive.content)
+
+
+def test_export_accepts_and_verifies_valid_lifecycle_audit_chain() -> None:
+    snapshot = _snapshot()
+    first = _lifecycle_event("event-1", None)
+    second = _lifecycle_event("event-2", str(first["event_hash"]))
+    snapshot["audit/lifecycle-events.json"] = [first, second]
+    archive = PilotExportService(
+        InMemoryExportRepository({("tenant-a", "quote-1"): snapshot}),
+        version="0.8.0",
+        commit_sha="a" * 40,
+        policy_versions={"sales-quote": "1"},
+        clock=lambda: NOW,
+    ).build(_identity(), "quote-1")
+
+    assert validate_export(archive.content).valid

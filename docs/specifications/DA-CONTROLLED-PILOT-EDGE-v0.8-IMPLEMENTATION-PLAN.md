@@ -45,8 +45,9 @@ expected all pass. Commit: `feat(pilot): define controlled pilot contracts and p
 - Add `api/routes/pilot.py`, strict request/response models and DE/EN codes.
 - Add unit, API, PostgreSQL, race, replay, legal-hold and cross-tenant tests.
 
-**Interfaces:** `list_decisions(tenant, limit, cursor)`; `LifecycleRepository.request_delete`,
-`set_hold`, `execute_delete`; `LifecycleService` authorizes through existing permissions and accepts
+**Interfaces:** `list_decisions(tenant, limit, cursor)`; lifecycle transitions use per-request
+compare-and-set semantics, `complete_deletion` atomically deletes and appends completion evidence,
+and hold writes append their own hash-linked audit events. `LifecycleService` authorizes and accepts
 only `Identity`, case ID, reason code and idempotency key. No public tenant field exists.
 
 **TDD:** prove wrong-tenant 404-equivalent behavior, hold-before-delete, replay convergence, audit
@@ -123,7 +124,8 @@ expected zero failures/high vulnerabilities. Commit: `feat(pilot-ui): add bounde
   role values and one-shot bootstrap.
 - Add edge contract, Compose, non-root, TLS/header/host/forwarded/request-limit tests.
 
-**Behavior:** public routes are `/`, `/auth/*`, `/api/*`, `/mcp`, and the configured Keycloak host;
+**Behavior:** public routes are `/`, `/auth/*`, `/api/*`, `/mcp`, and only explicit realm OIDC,
+login-action and static-resource paths on the configured Keycloak host;
 internal database, worker and management ports remain private. Local integration uses an ephemeral
 CA/certificate fixture; pilot configuration requires non-loopback HTTPS names and secret references.
 

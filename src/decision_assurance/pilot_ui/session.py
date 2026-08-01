@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import secrets
 import threading
 import time
@@ -28,6 +30,7 @@ class LoginTransaction:
     code_verifier: str
     return_path: str
     expires_at: float
+    browser_binding_hash: str = ""
 
     def __repr__(self) -> str:
         return "LoginTransaction(**redacted**)"
@@ -51,9 +54,10 @@ class LoginTransactionStore:
         self._values: dict[str, LoginTransaction] = {}
         self._lock = threading.Lock()
 
-    def create(self, return_path: str = "/") -> LoginTransaction:
+    def create(self, return_path: str, browser_binding: str) -> LoginTransaction:
         if return_path not in self._allowed_return_paths:
             raise BrowserOidcError("OIDC_RETURN_PATH_INVALID")
+        binding_hash = _browser_binding_hash(browser_binding)
         with self._lock:
             self._prune()
             if len(self._values) >= self._capacity:
@@ -64,16 +68,24 @@ class LoginTransactionStore:
                 code_verifier=secrets.token_urlsafe(64),
                 return_path=return_path,
                 expires_at=self._clock() + self._ttl,
+                browser_binding_hash=binding_hash,
             )
             self._values[transaction.state] = transaction
             return transaction
 
-    def consume(self, state: str) -> LoginTransaction:
+    def consume(self, state: str, browser_binding: str) -> LoginTransaction:
         if not state or len(state) > 256:
             raise BrowserOidcError("OIDC_STATE_INVALID")
+        binding_hash = _browser_binding_hash(browser_binding)
         with self._lock:
             self._prune()
-            transaction = self._values.pop(state, None)
+            transaction = self._values.get(state)
+            if transaction is not None and hmac.compare_digest(
+                transaction.browser_binding_hash, binding_hash
+            ):
+                self._values.pop(state, None)
+            else:
+                transaction = None
         if transaction is None or transaction.expires_at <= self._clock():
             raise BrowserOidcError("OIDC_STATE_INVALID")
         return transaction
@@ -83,6 +95,12 @@ class LoginTransactionStore:
         expired = [key for key, value in self._values.items() if value.expires_at <= now]
         for key in expired:
             self._values.pop(key, None)
+
+
+def _browser_binding_hash(value: str) -> str:
+    if not value or len(value) > 256:
+        raise BrowserOidcError("OIDC_BROWSER_BINDING_INVALID")
+    return hashlib.sha256(value.encode()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True, repr=False)

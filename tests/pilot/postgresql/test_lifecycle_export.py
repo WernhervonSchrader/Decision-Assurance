@@ -8,6 +8,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from psycopg.types.json import Jsonb
 
 from decision_assurance.export.postgresql import PostgresExportRepository
 from decision_assurance.export.service import ExportRejected, PilotExportService
@@ -56,6 +57,7 @@ def _clear(dsn: str) -> None:
         statements = (
             "DELETE FROM lifecycle_audit_events WHERE tenant_id = ANY(%s)",
             "DELETE FROM deletion_requests WHERE tenant_id = ANY(%s)",
+            "DELETE FROM legal_hold_audit_events WHERE tenant_id = ANY(%s)",
             "DELETE FROM legal_holds WHERE tenant_id = ANY(%s)",
             "DELETE FROM reports WHERE tenant_id = ANY(%s)",
             "DELETE FROM audit_events WHERE tenant_id = ANY(%s)",
@@ -121,6 +123,8 @@ def test_postgresql_export_then_legal_hold_and_physical_delete(postgres_dsn: str
     assert decisions.get_decision(tenant_a, "quote-1") is not None
 
     assert lifecycle.release_legal_hold(actor, "quote-1", "correlation-3")
+    lifecycle.place_legal_hold(actor, "quote-1", "REGULATORY", "correlation-3b")
+    assert lifecycle.release_legal_hold(actor, "quote-1", "correlation-3c")
     completed = lifecycle.execute_deletion(actor, request.request_id, "correlation-4")
     assert completed.status.value == "COMPLETED"
     assert decisions.get_decision(tenant_a, "quote-1") is None
@@ -136,6 +140,11 @@ def test_postgresql_export_then_legal_hold_and_physical_delete(postgres_dsn: str
             "WHERE tenant_id = %s AND request_id = %s ORDER BY sequence",
             (tenant_a.tenant_id, request.request_id),
         ).fetchall()
+        hold_events = connection.execute(
+            "SELECT event_type, event_json, event_hash, previous_event_hash "
+            "FROM legal_hold_audit_events WHERE tenant_id = %s ORDER BY sequence",
+            (tenant_a.tenant_id,),
+        ).fetchall()
     assert tombstone is not None and tombstone[0] is None and tombstone[1] == "COMPLETED"
     assert "quote-1" not in str(tombstone) and "admin-a" not in str(tombstone)
     assert [event[0] for event in events] == [
@@ -145,6 +154,18 @@ def test_postgresql_export_then_legal_hold_and_physical_delete(postgres_dsn: str
         "data.deletion-completed",
     ]
     assert all(events[index][1] == events[index - 1][2] for index in range(1, len(events)))
+    assert [event[0] for event in hold_events] == [
+        "data.legal-hold-placed",
+        "data.legal-hold-released",
+        "data.legal-hold-placed",
+        "data.legal-hold-released",
+    ]
+    assert hold_events[0][1]["correlation_id"] == "correlation-1"
+    assert hold_events[1][1]["correlation_id"] == "correlation-3"
+    assert hold_events[1][3] == hold_events[0][2]
+    assert all(
+        hold_events[index][3] == hold_events[index - 1][2] for index in range(1, len(hold_events))
+    )
 
 
 def test_parallel_approval_and_delete_never_resurrects_case(postgres_dsn: str) -> None:
@@ -179,3 +200,130 @@ def test_parallel_approval_and_delete_never_resurrects_case(postgres_dsn: str) -
     assert approval.result() in {"SAVED", "NOT_FOUND"}
     assert executed.result().status.value == "COMPLETED"
     assert decisions.get_decision(tenant, "quote-race") is None
+
+
+def test_parallel_request_and_execution_are_idempotent(postgres_dsn: str) -> None:
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    decisions = PostgresDecisionRepository(connections)
+    tenant = TenantContext(TENANTS[0])
+    decisions.create_decision(tenant, _document("quote-lifecycle-race"))
+    actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
+    lifecycle = PilotLifecycleService(
+        PostgresLifecycleRepository(connections),
+        SecretValue("postgres-lifecycle-pepper"),
+        clock=lambda: NOW,
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(
+                lifecycle.request_deletion,
+                actor,
+                "quote-lifecycle-race",
+                "USER_REQUEST",
+                "same-key",
+                f"request-{index}",
+            )
+            for index in range(2)
+        ]
+    requests = [future.result() for future in futures]
+    assert requests[0].request_id == requests[1].request_id
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        executions = [
+            pool.submit(
+                lifecycle.execute_deletion, actor, requests[0].request_id, f"execute-{index}"
+            )
+            for index in range(2)
+        ]
+    assert {future.result().status.value for future in executions} == {"COMPLETED"}
+    with psycopg.connect(postgres_dsn) as connection:
+        event_types = connection.execute(
+            "SELECT event_type FROM lifecycle_audit_events "
+            "WHERE tenant_id = %s AND request_id = %s ORDER BY sequence",
+            (tenant.tenant_id, requests[0].request_id),
+        ).fetchall()
+    assert [row[0] for row in event_types] == [
+        "data.deletion-requested",
+        "data.deletion-executing",
+        "data.deletion-completed",
+    ]
+
+
+def test_completion_audit_failure_rolls_back_delete(postgres_dsn: str) -> None:
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    decisions = PostgresDecisionRepository(connections)
+    tenant = TenantContext(TENANTS[0])
+    decisions.create_decision(tenant, _document("quote-audit-failure"))
+    actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
+    lifecycle = PilotLifecycleService(
+        PostgresLifecycleRepository(connections),
+        SecretValue("postgres-lifecycle-pepper"),
+        clock=lambda: NOW,
+    )
+    request = lifecycle.request_deletion(
+        actor, "quote-audit-failure", "USER_REQUEST", "audit-failure", "request-correlation"
+    )
+    with psycopg.connect(postgres_dsn, autocommit=True) as connection:
+        connection.execute(
+            """
+            CREATE OR REPLACE FUNCTION reject_completion_audit() RETURNS trigger AS $$
+            BEGIN
+                IF NEW.event_type = 'data.deletion-completed' THEN
+                    RAISE EXCEPTION 'completion audit rejected';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        connection.execute(
+            "CREATE TRIGGER reject_completion_audit BEFORE INSERT ON lifecycle_audit_events "
+            "FOR EACH ROW EXECUTE FUNCTION reject_completion_audit()"
+        )
+    try:
+        with pytest.raises(psycopg.DatabaseError, match="completion audit rejected"):
+            lifecycle.execute_deletion(actor, request.request_id, "execute-correlation")
+    finally:
+        with psycopg.connect(postgres_dsn, autocommit=True) as connection:
+            connection.execute("DROP TRIGGER reject_completion_audit ON lifecycle_audit_events")
+            connection.execute("DROP FUNCTION reject_completion_audit()")
+
+    assert decisions.get_decision(tenant, "quote-audit-failure") is not None
+    persisted = PostgresLifecycleRepository(connections).get_request(tenant, request.request_id)
+    assert persisted is not None and persisted.status.value == "EXECUTING"
+
+
+def test_deletion_does_not_remove_similarly_named_case_idempotency(postgres_dsn: str) -> None:
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
+    decisions = PostgresDecisionRepository(connections)
+    tenant = TenantContext(TENANTS[0])
+    decisions.create_decision(tenant, _document("quote-1"))
+    decisions.create_decision(tenant, _document("quote-10"))
+    with psycopg.connect(postgres_dsn) as connection:
+        connection.execute(
+            """
+            INSERT INTO idempotency
+                (tenant_id, actor_id, operation, idempotency_key, request_hash,
+                 status_code, response_json)
+            VALUES (%s, 'actor', 'decision:evaluate:quote-10', 'key', 'hash', 200, %s)
+            """,
+            (tenant.tenant_id, Jsonb({"decision_id": "quote-10"})),
+        )
+    actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
+    lifecycle = PilotLifecycleService(
+        PostgresLifecycleRepository(connections),
+        SecretValue("postgres-lifecycle-pepper"),
+        clock=lambda: NOW,
+    )
+    request = lifecycle.request_deletion(
+        actor, "quote-1", "USER_REQUEST", "delete-quote-1", "correlation"
+    )
+    lifecycle.execute_deletion(actor, request.request_id, "correlation")
+
+    with psycopg.connect(postgres_dsn) as connection:
+        remaining = connection.execute(
+            "SELECT operation FROM idempotency WHERE tenant_id = %s",
+            (tenant.tenant_id,),
+        ).fetchall()
+    assert [row[0] for row in remaining] == ["decision:evaluate:quote-10"]

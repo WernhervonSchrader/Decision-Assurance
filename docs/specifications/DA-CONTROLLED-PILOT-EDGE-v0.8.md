@@ -100,12 +100,15 @@ Internet browser
 Caddy trusts no client `Forwarded`/`X-Forwarded-*` values. It removes them and sets a fixed proxy
 chain. The BFF accepts forwarded scheme/host only from the configured edge network and validates the
 effective host against an allowlist. Internal API, worker, database and management health endpoints
-are not published.
+are not published. The identity host exposes only Decision Assurance realm discovery, authorization,
+token, JWKS, logout, login-action and static-resource paths; Keycloak admin, master-realm and account
+surfaces are not public pilot routes.
 
 ### Browser authentication and session model
 
 The BFF generates 256-bit `state`, `nonce` and PKCE verifier values and stores a single-use bounded
-login transaction server-side. The callback verifies exact state, exchanges the code at the
+login transaction server-side, bound to an opaque Secure/HttpOnly/SameSite initiating-browser
+cookie. The callback verifies exact state and browser binding, exchanges the code at the
 configured HTTPS token endpoint, validates the ID token via the existing OIDC policy/JWKS adapter,
 checks nonce, and rotates the pre-authentication identifier. A random opaque session identifier is
 placed in a `__Host-da_session` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no Domain).
@@ -117,6 +120,8 @@ Every unsafe BFF request requires a per-session CSRF token supplied in a header 
 constant-time comparison. Login state is independent of the application session. Return paths are
 relative allowlisted UI paths, never arbitrary URLs. Logout deletes the server session, expires the
 cookie and invokes the allowlisted Keycloak end-session endpoint when available.
+Uvicorn access logging is disabled so callback `code` and `state` query values cannot enter its
+default request log; bounded application telemetry uses sanitized status and correlation fields.
 
 ### Tenant, authorization and localization flow
 
@@ -164,16 +169,20 @@ schema mismatch, checksum mismatch and broken audit links.
 
 ### Retention, deletion and legal hold
 
-PostgreSQL migration `003_controlled_pilot_v0_8.sql` adds tenant-scoped policy, legal-hold, deletion
-request and lifecycle-audit tables with forced RLS and composite keys. A per-case advisory lock
-serializes approval and deletion. Requests are idempotent by `(tenant, actor, key)` and transition
+PostgreSQL migration `003_controlled_pilot_v0_8.sql` adds tenant-scoped policy, legal-hold,
+append-only legal-hold audit, deletion-request and lifecycle-audit tables with forced RLS and
+composite keys. Per-case and per-request advisory locks serialize approval, request creation and
+deletion execution. Requests are idempotent by `(tenant, actor, key)` and transition
 `REQUESTED -> BLOCKED_BY_HOLD | EXECUTING -> COMPLETED | FAILED`. Active hold always wins.
 
 Execution physically removes provider attempts, evidence, sources, handoffs, Research jobs/runs,
 Intake facts/confirmations/records, reports, idempotency payloads and Decision document in declared
-foreign-key order. A minimized tombstone and lifecycle audit remain with tenant, salted case digest,
+foreign-key order. A minimized tombstone, lifecycle audit and legal-hold audit remain with tenant,
+salted case digest,
 timestamps, policy/reason codes and actor pseudonymous digest; no source content, quote text or token
-remains. Hash-linked Decision/Intake/Research audit records are exported before deletion when policy
+remains. Physical deletion, the `COMPLETED` tombstone and its completion event commit in one
+PostgreSQL transaction; an audit failure rolls back deletion. Hash-linked Decision/Intake/Research
+audit records are exported before deletion when policy
 requires, then removed; the lifecycle ledger records the verified result. Backups expire under the
 documented schedule and are not selectively rewritten. Legal hold retains all case data until
 released by an authorized tenant administrator. No SQLite or soft-delete implementation can satisfy

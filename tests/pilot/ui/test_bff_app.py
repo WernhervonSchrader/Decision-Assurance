@@ -99,6 +99,33 @@ def test_login_rotates_to_secure_cookie_and_exposes_only_safe_identity() -> None
     assert client.get("/bff/session").headers["strict-transport-security"]
 
 
+def test_callback_is_bound_to_the_browser_that_started_login() -> None:
+    application = create_pilot_ui_app(
+        PilotUiSettings(
+            allowed_hosts=("pilot.example",),
+            trusted_proxy_cidrs=("172.30.0.0/24",),
+            post_logout_redirect_uri="https://pilot.example/",
+        ),
+        FakeOidc(),
+        FakeApi(),
+    )
+    attacker = TestClient(application, base_url="https://pilot.example")
+    victim = TestClient(application, base_url="https://pilot.example")
+    login = attacker.get("/auth/login", follow_redirects=False)
+    state = parse_qs(urlsplit(login.headers["location"]).query)["state"][0]
+
+    rejected = victim.get(f"/auth/callback?code=valid-code&state={state}", follow_redirects=False)
+
+    assert rejected.status_code == 400
+    assert victim.get("/bff/session").status_code == 401
+    assert (
+        attacker.get(
+            f"/auth/callback?code=valid-code&state={state}", follow_redirects=False
+        ).status_code
+        == 303
+    )
+
+
 def test_proxy_requires_session_csrf_and_allowlisted_path() -> None:
     api = FakeApi()
     client = _app(api)

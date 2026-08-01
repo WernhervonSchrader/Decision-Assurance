@@ -60,6 +60,7 @@ def validate_export(content: bytes) -> ValidationReport:
         by_path = {item["path"]: item for item in declared}
         if set(by_path) != set(EXPORT_MEMBERS) or len(by_path) != len(declared):
             raise ExportValidationError("EXPORT_MEMBER_SET_MISMATCH")
+        parsed_members: dict[str, object] = {}
         for name in EXPORT_MEMBERS:
             payload = archive.read(name)
             declaration = by_path[name]
@@ -68,9 +69,10 @@ def validate_export(content: bytes) -> ValidationReport:
             ):
                 raise ExportValidationError("EXPORT_CHECKSUM_MISMATCH")
             try:
-                json.loads(payload)
+                parsed_members[name] = json.loads(payload)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 raise ExportValidationError("INVALID_EXPORT_MEMBER") from None
+        _validate_audit_chains(parsed_members)
         return ValidationReport(
             valid=True,
             case_ref=str(manifest["case_ref"]),
@@ -100,6 +102,51 @@ def _constant_equal(left: object, right: str) -> bool:
     import hmac
 
     return isinstance(left, str) and hmac.compare_digest(left, right)
+
+
+def _validate_audit_chains(members: dict[str, object]) -> None:
+    for name in (
+        "audit/decision-events.json",
+        "audit/intake-events.json",
+        "audit/research-events.json",
+    ):
+        events = members[name]
+        if not isinstance(events, list) or any(not isinstance(item, dict) for item in events):
+            raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+        prior_hashes: set[str] = set()
+        for event in cast(list[dict[str, object]], events):
+            previous = event.get("previous_event_hash")
+            if previous is not None and previous not in prior_hashes:
+                raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+            prior_hashes.add(_prefixed_hash(event))
+
+    lifecycle = members["audit/lifecycle-events.json"]
+    if not isinstance(lifecycle, list) or any(not isinstance(item, dict) for item in lifecycle):
+        raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+    previous_by_stream: dict[str, str] = {}
+    for event in cast(list[dict[str, object]], lifecycle):
+        request_id = event.get("request_id")
+        event_hash = event.get("event_hash")
+        if not isinstance(request_id, str) or not isinstance(event_hash, str):
+            raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+        expected_previous = previous_by_stream.get(request_id)
+        if event.get("previous_event_hash") != expected_previous:
+            raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+        hash_payload = {
+            key: value
+            for key, value in event.items()
+            if key not in {"schema_version", "event_hash"}
+        }
+        if not _constant_equal(event_hash, _prefixed_hash(hash_payload)):
+            raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
+        previous_by_stream[request_id] = event_hash
+
+
+def _prefixed_hash(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 def main() -> None:

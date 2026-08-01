@@ -80,7 +80,7 @@ def _client(nonce: str, *, returned_nonce: str | None = None) -> OidcBrowserClie
 
 def test_login_transaction_uses_s256_and_is_single_use() -> None:
     store = LoginTransactionStore(ttl_seconds=120, capacity=4, clock=lambda: 10.0)
-    transaction = store.create("/cases")
+    transaction = store.create("/cases", "browser-binding")
     client = _client(transaction.nonce)
     authorization_url = client.authorization_url(transaction)
     challenge = (
@@ -92,13 +92,13 @@ def test_login_transaction_uses_s256_and_is_single_use() -> None:
     assert f"code_challenge={challenge}" in authorization_url
     assert "code_challenge_method=S256" in authorization_url
     assert "response_type=code" in authorization_url
-    assert store.consume(transaction.state).state == transaction.state
+    assert store.consume(transaction.state, "browser-binding").state == transaction.state
     with pytest.raises(BrowserOidcError, match="OIDC_STATE_INVALID"):
-        store.consume(transaction.state)
+        store.consume(transaction.state, "browser-binding")
 
 
 def test_code_exchange_validates_nonce_and_discards_refresh_token() -> None:
-    transaction = LoginTransactionStore(clock=lambda: 10.0).create("/cases")
+    transaction = LoginTransactionStore(clock=lambda: 10.0).create("/cases", "browser-binding")
     token_set = _client(transaction.nonce).exchange("code", transaction)
 
     assert token_set.access_token.value == "access-canary"
@@ -148,4 +148,14 @@ def test_login_return_path_rejects_open_redirect() -> None:
     store = LoginTransactionStore()
     for unsafe in ("https://evil.example", "//evil.example", "/auth/callback", "javascript:x"):
         with pytest.raises(BrowserOidcError, match="OIDC_RETURN_PATH_INVALID"):
-            store.create(unsafe)
+            store.create(unsafe, "browser-binding")
+
+
+def test_login_transaction_is_bound_to_initiating_browser() -> None:
+    store = LoginTransactionStore(clock=lambda: 10.0)
+    transaction = store.create("/cases", "browser-a")
+
+    with pytest.raises(BrowserOidcError, match="OIDC_STATE_INVALID"):
+        store.consume(transaction.state, "browser-b")
+
+    assert store.consume(transaction.state, "browser-a") == transaction

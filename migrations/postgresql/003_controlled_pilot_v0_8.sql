@@ -25,6 +25,21 @@ CREATE TABLE IF NOT EXISTS legal_holds (
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_legal_hold_per_case
 ON legal_holds (tenant_id, decision_id) WHERE active;
 
+CREATE TABLE IF NOT EXISTS legal_hold_audit_events (
+    tenant_id TEXT NOT NULL,
+    sequence BIGINT GENERATED ALWAYS AS IDENTITY,
+    event_id TEXT NOT NULL,
+    hold_id TEXT NOT NULL,
+    case_ref_hash TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    event_json JSONB NOT NULL,
+    event_hash TEXT NOT NULL,
+    previous_event_hash TEXT,
+    occurred_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, sequence),
+    UNIQUE (tenant_id, event_id)
+);
+
 CREATE TABLE IF NOT EXISTS deletion_requests (
     tenant_id TEXT NOT NULL,
     request_id TEXT NOT NULL,
@@ -62,6 +77,9 @@ CREATE POLICY tenant_retention_policies_tenant_isolation ON tenant_retention_pol
 ALTER TABLE legal_holds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE legal_holds FORCE ROW LEVEL SECURITY;
 CREATE POLICY legal_holds_tenant_isolation ON legal_holds USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
+ALTER TABLE legal_hold_audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE legal_hold_audit_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY legal_hold_audit_events_tenant_isolation ON legal_hold_audit_events USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
 ALTER TABLE deletion_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deletion_requests FORCE ROW LEVEL SECURITY;
 CREATE POLICY deletion_requests_tenant_isolation ON deletion_requests USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
@@ -69,7 +87,7 @@ ALTER TABLE lifecycle_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lifecycle_audit_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY lifecycle_audit_events_tenant_isolation ON lifecycle_audit_events USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_retention_policies, legal_holds, deletion_requests, lifecycle_audit_events TO decision_assurance_application;
-GRANT USAGE, SELECT ON SEQUENCE lifecycle_audit_events_sequence_seq TO decision_assurance_application;
-GRANT SELECT ON tenant_retention_policies, legal_holds, deletion_requests, lifecycle_audit_events TO decision_assurance_operations_readonly;
-GRANT SELECT ON legal_holds, deletion_requests, lifecycle_audit_events TO decision_assurance_audit_export;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_retention_policies, legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_application;
+GRANT USAGE, SELECT ON SEQUENCE lifecycle_audit_events_sequence_seq, legal_hold_audit_events_sequence_seq TO decision_assurance_application;
+GRANT SELECT ON tenant_retention_policies, legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_operations_readonly;
+GRANT SELECT ON legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_audit_export;

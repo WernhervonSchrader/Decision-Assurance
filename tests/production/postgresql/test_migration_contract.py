@@ -28,6 +28,7 @@ TENANT_TABLES = (
     "tenant_runtime_limits",
     "tenant_retention_policies",
     "legal_holds",
+    "legal_hold_audit_events",
     "deletion_requests",
     "lifecycle_audit_events",
 )

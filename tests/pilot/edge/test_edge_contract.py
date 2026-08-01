@@ -61,6 +61,14 @@ def test_caddy_contract_is_https_only_host_bounded_and_strips_forwarded_headers(
     ):
         assert header in caddy
     assert "respond 404" in caddy
+    assert "@public_oidc path" in caddy
+    assert "/realms/decision-assurance/protocol/openid-connect/auth" in caddy
+    assert "/realms/decision-assurance/login-actions/*" in caddy
+    assert "/resources/*" in caddy
+    assert "/admin/*" not in caddy
+    assert "/realms/master/*" not in caddy
+    identity_block = caddy.split("https://{$DA_IDENTITY_HOST}:8443", maxsplit=1)[1]
+    assert "respond 404" in identity_block
 
 
 def test_new_images_declare_non_root_runtime_users() -> None:
@@ -70,3 +78,11 @@ def test_new_images_declare_non_root_runtime_users() -> None:
     assert "USER 10001:10001" in ui
     assert "USER 1000:1000" in edge
     assert "node:24.15.0-bookworm-slim" in ui
+
+
+def test_bff_disables_access_logging_for_oidc_callback_credentials() -> None:
+    runtime = (ROOT / "src" / "decision_assurance" / "pilot_ui" / "runtime.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "access_log=False" in runtime

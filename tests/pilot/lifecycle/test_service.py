@@ -60,6 +60,8 @@ def test_active_legal_hold_blocks_physical_deletion_and_replay_is_idempotent() -
     assert blocked.status.value == "BLOCKED_BY_HOLD"
     assert repository.case_exists(TenantContext("tenant-a"), "quote-1")
     assert sum(event.event_type == "data.deletion-requested" for event in repository.events) == 1
+    assert repository.events[0].event_type == "data.legal-hold-placed"
+    assert repository.events[0].correlation_id == "correlation-1"
 
     blocked_replay = service.execute_deletion(actor, first.request_id, "c-4")
     assert blocked_replay.status.value == "BLOCKED_BY_HOLD"
@@ -100,8 +102,10 @@ def test_only_tenant_admin_can_manage_hold_or_delete() -> None:
 
 def test_audit_persistence_failure_fails_closed_without_deletion_request() -> None:
     class FailingRepository(InMemoryLifecycleRepository):
-        def persist_transition(self, request: object, event: object) -> None:
-            del request, event
+        def persist_transition(
+            self, request: object, event: object, expected_status: object
+        ) -> object:
+            del request, event, expected_status
             raise RuntimeError("AUDIT_PERSISTENCE_FAILED")
 
     repository = FailingRepository({"tenant-a": {"quote-1"}})
@@ -116,3 +120,45 @@ def test_audit_persistence_failure_fails_closed_without_deletion_request() -> No
 
     assert repository.events == []
     assert repository.case_exists(TenantContext("tenant-a"), "quote-1")
+
+
+def test_completion_audit_failure_rolls_back_physical_deletion() -> None:
+    class FailingCompletionRepository(InMemoryLifecycleRepository):
+        def complete_deletion(self, request: object, event: object) -> object:
+            del request, event
+            raise RuntimeError("AUDIT_PERSISTENCE_FAILED")
+
+    repository = FailingCompletionRepository({"tenant-a": {"quote-1"}})
+    service = PilotLifecycleService(
+        repository, SecretValue("pilot-lifecycle-pepper"), clock=lambda: NOW
+    )
+    request = service.request_deletion(
+        _identity("tenant-a"), "quote-1", "USER_REQUEST", "delete-once", "c-1"
+    )
+
+    with pytest.raises(RuntimeError, match="AUDIT_PERSISTENCE_FAILED"):
+        service.execute_deletion(_identity("tenant-a"), request.request_id, "c-2")
+
+    assert repository.case_exists(TenantContext("tenant-a"), "quote-1")
+    assert repository.get_request(TenantContext("tenant-a"), request.request_id).status.value == (
+        "EXECUTING"
+    )
+
+
+def test_legal_hold_release_is_append_only_audited() -> None:
+    repository = InMemoryLifecycleRepository({"tenant-a": {"quote-1"}})
+    service = PilotLifecycleService(
+        repository, SecretValue("pilot-lifecycle-pepper"), clock=lambda: NOW
+    )
+    actor = _identity("tenant-a")
+
+    service.place_legal_hold(actor, "quote-1", "LITIGATION", "hold-place-correlation")
+    assert service.release_legal_hold(actor, "quote-1", "hold-release-correlation")
+
+    hold_events = [event for event in repository.events if "legal-hold" in event.event_type]
+    assert [event.event_type for event in hold_events] == [
+        "data.legal-hold-placed",
+        "data.legal-hold-released",
+    ]
+    assert hold_events[1].previous_event_hash == hold_events[0].event_hash
+    assert hold_events[1].correlation_id == "hold-release-correlation"

@@ -73,6 +73,7 @@ def main() -> None:
         port=int(os.getenv("DA_PILOT_UI_PORT", "8080")),
         proxy_headers=False,
         server_header=False,
+        access_log=False,
     )
 
 

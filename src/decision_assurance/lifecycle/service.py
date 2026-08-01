@@ -71,8 +71,7 @@ class PilotLifecycleService:
         )
         event = self._event(request, "data.deletion-requested", identity, correlation_id)
         request = request.with_event(event)
-        self._repository.persist_transition(request, event)
-        return request
+        return self._repository.persist_transition(request, event, None)
 
     def execute_deletion(
         self, identity: Identity, request_id: str, correlation_id: str
@@ -88,24 +87,37 @@ class PilotLifecycleService:
             raise LifecycleConflict("INVALID_DELETION_STATE")
         if self._repository.active_hold(identity.tenant, decision_id):
             blocked = request.with_status(DeletionStatus.BLOCKED_BY_HOLD, legal_hold_active=True)
-            return self._record(blocked, "data.deletion-blocked", identity, correlation_id)
+            return self._record(
+                blocked,
+                "data.deletion-blocked",
+                identity,
+                correlation_id,
+                expected_status=request.status,
+            )
         executing = self._record(
             request.with_status(DeletionStatus.EXECUTING),
             "data.deletion-executing",
             identity,
             correlation_id,
+            expected_status=request.status,
         )
         try:
-            self._repository.delete_case_data(identity.tenant, decision_id)
+            completed = executing.with_status(
+                DeletionStatus.COMPLETED,
+                completed_at=self._timestamp(),
+                forget_decision=True,
+            )
+            event = self._event(completed, "data.deletion-completed", identity, correlation_id)
+            return self._repository.complete_deletion(completed.with_event(event), event)
         except LegalHoldActive:
             blocked = executing.with_status(DeletionStatus.BLOCKED_BY_HOLD, legal_hold_active=True)
-            return self._record(blocked, "data.deletion-blocked", identity, correlation_id)
-        completed = executing.with_status(
-            DeletionStatus.COMPLETED,
-            completed_at=self._timestamp(),
-            forget_decision=True,
-        )
-        return self._record(completed, "data.deletion-completed", identity, correlation_id)
+            return self._record(
+                blocked,
+                "data.deletion-blocked",
+                identity,
+                correlation_id,
+                expected_status=executing.status,
+            )
 
     def place_legal_hold(
         self,
@@ -118,9 +130,9 @@ class PilotLifecycleService:
         if not self._repository.case_exists(identity.tenant, decision_id):
             raise LifecycleConflict("CASE_NOT_FOUND")
         actor_hash = self._digest("actor", identity.tenant.tenant_id, identity.actor_id)
-        hold_id = (
-            "hold-"
-            + self._plain_digest(f"{identity.tenant.tenant_id}\0{decision_id}\0{reason_code}")[:24]
+        hold_id = "hold-" + self._plain_digest(f"{identity.tenant.tenant_id}\0{decision_id}")[:24]
+        event = self._hold_event(
+            identity, decision_id, hold_id, "data.legal-hold-placed", reason_code, correlation_id
         )
         self._repository.set_hold(
             identity.tenant,
@@ -128,17 +140,25 @@ class PilotLifecycleService:
             hold_id,
             actor_hash,
             reason_code,
-            self._timestamp(),
+            event.occurred_at,
+            event,
         )
-        del correlation_id
 
     def release_legal_hold(self, identity: Identity, decision_id: str, correlation_id: str) -> bool:
         authorize(identity, Permission.LEGAL_HOLD_MANAGE)
         actor_hash = self._digest("actor", identity.tenant.tenant_id, identity.actor_id)
-        released = self._repository.release_hold(
-            identity.tenant, decision_id, actor_hash, self._timestamp()
+        hold_id = "hold-" + self._plain_digest(f"{identity.tenant.tenant_id}\0{decision_id}")[:24]
+        event = self._hold_event(
+            identity,
+            decision_id,
+            hold_id,
+            "data.legal-hold-released",
+            "LEGAL_HOLD_RELEASED",
+            correlation_id,
         )
-        del correlation_id
+        released = self._repository.release_hold(
+            identity.tenant, decision_id, actor_hash, event.occurred_at, event
+        )
         return released
 
     def _record(
@@ -147,11 +167,56 @@ class PilotLifecycleService:
         event_type: str,
         identity: Identity,
         correlation_id: str,
+        *,
+        expected_status: DeletionStatus | None = None,
     ) -> DeletionRequest:
         event = self._event(request, event_type, identity, correlation_id)
         updated = request.with_event(event)
-        self._repository.persist_transition(updated, event)
-        return updated
+        return self._repository.persist_transition(updated, event, expected_status)
+
+    def _hold_event(
+        self,
+        identity: Identity,
+        decision_id: str,
+        hold_id: str,
+        event_type: str,
+        reason_code: str,
+        correlation_id: str,
+    ) -> LifecycleEvent:
+        prior = self._repository.last_hold_event(identity.tenant, hold_id)
+        previous = None if prior is None else prior.event_hash
+        occurred_at = self._timestamp()
+        case_ref_hash = self._digest("case", identity.tenant.tenant_id, decision_id)
+        actor_hash = self._digest("actor", identity.tenant.tenant_id, identity.actor_id)
+        chain_ref = "root" if previous is None else previous.removeprefix("sha256:")[:16]
+        event_id = f"{hold_id}:{event_type}:{occurred_at}:{chain_ref}"
+        payload = {
+            "event_id": event_id,
+            "request_id": hold_id,
+            "case_ref_hash": case_ref_hash,
+            "event_type": event_type,
+            "occurred_at": occurred_at,
+            "reason_code": reason_code,
+            "correlation_id": correlation_id,
+            "actor_hash": actor_hash,
+            "previous_event_hash": previous,
+        }
+        return LifecycleEvent(
+            tenant_id=identity.tenant.tenant_id,
+            event_id=event_id,
+            request_id=hold_id,
+            case_ref_hash=case_ref_hash,
+            event_type=event_type,
+            occurred_at=occurred_at,
+            reason_code=reason_code,
+            correlation_id=correlation_id,
+            actor_hash=actor_hash,
+            event_hash="sha256:"
+            + self._plain_digest(
+                json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            ),
+            previous_event_hash=previous,
+        )
 
     def _event(
         self,
