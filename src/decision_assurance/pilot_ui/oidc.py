@@ -4,7 +4,8 @@ import base64
 import hashlib
 import hmac
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from urllib.parse import urlencode, urlsplit
 
 import httpx
@@ -22,6 +23,7 @@ _PKCE_VERIFIER = re.compile(r"^[A-Za-z0-9._~-]{43,128}$")
 class TokenSet:
     access_token: SensitiveToken
     expires_in: int
+    authentication_claims: Mapping[str, object] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         return "TokenSet(**redacted**)"
@@ -116,10 +118,10 @@ class OidcBrowserClient:
             or not 1 <= expires_in <= 3600
         ):
             raise BrowserOidcError("OIDC_TOKEN_INVALID")
-        self._validate_id_token(id_token, transaction.nonce)
-        return TokenSet(SensitiveToken(access_token), expires_in)
+        claims = self._validate_id_token(id_token, transaction.nonce)
+        return TokenSet(SensitiveToken(access_token), expires_in, claims)
 
-    def _validate_id_token(self, token: str, expected_nonce: str) -> None:
+    def _validate_id_token(self, token: str, expected_nonce: str) -> dict[str, object]:
         try:
             header = jwt.get_unverified_header(token)
             algorithm = header.get("alg")
@@ -145,6 +147,7 @@ class OidcBrowserClient:
             nonce = claims.get("nonce")
             if not isinstance(nonce, str) or not hmac.compare_digest(nonce, expected_nonce):
                 raise BrowserOidcError("OIDC_NONCE_INVALID")
+            return {key: claims[key] for key in ("acr", "amr", "auth_time") if key in claims}
         except BrowserOidcError:
             raise
         except (jwt.PyJWTError, TypeError, ValueError):

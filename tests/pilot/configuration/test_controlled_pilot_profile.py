@@ -67,6 +67,13 @@ def controlled_pilot_mapping() -> dict[str, object]:
             "audit_persistence": True,
             "backup_configuration_ref": "pilot-backup-policy-v1",
             "lifecycle_pseudonymization_secret": "pilot-lifecycle-pepper",
+            "session_pepper_secret": "pilot-session-pepper",
+            "session_envelope_key_secret": "pilot-session-envelope-key",
+            "export_signing": {
+                "mode": "controlled-pilot",
+                "key_id": "pilot-export-signing-2026-01",
+                "key_reference": "/run/secrets/pilot-export-signing-key",
+            },
             "retention_days": 30,
             "pilot_tenant": "pilot-tenant",
             "health_path": "/health/live",

@@ -37,6 +37,7 @@ from tests.keycloak.e2e.support import (
     REALM,
     pkce_access_token,
     require_live_keycloak,
+    required_action_providers,
     restart_keycloak,
     temporary_user,
 )
@@ -50,6 +51,13 @@ class Resolver:
     def resolve(self, hostname: str) -> tuple[str, ...]:
         del hostname
         return ("93.184.216.34",)
+
+
+def test_keycloak_exposes_enabled_totp_and_webauthn_required_actions() -> None:
+    require_live_keycloak()
+    actions = required_action_providers()
+    assert actions["CONFIGURE_TOTP"] is True
+    assert actions["webauthn-register"] is True
 
 
 class Search:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
@@ -9,14 +10,22 @@ from fastapi import FastAPI
 
 from ..observability.metrics import InMemoryMetrics
 from ..oidc.jwks import CachedJwksProvider
+from ..oidc.mfa import MfaPolicy
+from ..persistence.postgresql import PostgresConnectionProvider, PostgresSettings
 from ..production.config import load_config
 from ..production.contracts import OperatingMode
+from ..production.ports import SecretProviderPort
+from ..production.secrets import FileSecretProvider
 from .api_client import HttpPilotApiClient
 from .app import PilotUiSettings, create_pilot_ui_app
 from .oidc import OidcBrowserClient
+from .session_postgresql import PostgresSessionStore
 
 
-def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
+def load_pilot_ui(
+    environment: dict[str, str] | None = None,
+    external_secrets: SecretProviderPort | None = None,
+) -> FastAPI:
     values = environment if environment is not None else os.environ
     config_path = values.get("DA_CONFIG_PATH")
     if not config_path:
@@ -50,6 +59,19 @@ def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
         algorithms=config.oidc.policy.algorithms,
     )
     api_client = HttpPilotApiClient(api_url, httpx.Client(follow_redirects=False, timeout=15.0))
+    secrets = external_secrets
+    if secrets is None:
+        secret_directory = values.get("DA_SECRET_DIRECTORY")
+        if not secret_directory:
+            raise RuntimeError("PILOT_SECRET_PROVIDER_REQUIRED")
+        secrets = FileSecretProvider(Path(secret_directory))
+    database_dsn = secrets.resolve(config.database_dsn_secret)
+    session_store = PostgresSessionStore(
+        PostgresConnectionProvider(PostgresSettings(database_dsn)),
+        session_pepper=secrets.resolve(pilot.session_pepper_secret).value.encode(),
+        envelope_key=secrets.resolve(pilot.session_envelope_key_secret).value.encode(),
+        required_mfa_policy_version="controlled-pilot-mfa-v1",
+    )
     return create_pilot_ui_app(
         PilotUiSettings(
             allowed_hosts=pilot.allowed_hosts,
@@ -59,9 +81,19 @@ def load_pilot_ui(environment: dict[str, str] | None = None) -> FastAPI:
             oidc_end_session_endpoint=(
                 config.oidc.policy.issuer.rstrip("/") + "/protocol/openid-connect/logout"
             ),
+            mfa_policy=MfaPolicy(
+                version="controlled-pilot-mfa-v1",
+                required_roles=frozenset(
+                    {"SYSTEM_ADMINISTRATOR", "TENANT_ADMIN", "APPROVER", "AUDITOR"}
+                ),
+                allowed_acr=frozenset({"urn:da:pilot:mfa", "2"}),
+                allowed_methods=frozenset({"otp", "webauthn"}),
+                max_auth_age=timedelta(minutes=15),
+            ),
         ),
         browser_oidc,
         api_client,
+        session_store=session_store,
         metrics=InMemoryMetrics(),
     )
 

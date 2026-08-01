@@ -17,5 +17,5 @@ def main() -> None:
     dsn = provider.resolve(SecretReference(reference))
     runner = PostgresMigrationRunner(PostgresSettings(dsn))
     runner.migrate()
-    if runner.current_version() != "003":
+    if runner.current_version() != "004":
         raise RuntimeError("DATABASE_SCHEMA_VERSION_MISMATCH")

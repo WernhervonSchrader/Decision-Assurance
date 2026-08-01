@@ -8,6 +8,7 @@ import secrets
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -23,12 +24,14 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response as StarletteResponse
 
+from ..oidc.mfa import MfaPolicy, MfaRequired, evidence_from_validated_claims
 from ..production.ports import MetricsPort
 from .api_client import PilotApiError
 from .errors import BrowserOidcError
 from .oidc import TokenSet
 from .session import (
     BrowserSession,
+    BrowserSessionStore,
     LoginTransaction,
     LoginTransactionStore,
     SensitiveToken,
@@ -90,6 +93,7 @@ class PilotUiSettings:
     asset_directory: Path | None = None
     oidc_end_session_endpoint: str | None = None
     oidc_client_id: str = "decision-assurance-pilot-ui"
+    mfa_policy: MfaPolicy | None = None
 
     def __post_init__(self) -> None:
         if not self.allowed_hosts or not self.trusted_proxy_cidrs:
@@ -118,7 +122,7 @@ def create_pilot_ui_app(
     api: PilotApiPort,
     *,
     login_store: LoginTransactionStore | None = None,
-    session_store: SessionStore | None = None,
+    session_store: BrowserSessionStore | None = None,
     metrics: MetricsPort | None = None,
 ) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -207,6 +211,27 @@ def create_pilot_ui_app(
         transaction = logins.consume(state, request.cookies.get(LOGIN_COOKIE, ""))
         tokens = oidc.exchange(code, transaction)
         identity = api.session(tokens.access_token, request.state.correlation_id)
+        if settings.mfa_policy is not None:
+            roles = identity.get("roles")
+            if not isinstance(roles, list) or any(not isinstance(role, str) for role in roles):
+                raise BrowserOidcError("OIDC_IDENTITY_INVALID")
+            evidence = evidence_from_validated_claims(
+                tokens.authentication_claims, policy_version=settings.mfa_policy.version
+            )
+            try:
+                settings.mfa_policy.require(
+                    frozenset(roles), evidence, now=datetime.now(timezone.utc)
+                )
+            except MfaRequired:
+                raise BrowserOidcError("OIDC_MFA_REQUIRED") from None
+            if evidence is not None:
+                identity = {
+                    **identity,
+                    "acr": evidence.acr,
+                    "amr": list(evidence.amr),
+                    "authenticated_at": evidence.authenticated_at.isoformat(),
+                    "mfa_policy_version": evidence.policy_version,
+                }
         session = sessions.create(tokens.access_token, identity, token_expires_in=tokens.expires_in)
         if metrics is not None:
             metrics.increment("pilot_login_total", labels={"status": "success"})
@@ -297,7 +322,7 @@ def create_pilot_ui_app(
     return app
 
 
-def _require_session(request: Request, sessions: SessionStore) -> BrowserSession:
+def _require_session(request: Request, sessions: BrowserSessionStore) -> BrowserSession:
     session = sessions.get(request.cookies.get(SESSION_COOKIE))
     if session is None:
         raise _HttpError(401, "AUTHENTICATION_REQUIRED")

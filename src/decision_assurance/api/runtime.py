@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from ..export.postgresql import PostgresExportRepository
 from ..export.service import PilotExportService
+from ..export.signing import ExportSigner, FileEd25519Signer
 from ..identity import ActorKind, Identity, Role, StaticTokenAuthenticator
 from ..intake.codec import policy_from_dict
 from ..intake.repository import SqliteIntakeRepository
@@ -41,6 +42,7 @@ from ..production.secrets import (
     FileSecretProvider,
     SecretResolutionError,
 )
+from ..provenance.config import SigningMode
 from ..repositories.sqlite import SqliteDecisionRepository
 from ..security_events import LoggingSecurityEventSink
 from ..tenancy import TenantContext
@@ -67,6 +69,7 @@ def load_runtime(
     *,
     external_secrets: SecretProviderPort | None = None,
     oidc_http_client: httpx.Client | None = None,
+    export_signer: ExportSigner | None = None,
 ) -> FastAPI:
     values = environment if environment is not None else os.environ
     if config_path := values.get("DA_CONFIG_PATH"):
@@ -80,6 +83,7 @@ def load_runtime(
             values,
             external_secrets=external_secrets,
             oidc_http_client=oidc_http_client,
+            export_signer=export_signer,
         )
     return _load_reference_runtime(values)
 
@@ -212,6 +216,7 @@ def _load_configured_runtime(
     *,
     external_secrets: SecretProviderPort | None,
     oidc_http_client: httpx.Client | None,
+    export_signer: ExportSigner | None,
 ) -> FastAPI:
     openai_url = values.get("OPENAI_BASE_URL", "https://api.openai.com")
     firecrawl_url = values.get("FIRECRAWL_BASE_URL", "https://api.firecrawl.dev")
@@ -316,7 +321,7 @@ def _load_configured_runtime(
         version=values.get("DA_VERSION", ""),
         commit_sha=values.get("DA_COMMIT_SHA", ""),
         build_timestamp=values.get("DA_BUILD_TIMESTAMP", ""),
-        database_schema_version="003",
+        database_schema_version="004",
     )
     export_service = None
     lifecycle_service = None
@@ -326,11 +331,24 @@ def _load_configured_runtime(
         lifecycle_secret = secrets.resolve(
             config.controlled_pilot.lifecycle_pseudonymization_secret
         )
+        signing = config.controlled_pilot.export_signing
+        signer = export_signer
+        if signer is None and signing.mode in {
+            SigningMode.DEVELOPMENT,
+            SigningMode.CONTROLLED_PILOT,
+        }:
+            signer = FileEd25519Signer.from_reference(
+                Path(signing.key_reference), key_id=signing.key_id
+            )
+        if signer is None:
+            raise RuntimeError("EXTERNAL_EXPORT_SIGNER_REQUIRED")
         export_service = PilotExportService(
             PostgresExportRepository(persistence.connections),
             version=build_metadata.version,
             commit_sha=build_metadata.commit_sha,
-            policy_versions={"sales-quote": "1", "export": "0.8.0"},
+            policy_versions={"sales-quote": "1", "export": "0.9.0"},
+            signer=signer,
+            event_schema_version="1.0.0",
         )
         lifecycle_service = PilotLifecycleService(
             PostgresLifecycleRepository(persistence.connections), lifecycle_secret
