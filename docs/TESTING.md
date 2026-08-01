@@ -91,3 +91,11 @@ and scans it together with the database-password canary. It also inspects the re
 the absence of bootstrap mounts and variables. No real provider credential or user password is
 printed or committed.
 
+## Controlled-pilot tests
+
+Run Python gates with `pytest -m "not live_provider"`, PostgreSQL tests against version 16, and UI
+gates from `ui/` with `npm ci`, `npm run lint`, `npm test`, `npm run build` and `npm run e2e` after
+installing Chromium. Browser E2E uses deterministic fake BFF responses and two isolated tenants;
+Python BFF security tests cover PKCE/session/CSRF/headers, while the existing opt-in Keycloak suite
+provides the real OIDC protocol integration. This layered CI evidence is not deployment evidence.
+

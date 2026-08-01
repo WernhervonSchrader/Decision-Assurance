@@ -133,3 +133,12 @@ initialization synthetically. Detailed rollout and ChatGPT Work steps are in
 Rollback selects the prior immutable image only when its expected schema is compatible. Database
 changes are forward-only: apply a reviewed compensating migration or restore a verified backup into
 a fresh instance. Never edit `schema_migrations` or tenant audit rows.
+
+## Controlled-pilot edge
+
+`compose.controlled-pilot.yaml` is the reference topology. Only `edge` publishes ports 80/443;
+PostgreSQL, API, Worker, MCP, UI and Keycloak remain on `pilot-internal`. Copy each `.example` secret
+to its untracked `.secrets/` name, replace every placeholder, issue a certificate covering both
+configured hosts, and set immutable build metadata. Run `docker compose ... config --quiet`, Caddy
+validation, image non-root inspection and the TLS/header smoke before any external exposure. The
+example domains and credentials are deliberately unusable. Tunnel/DNS setup stays outside the core.

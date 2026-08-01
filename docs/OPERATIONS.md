@@ -113,3 +113,12 @@ receipt, backup-expiry date and verifier. Do not edit immutable backups or audit
 later restore from reactivating deleted data by maintaining a protected deletion ledger and running
 the approved suppression/re-deletion step after restore. Any cross-tenant result stops the operation
 and triggers the tenant-isolation incident procedure.
+
+## Controlled-pilot operating sequence
+
+Start only after the [pilot acceptance checklist](PILOT-ACCEPTANCE.md) is signed. Record immutable
+image digests, certificate expiry, migration `003`, readiness, queue depth and a restore reference.
+Stop intake immediately for auth anomalies, tenant conflicts, audit failure, provider cost escape,
+unusual BLOCK-rate change or restore failure. Recovery is: isolate edge, preserve redacted evidence,
+drain/cancel jobs, verify schema/RLS/audit chains, restore into a fresh database, rerun two-tenant
+smokes, then obtain human authorization before reopening.

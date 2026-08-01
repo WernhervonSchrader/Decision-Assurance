@@ -91,3 +91,14 @@ writes by the old Worker. Residual risk is an in-flight provider-side effect tha
 after the remote provider accepted it; reconcile provider request IDs and stop on unexplained budget
 anomalies.
 
+## Controlled-pilot browser, edge and data lifecycle
+
+Material threats are code/state/nonce replay, session theft/fixation, CSRF, forwarding/host spoofing,
+open redirects, token leakage, cross-tenant object references, XSS/prompt injection, export traversal
+or tampering, deletion/approval races and deletion under hold. Controls are S256 and one-time bounded
+transactions, server-only tokens, rotated opaque secure cookies, CSRF comparison, exact host/proxy
+allowlists, fixed redirects/routes, RLS plus authenticated tenant context, text-only external content,
+fixed ZIP members/checksums/size bounds, HMAC tombstones and a shared PostgreSQL advisory case lock.
+Residual risks requiring deployment evidence are certificate/DNS control, browser supply chain,
+distributed session continuity, real key rotation, monitoring delivery and restore-time deletion replay.
+

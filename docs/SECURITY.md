@@ -66,3 +66,9 @@ Tenant conflicts in header, path or JSON body and missing permissions are reject
 repository/provider access. Security events use stable reason codes and pseudonymize an unverified
 token reference; tokens, cookies, passwords and secrets are excluded. See [Keycloak](KEYCLOAK.md).
 
+The pilot browser uses Authorization Code + S256 PKCE with one-time state/nonce, bounded server-side
+sessions and an opaque `__Host-da_session` Secure/HttpOnly/SameSite=Lax cookie. Every BFF mutation
+requires CSRF and rejects tenant/actor overrides. The Caddy edge discards inbound forwarding headers,
+sets its own trusted values, limits bodies and serves only allowlisted hosts/routes. Retrieved research
+and submitted text remain untrusted; the UI uses text nodes and never derives an assurance outcome.
+

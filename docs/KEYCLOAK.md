@@ -110,3 +110,9 @@ Run the isolated suite only with explicit opt-in:
 $env:DA_RUN_KEYCLOAK_E2E = "1"
 python -m pytest tests/keycloak -q --basetemp .codex-pytest-keycloak
 ```
+
+The controlled-pilot public client is `decision-assurance-pilot-ui`. It has only the exact HTTPS
+callback/logout URIs in the realm export, is public, and requires S256. The BFF performs code exchange
+and ID-token issuer/audience/signature/nonce validation; access tokens stay in volatile server memory.
+The edge is the only public TLS boundary. MFA policy is a deployment-owner gate and is not claimed by
+the repository realm fixture.

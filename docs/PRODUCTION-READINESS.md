@@ -18,3 +18,11 @@ encryption, network egress enforcement, secret rotation, TLS edge controls, moni
 branch/environment protection, retention/deletion/export/legal-hold processes, capacity/load evidence,
 disaster-recovery objectives and regulatory approval. Any missing mandatory CI or operational evidence
 is `BLOCK`; no unavailable check is treated as a pass.
+
+## Controlled-pilot v0.8 boundary
+
+Repository evidence now covers the Caddy/UI images, BFF PKCE/session contracts, deterministic
+two-tenant browser tests, portable export validation and physical deletion with legal-hold checks.
+This closes repository implementation gates only. Real DNS/certificates, managed secrets, MFA,
+external monitoring, measured backup/restore, load tests, on-call readiness, provider residency and
+organizational approval remain deployment evidence and therefore block production release.
