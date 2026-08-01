@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 import uvicorn
 from fastapi import FastAPI
 
-from ..observability.metrics import InMemoryMetrics, initialize_pilot_metrics
+from ..observability.metrics import (
+    InMemoryMetrics,
+    PilotOperationalEvidenceCollector,
+    initialize_pilot_metrics,
+)
 from ..oidc.jwks import CachedJwksProvider
 from ..oidc.mfa import MfaPolicy
 from ..persistence.postgresql import PostgresConnectionProvider, PostgresSettings
@@ -74,6 +78,14 @@ def load_pilot_ui(
     )
     runtime_metrics = InMemoryMetrics()
     initialize_pilot_metrics(runtime_metrics)
+    tls_evidence_path = values.get("DA_PILOT_TLS_EVIDENCE_PATH")
+    recovery_evidence_path = values.get("DA_PILOT_RECOVERY_EVIDENCE_PATH")
+    if tls_evidence_path and recovery_evidence_path:
+        PilotOperationalEvidenceCollector(runtime_metrics).load_files(
+            tls_evidence=Path(tls_evidence_path),
+            recovery_evidence=Path(recovery_evidence_path),
+            now=datetime.now(timezone.utc),
+        )
     return create_pilot_ui_app(
         PilotUiSettings(
             allowed_hosts=pilot.allowed_hosts,
@@ -91,6 +103,11 @@ def load_pilot_ui(
                 allowed_acr=frozenset({"urn:da:pilot:mfa", "2"}),
                 allowed_methods=frozenset({"otp", "webauthn"}),
                 max_auth_age=timedelta(minutes=15),
+            ),
+            operational_readiness=lambda: (
+                runtime_metrics.gauge("backup_success") == 1
+                and runtime_metrics.gauge("restore_success") == 1
+                and (runtime_metrics.gauge("tls_certificate_days_remaining") or 0) > 0
             ),
         ),
         browser_oidc,

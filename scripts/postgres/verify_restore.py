@@ -23,6 +23,7 @@ from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.persistence.postgresql import (
     PostgresConnectionProvider,
     PostgresSettings,
+    discover_migrations,
 )
 from decision_assurance.pilot_ui.session_postgresql import PostgresSessionStore
 from decision_assurance.production.contracts import SecretValue
@@ -58,6 +59,17 @@ TENANT_TABLES = (
     "deployment_acceptance_events",
     "browser_sessions",
 )
+TENANT_TABLE_REFS = tuple(
+    ("decision_assurance_private" if name == "browser_sessions" else "public", name)
+    for name in TENANT_TABLES
+)
+_STANDARD_TENANT_POLICY = (
+    "(tenant_id = NULLIF(current_setting('decision_assurance.tenant_id'::text, true), ''::text))"
+)
+_SESSION_TENANT_POLICY = (
+    "((tenant_id = current_setting('decision_assurance.tenant_id'::text, true)) OR "
+    "(session_digest = current_setting('decision_assurance.session_digest'::text, true)))"
+)
 
 DRILL_PRE_BACKUP_DECISIONS = ("recovery-decision-1", "recovery-decision-2")
 DRILL_POST_BACKUP_DECISION = "recovery-post-backup"
@@ -87,16 +99,49 @@ def verify(dsn: str) -> dict[str, object]:
         version = connection.execute("SELECT max(version) FROM schema_migrations").fetchone()
         if version != ("004",):
             raise RuntimeError("DATABASE_SCHEMA_VERSION_MISMATCH")
+        migrations = discover_migrations(Path(__file__).parents[2] / "migrations" / "postgresql")
+        restored_migrations = connection.execute(
+            "SELECT version,migration_name,checksum FROM schema_migrations ORDER BY version"
+        ).fetchall()
+        expected_migrations = [(item.version, item.name, item.checksum) for item in migrations]
+        if restored_migrations != expected_migrations:
+            raise RuntimeError("DATABASE_MIGRATION_LEDGER_MISMATCH")
         rls = connection.execute(
             """
-            SELECT relname, relrowsecurity, relforcerowsecurity
-            FROM pg_class
-            WHERE relname = ANY(%s) AND relkind = 'r'
+            SELECT n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname || '.' || c.relname = ANY(%s) AND c.relkind = 'r'
             """,
-            (list(TENANT_TABLES),),
+            ([f"{schema}.{table}" for schema, table in TENANT_TABLE_REFS],),
         ).fetchall()
-        if len(rls) != len(TENANT_TABLES) or any(not row[1] or not row[2] for row in rls):
+        if {(str(row[0]), str(row[1])) for row in rls} != set(TENANT_TABLE_REFS) or any(
+            not row[2] or not row[3] for row in rls
+        ):
             raise RuntimeError("RLS_RESTORE_VERIFICATION_FAILED")
+        policies = connection.execute(
+            """
+            SELECT schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
+            FROM pg_policies
+            WHERE schemaname || '.' || tablename = ANY(%s)
+              AND policyname = tablename || '_tenant_isolation'
+            """,
+            ([f"{schema}.{table}" for schema, table in TENANT_TABLE_REFS],),
+        ).fetchall()
+        if len(policies) != len(TENANT_TABLE_REFS):
+            raise RuntimeError("RLS_POLICY_RESTORE_VERIFICATION_FAILED")
+        for schema, table, policy, permissive, roles, command, qual, with_check in policies:
+            del schema, policy
+            expected_policy = (
+                _SESSION_TENANT_POLICY if table == "browser_sessions" else _STANDARD_TENANT_POLICY
+            )
+            if (
+                permissive != "PERMISSIVE"
+                or roles != ["public"]
+                or command != "ALL"
+                or qual != expected_policy
+                or with_check != expected_policy
+            ):
+                raise RuntimeError("RLS_POLICY_RESTORE_VERIFICATION_FAILED")
         unsafe_roles = connection.execute(
             """
             SELECT rolname FROM pg_roles
@@ -193,7 +238,7 @@ def verify(dsn: str) -> dict[str, object]:
         "server_version_num": server_version_num,
         "verification_completed_at": datetime.now(timezone.utc).isoformat(),
         "database_schema_version": "004",
-        "rls_tables_verified": len(TENANT_TABLES),
+        "rls_tables_verified": len(TENANT_TABLE_REFS),
         "session_store_verified": True,
         "drill_data_verified": verify_drill_data,
         "drill_counts": drill_counts,

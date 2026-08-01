@@ -29,6 +29,9 @@ def test_controlled_pilot_compose_has_one_public_edge_and_private_core() -> None
     assert services["edge"]["read_only"] is True
     assert services["keycloak-bootstrap"]["profiles"] == ["bootstrap"]
     assert services["keycloak-bootstrap"]["logging"]["driver"] == "none"
+    pilot_ui = services["pilot-ui"]
+    assert pilot_ui["environment"]["DA_PILOT_TLS_EVIDENCE_PATH"].startswith("/run/secrets/")
+    assert pilot_ui["environment"]["DA_PILOT_RECOVERY_EVIDENCE_PATH"].startswith("/run/secrets/")
 
 
 def test_compose_uses_secret_files_and_contains_no_inline_credentials() -> None:

@@ -97,5 +97,13 @@ def test_backup_and_restore_are_checksum_verified_and_fail_fast() -> None:
     assert "RECOVERY_DRILL_POST_BACKUP_DATA_PRESENT" in verifier
     assert "decision_assurance_private.browser_sessions" in verifier
     assert "schema_migrations" in verifier
+    assert "DATABASE_MIGRATION_LEDGER_MISMATCH" in verifier
+    assert "migration_name,checksum" in verifier
+    assert "pg_namespace" in verifier
+    assert "pg_policies" in verifier
+    assert "RLS_POLICY_RESTORE_VERIFICATION_FAILED" in verifier
+    assert "decision_assurance_metrics_owner" in (
+        ROOT / "migrations" / "postgresql" / "roles.sql"
+    ).read_text(encoding="utf-8")
     assert "relforcerowsecurity" in verifier
     assert "AUDIT_HASH_CHAIN_INVALID" in verifier

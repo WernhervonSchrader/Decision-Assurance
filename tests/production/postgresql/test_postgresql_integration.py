@@ -225,6 +225,10 @@ def test_job_enqueue_claim_retry_lease_and_completion_are_atomic(postgres_dsn: s
 
     assert repository.enqueue(tenant, job) == job
     assert repository.enqueue(tenant, job) == job
+    assert repository.queued_count() == 1
+    with psycopg.connect(postgres_dsn) as application:
+        application.execute("SET ROLE decision_assurance_application")
+        assert application.execute("SELECT da_research_queue_depth()").fetchone() == (1,)
     claimed = repository.claim("worker-1", now="2026-07-30T10:00:00Z")
     assert claimed is not None
     assert claimed.job.status is JobStatus.RUNNING
@@ -254,6 +258,7 @@ def test_job_enqueue_claim_retry_lease_and_completion_are_atomic(postgres_dsn: s
         partial=False,
         now="2026-07-30T10:00:07Z",
     )
+    assert repository.queued_count() == 0
 
     with psycopg.connect(postgres_dsn) as owner:
         status = owner.execute(

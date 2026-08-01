@@ -120,6 +120,18 @@ def test_missing_and_invalid_tokens_emit_stable_secret_free_events() -> None:
     ]
     assert "do-not-log-this-token" not in repr(events.events)
     assert repository.calls == []
+    assert (
+        client.app.state.metrics.counter(
+            "authentication_failures_total", {"reason": "AUTH_TOKEN_MISSING"}
+        )
+        == 1
+    )
+    assert (
+        client.app.state.metrics.counter(
+            "authentication_failures_total", {"reason": "AUTH_TOKEN_INVALID"}
+        )
+        == 1
+    )
 
 
 def test_header_tenant_conflict_is_denied_before_repository_access() -> None:

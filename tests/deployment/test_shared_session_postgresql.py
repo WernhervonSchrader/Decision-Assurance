@@ -70,6 +70,7 @@ def test_two_bff_instances_share_and_revoke_encrypted_session() -> None:
     }
     first = PostgresSessionStore(connections, **kwargs)
     second = PostgresSessionStore(connections, **kwargs)
+    assert first.ready()
     with psycopg.connect(dsn) as inspection:
         rls = inspection.execute(
             "SELECT relrowsecurity, relforcerowsecurity FROM pg_class "

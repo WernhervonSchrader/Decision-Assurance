@@ -375,6 +375,7 @@ def _load_configured_runtime(
         security_events=LoggingSecurityEventSink(logger),
         export_service=export_service,
         lifecycle_service=lifecycle_service,
+        queue_depth_probe=jobs.queued_count if jobs is not None else None,
     )
     app.state.job_repository = jobs
     app.state.operating_mode = config.operating_mode

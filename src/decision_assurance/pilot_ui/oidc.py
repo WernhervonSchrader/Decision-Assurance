@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 import jwt
 
-from ..oidc.jwks import CachedJwksProvider
+from ..oidc.jwks import CachedJwksProvider, JwksResolutionError
 from .errors import BrowserOidcError
 from .session import LoginTransaction, SensitiveToken
 
@@ -159,5 +159,12 @@ class OidcBrowserClient:
             return {key: claims[key] for key in ("acr", "amr", "auth_time") if key in claims}
         except BrowserOidcError:
             raise
+        except JwksResolutionError as error:
+            code = (
+                "OIDC_PROVIDER_UNAVAILABLE"
+                if str(error) == "JWKS_UNAVAILABLE"
+                else "OIDC_ID_TOKEN_INVALID"
+            )
+            raise BrowserOidcError(code) from None
         except (jwt.PyJWTError, TypeError, ValueError):
             raise BrowserOidcError("OIDC_ID_TOKEN_INVALID") from None

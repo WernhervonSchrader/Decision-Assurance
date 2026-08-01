@@ -100,6 +100,10 @@ def request_deletion(
         code = "NOT_FOUND" if str(error) == "CASE_NOT_FOUND" else "CONFLICT"
         raise ApiError(404 if code == "NOT_FOUND" else 409, code) from error
     _metric(request, "pilot_lifecycle_total", result.status.value.lower())
+    if request.app.state.metrics is not None:
+        request.app.state.metrics.increment(
+            "deletion_activity_total", labels={"status": result.status.value.lower()}
+        )
     if result.status.value == "BLOCKED_BY_HOLD" and request.app.state.metrics is not None:
         request.app.state.metrics.increment("legal_hold_violation_attempts_total")
     return result.to_dict()
@@ -121,6 +125,10 @@ def execute_deletion(
     except LifecycleConflict as error:
         raise ApiError(404, "NOT_FOUND") from error
     _metric(request, "pilot_lifecycle_total", result.status.value.lower())
+    if request.app.state.metrics is not None:
+        request.app.state.metrics.increment(
+            "deletion_activity_total", labels={"status": result.status.value.lower()}
+        )
     if result.status.value == "BLOCKED_BY_HOLD" and request.app.state.metrics is not None:
         request.app.state.metrics.increment("legal_hold_violation_attempts_total")
     return result.to_dict()

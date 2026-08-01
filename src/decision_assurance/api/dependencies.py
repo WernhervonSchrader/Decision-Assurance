@@ -45,6 +45,10 @@ def _record(
         if metrics is not None:
             metrics.increment("audit_failures_total")
         raise
+    if event_type == "authentication.failed" and request.app.state.metrics is not None:
+        request.app.state.metrics.increment(
+            "authentication_failures_total", labels={"reason": reason_code}
+        )
 
 
 def _anonymous_ref(token: str | None) -> str:

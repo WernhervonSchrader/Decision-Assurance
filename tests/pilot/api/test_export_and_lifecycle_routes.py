@@ -147,6 +147,11 @@ def test_legal_hold_blocks_delete_then_release_allows_physical_delete(tmp_path: 
         headers=_headers("admin", "execute-2"),
     )
     assert completed.json()["status"] == "COMPLETED"
+    assert (
+        client.app.state.metrics.counter("deletion_activity_total", {"status": "blocked_by_hold"})
+        == 2
+    )
+    assert client.app.state.metrics.counter("deletion_activity_total", {"status": "completed"}) == 1
 
 
 def test_auditor_cannot_delete_or_manage_hold(tmp_path: Path) -> None:

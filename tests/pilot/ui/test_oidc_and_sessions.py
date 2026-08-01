@@ -23,7 +23,9 @@ ISSUER = "https://identity.example/realms/decision-assurance"
 CLIENT_ID = "decision-assurance-pilot-ui"
 
 
-def _client(nonce: str, *, returned_nonce: str | None = None) -> OidcBrowserClient:
+def _client(
+    nonce: str, *, returned_nonce: str | None = None, jwks_unavailable: bool = False
+) -> OidcBrowserClient:
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public = RSAAlgorithm.to_jwk(private.public_key(), as_dict=True)
     public.update({"kid": "pilot", "alg": "RS256", "use": "sig"})
@@ -44,6 +46,8 @@ def _client(nonce: str, *, returned_nonce: str | None = None) -> OidcBrowserClie
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/certs"):
+            if jwks_unavailable:
+                return httpx.Response(503)
             return httpx.Response(200, json={"keys": [public]})
         if request.url.path.endswith("/token"):
             body = request.content.decode()
@@ -108,6 +112,12 @@ def test_code_exchange_validates_nonce_and_discards_refresh_token() -> None:
 
     with pytest.raises(BrowserOidcError, match="OIDC_NONCE_INVALID"):
         _client(transaction.nonce, returned_nonce="wrong").exchange("code", transaction)
+
+
+def test_jwks_outage_is_classified_as_provider_unavailable() -> None:
+    transaction = LoginTransactionStore(clock=lambda: 10.0).create("/cases", "browser-binding")
+    with pytest.raises(BrowserOidcError, match="OIDC_PROVIDER_UNAVAILABLE"):
+        _client(transaction.nonce, jwks_unavailable=True).exchange("code", transaction)
 
 
 @pytest.mark.parametrize("verifier", ["", "short", "a" * 129, "a" * 42 + "!"])

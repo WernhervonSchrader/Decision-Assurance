@@ -17,6 +17,7 @@ from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
 from ..lifecycle.service import PilotLifecycleService
 from ..observability.health import HealthService
+from ..observability.metrics import AssuranceOutcomeCollector, InMemoryMetrics
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
@@ -49,6 +50,7 @@ def create_app(
     security_events: SecurityEventSink | None = None,
     export_service: PilotExportService | None = None,
     lifecycle_service: PilotLifecycleService | None = None,
+    queue_depth_probe: Callable[[], int] | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Decision Assurance API",
@@ -68,6 +70,9 @@ def create_app(
     app.state.export_service = export_service
     app.state.lifecycle_service = lifecycle_service
     app.state.metrics = metrics
+    app.state.assurance_outcomes = (
+        AssuranceOutcomeCollector(metrics) if isinstance(metrics, InMemoryMetrics) else None
+    )
 
     @app.middleware("http")
     async def request_controls(
@@ -150,6 +155,8 @@ def create_app(
 
         @app.get("/internal/metrics", include_in_schema=False)
         def internal_metrics() -> PlainTextResponse:
+            if queue_depth_probe is not None:
+                metrics.set_gauge("research_jobs_queued", queue_depth_probe())
             return PlainTextResponse(metrics.render_prometheus())
 
     if build_metadata is not None:

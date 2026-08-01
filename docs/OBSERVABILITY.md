@@ -15,6 +15,14 @@ remain unhealthy until the operational evidence collector supplies a measured, i
 recovery report and verified certificate lifetime. Critical availability rules use `absent(...)`, so a missing exporter or
 missing series fires instead of silently evaluating to healthy.
 
+The controlled-pilot BFF reads those signed-off measurements from protected, read-only files named
+by `DA_PILOT_TLS_EVIDENCE_PATH` and `DA_PILOT_RECOVERY_EVIDENCE_PATH`. The Compose profile mounts
+them as `pilot-tls-evidence` and `pilot-recovery-evidence` secrets. Missing, oversized, malformed,
+expired or failed evidence keeps `/health/ready` at HTTP 503. Example files are placeholders only and
+must never be interpreted as pilot acceptance evidence. The API measures the global Research backlog
+from its PostgreSQL worker connection at scrape time; authentication, deletion and assurance-outcome
+series are emitted at their authoritative runtime boundaries.
+
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only
 allowlisted operational fields; request bodies, raw Intake text, extracted content, bearer tokens,

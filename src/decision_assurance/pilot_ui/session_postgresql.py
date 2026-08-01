@@ -46,13 +46,21 @@ class PostgresSessionStore:
                 row = connection.execute(
                     """
                     SELECT
-                      to_regclass('decision_assurance_private.browser_sessions') IS NOT NULL AS session_table,
+                      EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE n.nspname = 'decision_assurance_private'
+                          AND c.relname = 'browser_sessions' AND c.relkind = 'r') AS session_table,
+                      to_regprocedure('da_create_browser_session(text,text,text,jsonb,text,text,timestamptz)') IS NOT NULL AS create_function,
                       to_regprocedure('da_get_browser_session(text)') IS NOT NULL AS get_function,
                       to_regprocedure('da_revoke_browser_session(text)') IS NOT NULL AS revoke_function,
+                      to_regprocedure('da_revoke_actor_sessions(text,text)') IS NOT NULL AS revoke_actor_function,
+                      has_function_privilege(current_user, 'da_create_browser_session(text,text,text,jsonb,text,text,timestamptz)', 'EXECUTE') AS can_create,
                       has_function_privilege(current_user, 'da_get_browser_session(text)', 'EXECUTE') AS can_get,
                       has_function_privilege(current_user, 'da_revoke_browser_session(text)', 'EXECUTE') AS can_revoke,
-                      COALESCE((SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
-                        WHERE oid = 'decision_assurance_private.browser_sessions'::regclass), false) AS forced_rls
+                      has_function_privilege(current_user, 'da_revoke_actor_sessions(text,text)', 'EXECUTE') AS can_revoke_actor,
+                      COALESCE((SELECT c.relrowsecurity AND c.relforcerowsecurity
+                        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE n.nspname = 'decision_assurance_private'
+                          AND c.relname = 'browser_sessions' AND c.relkind = 'r'), false) AS forced_rls
                     """
                 ).fetchone()
                 return row is not None and all(bool(value) for value in row.values())

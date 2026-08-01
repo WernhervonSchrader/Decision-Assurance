@@ -24,6 +24,7 @@ from decision_assurance.deployment.evidence import (
 from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.observability.alerts import AlertEvaluator, default_alert_rules
 from decision_assurance.observability.metrics import (
+    AssuranceOutcomeCollector,
     InMemoryMetrics,
     PilotOperationalEvidenceCollector,
     initialize_pilot_metrics,
@@ -464,7 +465,7 @@ def test_recovery_evidence_reports_observed_not_promised_rpo_rto() -> None:
     assert report["scope"] == "TEST_OBSERVATION_NOT_SERVICE_COMMITMENT"
 
 
-def test_local_alert_evaluator_fires_without_high_cardinality_labels() -> None:
+def test_local_alert_evaluator_fires_without_high_cardinality_labels(tmp_path: Path) -> None:
     rules = default_alert_rules()
     assert all(
         not rule.labels.intersection({"tenant", "actor", "decision", "url", "claim"})
@@ -517,6 +518,53 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels() -> None:
     assert "backup_success 1" in measured
     assert "restore_success 1" in measured
     assert "tls_certificate_days_remaining 30" in measured
+
+    tls_path = tmp_path / "tls.json"
+    recovery_path = tmp_path / "recovery.json"
+    tls_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "not_after": (NOW + timedelta(days=30)).isoformat(),
+                "hostname_verified": True,
+                "chain_verified": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    recovery_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "environment": "controlled-pilot-test",
+                "commit_sha": "a" * 40,
+                "data_bytes": 4096,
+                "target_rpo_seconds": 60,
+                "observed_rpo_seconds": 10,
+                "target_rto_seconds": 120,
+                "observed_rto_seconds": 30,
+                "verification_report_sha256": "sha256:" + "f" * 64,
+                "audit_chains_valid": True,
+                "exports_valid": True,
+                "tenant_isolation_valid": True,
+                "session_decryption_valid": True,
+                "target_met": True,
+                "scope": "TEST_OBSERVATION_NOT_SERVICE_COMMITMENT",
+            }
+        ),
+        encoding="utf-8",
+    )
+    from_files = InMemoryMetrics()
+    initialize_pilot_metrics(from_files)
+    assert PilotOperationalEvidenceCollector(from_files).load_files(
+        tls_evidence=tls_path, recovery_evidence=recovery_path, now=NOW
+    )
+    assert from_files.gauge("backup_success") == 1
+
+    outcomes = AssuranceOutcomeCollector(from_files)
+    outcomes.record("REVIEW")
+    outcomes.record("APPROVED")
+    assert from_files.gauge("assurance_block_review_rate") == 0.5
 
 
 def test_evidence_schemas_are_packaged_and_alert_rules_are_bounded() -> None:

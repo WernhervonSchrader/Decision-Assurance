@@ -220,6 +220,8 @@ services:
       DA_INTERNAL_API_URL: http://api:8000
       DA_PILOT_UI_HOST: 0.0.0.0
       DA_PILOT_UI_PORT: "8080"
+      DA_PILOT_TLS_EVIDENCE_PATH: /run/secrets/pilot-tls-evidence
+      DA_PILOT_RECOVERY_EVIDENCE_PATH: /run/secrets/pilot-recovery-evidence
     secrets:
       - source: database-dsn
         target: decision-assurance-database-dsn
@@ -227,6 +229,10 @@ services:
         target: pilot-session-pepper
       - source: session-envelope-key
         target: pilot-session-envelope-key
+      - source: pilot-tls-evidence
+        target: pilot-tls-evidence
+      - source: pilot-recovery-evidence
+        target: pilot-recovery-evidence
     depends_on:
       api: {condition: service_started}
       keycloak: {condition: service_started}
@@ -283,3 +289,5 @@ secrets:
   keycloak-db-password: {file: ./.secrets/keycloak-db-password}
   pilot-tls-cert: {file: ./.secrets/pilot-tls-cert}
   pilot-tls-key: {file: ./.secrets/pilot-tls-key}
+  pilot-tls-evidence: {file: ./.secrets/pilot-tls-evidence}
+  pilot-recovery-evidence: {file: ./.secrets/pilot-recovery-evidence}

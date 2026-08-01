@@ -94,6 +94,7 @@ class PilotUiSettings:
     oidc_end_session_endpoint: str | None = None
     oidc_client_id: str = "decision-assurance-pilot-ui"
     mfa_policy: MfaPolicy | None = None
+    operational_readiness: Callable[[], bool] | None = None
 
     def __post_init__(self) -> None:
         if not self.allowed_hosts or not self.trusted_proxy_cidrs:
@@ -183,7 +184,9 @@ def create_pilot_ui_app(
 
     @app.get("/health/ready")
     def ready() -> JSONResponse:
-        available = sessions.ready()
+        available = sessions.ready() and (
+            settings.operational_readiness is None or settings.operational_readiness()
+        )
         if metrics is not None:
             metrics.set_gauge("session_store_available", 1 if available else 0)
         return JSONResponse(

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from collections.abc import Mapping
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Lock
+
+from jsonschema import Draft202012Validator
 
 _ALLOWED_NAMES = frozenset(
     {
@@ -64,6 +68,10 @@ class InMemoryMetrics:
     def counter(self, name: str, labels: Mapping[str, str] | None = None) -> int:
         with self._lock:
             return self._counters[self._key(name, labels)]
+
+    def gauge(self, name: str, labels: Mapping[str, str] | None = None) -> float | None:
+        with self._lock:
+            return self._gauges.get(self._key(name, labels))
 
     def set_gauge(
         self, name: str, value: float, *, labels: Mapping[str, str] | None = None
@@ -164,6 +172,76 @@ class PilotOperationalEvidenceCollector:
         self._metrics.set_gauge("backup_success", 1 if measured else 0)
         self._metrics.set_gauge("restore_success", 1 if measured else 0)
         return measured
+
+    def load_files(
+        self,
+        *,
+        tls_evidence: Path,
+        recovery_evidence: Path,
+        now: datetime,
+    ) -> bool:
+        try:
+            tls = _bounded_json(tls_evidence)
+            recovery = _bounded_json(recovery_evidence)
+            if (
+                set(tls)
+                != {
+                    "schema_version",
+                    "not_after",
+                    "hostname_verified",
+                    "chain_verified",
+                }
+                or tls.get("schema_version") != "1.0.0"
+            ):
+                return False
+            not_after = datetime.fromisoformat(str(tls["not_after"]).replace("Z", "+00:00"))
+            recovery_schema = _bounded_json(
+                Path(__file__).parents[1]
+                / "schemas"
+                / "production"
+                / "recovery-evidence.schema.json"
+            )
+            if not Draft202012Validator(recovery_schema).is_valid(recovery):
+                return False
+            tls_valid = self.publish_tls(
+                not_after=not_after,
+                hostname_verified=tls.get("hostname_verified") is True,
+                chain_verified=tls.get("chain_verified") is True,
+                now=now,
+            )
+            return tls_valid and self.publish_recovery(recovery)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return False
+
+
+def _bounded_json(path: Path) -> dict[str, object]:
+    if not path.is_file() or path.stat().st_size > 2_000_000:
+        raise ValueError("OPERATIONAL_EVIDENCE_UNAVAILABLE")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("OPERATIONAL_EVIDENCE_INVALID")
+    return value
+
+
+class AssuranceOutcomeCollector:
+    """Derive the escalation rate from outcomes observed by this API instance."""
+
+    def __init__(self, metrics: InMemoryMetrics):
+        self._metrics = metrics
+        self._review_or_block = 0
+        self._total = 0
+        self._lock = Lock()
+
+    def record(self, outcome: str) -> None:
+        if outcome not in {"APPROVED", "BLOCKED", "REVIEW"}:
+            return
+        with self._lock:
+            self._total += 1
+            if outcome in {"BLOCKED", "REVIEW"}:
+                self._review_or_block += 1
+            self._metrics.set_gauge(
+                "assurance_block_review_rate", self._review_or_block / self._total
+            )
 
 
 def _labels(labels: tuple[tuple[str, str], ...]) -> str:

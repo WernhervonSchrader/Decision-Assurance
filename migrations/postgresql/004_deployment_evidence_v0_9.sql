@@ -116,3 +116,21 @@ ALTER FUNCTION da_revoke_actor_sessions(TEXT,TEXT) OWNER TO decision_assurance_s
 REVOKE CREATE ON SCHEMA decision_assurance_private FROM decision_assurance_session_owner;
 REVOKE CREATE ON SCHEMA public FROM decision_assurance_session_owner;
 GRANT USAGE ON SCHEMA decision_assurance_private TO decision_assurance_session_owner;
+
+DROP POLICY IF EXISTS research_jobs_metrics_read ON research_jobs;
+CREATE POLICY research_jobs_metrics_read ON research_jobs
+FOR SELECT TO decision_assurance_metrics_owner USING (true);
+GRANT SELECT ON research_jobs TO decision_assurance_metrics_owner;
+GRANT CREATE ON SCHEMA public TO decision_assurance_metrics_owner;
+CREATE OR REPLACE FUNCTION da_research_queue_depth()
+RETURNS BIGINT
+LANGUAGE SQL STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+    SELECT count(*) FROM public.research_jobs
+    WHERE status IN ('QUEUED', 'RETRY_WAIT');
+$$;
+REVOKE ALL ON FUNCTION da_research_queue_depth() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION da_research_queue_depth() TO decision_assurance_application;
+ALTER FUNCTION da_research_queue_depth() OWNER TO decision_assurance_metrics_owner;
+REVOKE CREATE ON SCHEMA public FROM decision_assurance_metrics_owner;
