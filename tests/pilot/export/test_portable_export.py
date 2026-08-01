@@ -60,6 +60,11 @@ def _lifecycle_event(event_id: str, previous: str | None) -> dict[str, object]:
     return {"schema_version": "0.8.0", **payload, "event_hash": "sha256:" + digest}
 
 
+def _event_hash(event: object) -> str:
+    payload = json.dumps(event, sort_keys=True, separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
 def test_export_is_portable_deterministic_and_validates_offline() -> None:
     repository = InMemoryExportRepository({("tenant-a", "quote-1"): _snapshot()})
     service = PilotExportService(
@@ -182,3 +187,22 @@ def test_export_accepts_and_verifies_valid_lifecycle_audit_chain() -> None:
     ).build(_identity(), "quote-1")
 
     assert validate_export(archive.content).valid
+
+
+def test_export_rejects_branched_decision_audit_chain() -> None:
+    snapshot = _snapshot()
+    first = {"event_id": "a", "previous_event_hash": None}
+    first_hash = _event_hash(first)
+    second = {"event_id": "b", "previous_event_hash": first_hash}
+    branch = {"event_id": "c", "previous_event_hash": first_hash}
+    snapshot["audit/decision-events.json"] = [first, second, branch]
+    archive = PilotExportService(
+        InMemoryExportRepository({("tenant-a", "quote-1"): snapshot}),
+        version="0.8.0",
+        commit_sha="a" * 40,
+        policy_versions={"sales-quote": "1"},
+        clock=lambda: NOW,
+    ).build(_identity(), "quote-1")
+
+    with pytest.raises(ExportValidationError, match="INVALID_EXPORT_AUDIT_CHAIN"):
+        validate_export(archive.content)

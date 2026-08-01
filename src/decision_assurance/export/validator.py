@@ -113,12 +113,12 @@ def _validate_audit_chains(members: dict[str, object]) -> None:
         events = members[name]
         if not isinstance(events, list) or any(not isinstance(item, dict) for item in events):
             raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
-        prior_hashes: set[str] = set()
+        previous_hash: str | None = None
         for event in cast(list[dict[str, object]], events):
             previous = event.get("previous_event_hash")
-            if previous is not None and previous not in prior_hashes:
+            if previous is not None and previous != previous_hash:
                 raise ExportValidationError("INVALID_EXPORT_AUDIT_CHAIN")
-            prior_hashes.add(_prefixed_hash(event))
+            previous_hash = _prefixed_hash(event)
 
     lifecycle = members["audit/lifecycle-events.json"]
     if not isinstance(lifecycle, list) or any(not isinstance(item, dict) for item in lifecycle):

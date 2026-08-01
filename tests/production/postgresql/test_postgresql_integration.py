@@ -165,6 +165,20 @@ def test_runtime_roles_are_non_owner_and_cannot_bypass_rls(postgres_dsn: str) ->
     assert ledger_privileges == (False,)
 
 
+def test_application_role_cannot_mutate_lifecycle_ledgers(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as application:
+        _as_role(application, "decision_assurance_application", "audit-tenant")
+        for ledger in ("lifecycle_audit_events", "legal_hold_audit_events"):
+            privileges = application.execute(
+                "SELECT has_table_privilege(current_user, %s, 'SELECT,INSERT'), "
+                "has_table_privilege(current_user, %s, 'UPDATE,DELETE')",
+                (ledger, ledger),
+            ).fetchone()
+            assert privileges == (True, False)
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                application.execute(f"DELETE FROM {ledger}")  # noqa: S608 - fixed table names
+
+
 def _seed_job_run(connection: Connection[tuple[object, ...]], run_id: str) -> None:
     connection.execute(
         """

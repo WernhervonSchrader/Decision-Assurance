@@ -87,7 +87,9 @@ ALTER TABLE lifecycle_audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lifecycle_audit_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY lifecycle_audit_events_tenant_isolation ON lifecycle_audit_events USING (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), '')) WITH CHECK (tenant_id = NULLIF(current_setting('decision_assurance.tenant_id', true), ''));
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_retention_policies, legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_application;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_retention_policies, legal_holds, deletion_requests TO decision_assurance_application;
+REVOKE UPDATE, DELETE ON legal_hold_audit_events, lifecycle_audit_events FROM decision_assurance_application;
+GRANT SELECT, INSERT ON legal_hold_audit_events, lifecycle_audit_events TO decision_assurance_application;
 GRANT USAGE, SELECT ON SEQUENCE lifecycle_audit_events_sequence_seq, legal_hold_audit_events_sequence_seq TO decision_assurance_application;
 GRANT SELECT ON tenant_retention_policies, legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_operations_readonly;
 GRANT SELECT ON legal_holds, legal_hold_audit_events, deletion_requests, lifecycle_audit_events TO decision_assurance_audit_export;
