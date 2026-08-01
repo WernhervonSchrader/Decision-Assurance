@@ -7,6 +7,8 @@ from pathlib import Path
 import psycopg
 import pytest
 from cryptography.fernet import Fernet
+from psycopg import sql
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from decision_assurance.deployment.postgresql import PostgresAcceptanceAudit
 from decision_assurance.events.registry import EventEnvelope
@@ -24,13 +26,39 @@ pytestmark = pytest.mark.postgresql
 MIGRATIONS = Path(__file__).parents[2] / "migrations" / "postgresql"
 
 
+def _application_dsn(dsn: str) -> str:
+    role = "da_pr8_application_test"
+    with psycopg.connect(dsn, autocommit=True) as bootstrap:
+        if (
+            bootstrap.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone()
+            is None
+        ):
+            bootstrap.execute(
+                sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                    sql.Identifier(role), sql.Literal("postgres")
+                )
+            )
+        else:
+            bootstrap.execute(
+                sql.SQL("ALTER ROLE {} PASSWORD {}").format(
+                    sql.Identifier(role), sql.Literal("postgres")
+                )
+            )
+        bootstrap.execute(
+            sql.SQL("GRANT decision_assurance_application TO {}").format(sql.Identifier(role))
+        )
+    values = conninfo_to_dict(dsn)
+    values.update({"user": role, "password": "postgres"})
+    return make_conninfo(**values)
+
+
 def test_two_bff_instances_share_and_revoke_encrypted_session() -> None:
     dsn = os.environ["DA_TEST_POSTGRES_DSN"]
     with psycopg.connect(dsn, autocommit=True) as bootstrap:
         bootstrap.execute((MIGRATIONS / "roles.sql").read_text(encoding="utf-8"))
     settings = PostgresSettings(SecretValue(dsn))
     PostgresMigrationRunner(settings, MIGRATIONS).migrate()
-    connections = PostgresConnectionProvider(settings)
+    connections = PostgresConnectionProvider(PostgresSettings(SecretValue(_application_dsn(dsn))))
 
     def clock() -> datetime:
         return datetime.now(timezone.utc)
@@ -110,7 +138,10 @@ def test_pilot_acceptance_event_is_persisted_in_tenant_scoped_append_only_ledger
         "deployment-evidence",
         {"deployment_id": "pilot-eu-1", "commit_sha": "a" * 40, "creator": "operator-a"},
     )
-    PostgresAcceptanceAudit(PostgresConnectionProvider(settings)).append(event)
+    application_dsn = _application_dsn(dsn)
+    PostgresAcceptanceAudit(
+        PostgresConnectionProvider(PostgresSettings(SecretValue(application_dsn)))
+    ).append(event)
     with psycopg.connect(dsn) as inspection:
         row = inspection.execute(
             "SELECT tenant_id,event_json->>'event_type' "
@@ -118,3 +149,20 @@ def test_pilot_acceptance_event_is_persisted_in_tenant_scoped_append_only_ledger
             (event.event_id,),
         ).fetchone()
     assert row == ("tenant-a", "deployment.pilot-accepted")
+    with psycopg.connect(application_dsn) as application:
+        application.execute(
+            "SELECT set_config('decision_assurance.tenant_id', %s, false)", ("tenant-b",)
+        )
+        assert application.execute(
+            "SELECT count(*) FROM deployment_acceptance_events WHERE event_id = %s",
+            (event.event_id,),
+        ).fetchone() == (0,)
+    with psycopg.connect(application_dsn) as application:
+        application.execute(
+            "SELECT set_config('decision_assurance.tenant_id', %s, false)", ("tenant-a",)
+        )
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            application.execute(
+                "UPDATE deployment_acceptance_events SET event_json = '{}' WHERE event_id = %s",
+                (event.event_id,),
+            )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,9 @@ _MINIMUM_DRILL_COUNTS = {
     "research_runs": 2,
     "browser_sessions": 2,
 }
+_DATABASE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]{0,62}$")
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+_POSTGRESQL_16_VERSION = re.compile(r"^16[0-9]{4}$")
 
 
 def _instant(value: str) -> datetime:
@@ -68,7 +72,9 @@ def load_verification_report(
     valid_counts = isinstance(counts, dict) and set(counts) == set(_MINIMUM_DRILL_COUNTS)
     if valid_counts:
         valid_counts = all(
-            isinstance(counts[name], int) and counts[name] >= minimum
+            isinstance(counts[name], int)
+            and not isinstance(counts[name], bool)
+            and counts[name] >= minimum
             for name, minimum in _MINIMUM_DRILL_COUNTS.items()
         )
     try:
@@ -78,12 +84,20 @@ def load_verification_report(
     if (
         verification.get("status") != "PASS"
         or verification.get("schema_version") != "0.5.0"
+        or not _COMMIT_SHA.fullmatch(expected_commit_sha)
         or verification.get("commit_sha") != expected_commit_sha
+        or not isinstance(expected_environment, str)
+        or not 1 <= len(expected_environment) <= 128
         or verification.get("environment") != expected_environment
         or verification.get("database_schema_version") != "004"
-        or verification.get("rls_tables_verified") != 13
-        or not str(verification.get("server_version_num", "")).startswith("16")
-        or verification.get("source_database") == verification.get("restore_database")
+        or verification.get("rls_tables_verified") != 28
+        or not isinstance(verification.get("server_version_num"), str)
+        or not _POSTGRESQL_16_VERSION.fullmatch(verification["server_version_num"])
+        or not isinstance(verification.get("source_database"), str)
+        or not _DATABASE_NAME.fullmatch(verification["source_database"])
+        or not isinstance(verification.get("restore_database"), str)
+        or not _DATABASE_NAME.fullmatch(verification["restore_database"])
+        or verification["source_database"] == verification["restore_database"]
         or any(verification.get(name) is not True for name in _BOOLEAN_CHECKS)
         or not valid_counts
         or completed > datetime.now(completed.tzinfo)

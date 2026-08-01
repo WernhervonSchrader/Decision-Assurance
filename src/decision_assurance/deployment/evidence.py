@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import re
 from collections.abc import Callable, Mapping
@@ -9,6 +10,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from importlib.resources import files
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -159,6 +161,26 @@ class InMemoryEvidenceArtifactResolver:
 
     def resolve(self, digest: str) -> bytes | None:
         return self._artifacts.get(digest)
+
+
+class FileEvidenceArtifactResolver:
+    """Resolve immutable content-addressed JSON evidence from a protected directory."""
+
+    def __init__(self, root: Path):
+        if not root.is_dir():
+            raise ValueError("EVIDENCE_ARTIFACT_STORE_UNAVAILABLE")
+        self._root = root.resolve()
+
+    def resolve(self, digest: str) -> bytes | None:
+        if not _DIGEST.fullmatch(digest):
+            return None
+        candidate = (self._root / f"{digest.removeprefix('sha256:')}.json").resolve()
+        if candidate.parent != self._root or not candidate.is_file():
+            return None
+        try:
+            return candidate.read_bytes()
+        except OSError:
+            return None
 
 
 class PilotAcceptanceGate:
@@ -401,15 +423,212 @@ def _artifact_matches(item: EvidenceItem, artifact: bytes) -> bool:
         raw: object = json.loads(artifact)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return False
-    return raw == {
-        "kind": item.kind,
-        "deployment_id": item.deployment_id,
-        "tenant_id": item.tenant_id,
-        "commit_sha": item.commit_sha,
-        "verified": item.verified,
-        "observed_at": item.observed_at.isoformat().replace("+00:00", "Z"),
-        "source": item.source,
+    if not isinstance(raw, dict) or set(raw) != {
+        "kind",
+        "deployment_id",
+        "tenant_id",
+        "commit_sha",
+        "verified",
+        "observed_at",
+        "source",
+        "payload",
+    }:
+        return False
+    binding_matches = all(
+        (
+            raw.get("kind") == item.kind,
+            raw.get("deployment_id") == item.deployment_id,
+            raw.get("tenant_id") == item.tenant_id,
+            raw.get("commit_sha") == item.commit_sha,
+            raw.get("verified") is item.verified,
+            raw.get("observed_at") == item.observed_at.isoformat().replace("+00:00", "Z"),
+            raw.get("source") == item.source,
+        )
+    )
+    return binding_matches and _payload_matches(item, raw.get("payload"))
+
+
+def _payload_matches(item: EvidenceItem, value: object) -> bool:
+    if not isinstance(value, dict) or value.get("schema_version") != "1.0.0":
+        return False
+    keys = set(value)
+
+    def text(name: str) -> bool:
+        return isinstance(value.get(name), str) and bool(value[name])
+
+    def truth(name: str) -> bool:
+        return value.get(name) is True
+
+    def digest(name: str) -> bool:
+        candidate = value.get(name)
+        return isinstance(candidate, str) and bool(_DIGEST.fullmatch(candidate))
+
+    if item.kind == "TLS_CERTIFICATE_EVIDENCE":
+        if keys != {
+            "schema_version",
+            "host",
+            "certificate_sha256",
+            "not_before",
+            "not_after",
+            "chain_verified",
+            "minimum_tls",
+        } or not (text("host") and digest("certificate_sha256") and truth("chain_verified")):
+            return False
+        try:
+            not_before = _parse_time(value["not_before"])
+            not_after = _parse_time(value["not_after"])
+        except ValueError:
+            return False
+        return not_before <= item.observed_at <= not_after and value["minimum_tls"] in {
+            "1.2",
+            "1.3",
+        }
+    checks: dict[str, tuple[set[str], bool]] = {
+        "PUBLIC_HOST_EVIDENCE": (
+            {"schema_version", "hostname", "resolved_addresses", "public_only"},
+            text("hostname")
+            and truth("public_only")
+            and _public_addresses(value.get("resolved_addresses")),
+        ),
+        "EDGE_CONFIGURATION_EVIDENCE": (
+            {
+                "schema_version",
+                "config_sha256",
+                "host_allowlist_valid",
+                "tls_redirect_valid",
+                "validation_tool",
+            },
+            digest("config_sha256")
+            and truth("host_allowlist_valid")
+            and truth("tls_redirect_valid")
+            and text("validation_tool"),
+        ),
+        "OIDC_REDIRECT_EVIDENCE": (
+            {"schema_version", "issuer", "redirect_uri", "exact_match", "pkce_required"},
+            text("issuer")
+            and text("redirect_uri")
+            and truth("exact_match")
+            and truth("pkce_required"),
+        ),
+        "MFA_POLICY_EVIDENCE": (
+            {"schema_version", "policy_version", "methods", "flow_tested"},
+            text("policy_version")
+            and _nonempty_text_list(value.get("methods"))
+            and truth("flow_tested"),
+        ),
+        "DATABASE_MIGRATION_EVIDENCE": (
+            {
+                "schema_version",
+                "database_schema_version",
+                "forced_rls_tables",
+                "application_role_tested",
+                "migration_role_tested",
+            },
+            value.get("database_schema_version") == "004"
+            and _integer_at_least(value.get("forced_rls_tables"), 28)
+            and truth("application_role_tested")
+            and truth("migration_role_tested"),
+        ),
+        "RECOVERY_EVIDENCE": (
+            {
+                "schema_version",
+                "status",
+                "commit_sha",
+                "report_sha256",
+                "source_database",
+                "restore_database",
+                "observed_rpo_seconds",
+                "observed_rto_seconds",
+                "integrity_verified",
+            },
+            value.get("status") == "PASS"
+            and value.get("commit_sha") == item.commit_sha
+            and digest("report_sha256")
+            and text("source_database")
+            and text("restore_database")
+            and value.get("source_database") != value.get("restore_database")
+            and _integer_at_least(value.get("observed_rpo_seconds"), 0)
+            and _integer_at_least(value.get("observed_rto_seconds"), 0)
+            and truth("integrity_verified"),
+        ),
+        "MONITORING_EVIDENCE": (
+            {"schema_version", "scrape_endpoint", "metric_names", "scrape_success"},
+            text("scrape_endpoint")
+            and _nonempty_text_list(value.get("metric_names"))
+            and truth("scrape_success"),
+        ),
+        "ALERT_TEST_EVIDENCE": (
+            {"schema_version", "alert_name", "receiver", "triggered", "notification_received"},
+            text("alert_name")
+            and text("receiver")
+            and truth("triggered")
+            and truth("notification_received"),
+        ),
+        "MULTI_INSTANCE_EVIDENCE": (
+            {
+                "schema_version",
+                "instance_count",
+                "shared_session_verified",
+                "cross_instance_revoke_verified",
+                "tenant_isolation_verified",
+            },
+            _integer_at_least(value.get("instance_count"), 2)
+            and truth("shared_session_verified")
+            and truth("cross_instance_revoke_verified")
+            and truth("tenant_isolation_verified"),
+        ),
+        "SIGNED_EXPORT_EVIDENCE": (
+            {"schema_version", "export_sha256", "algorithm", "key_id", "offline_verified"},
+            digest("export_sha256")
+            and value.get("algorithm") == "EdDSA"
+            and text("key_id")
+            and truth("offline_verified"),
+        ),
+        "RETENTION_LEGAL_HOLD_EVIDENCE": (
+            {
+                "schema_version",
+                "retention_policy_version",
+                "deletion_verified",
+                "legal_hold_block_verified",
+                "restore_resurrection_blocked",
+            },
+            text("retention_policy_version")
+            and truth("deletion_verified")
+            and truth("legal_hold_block_verified")
+            and truth("restore_resurrection_blocked"),
+        ),
+        "INDEPENDENT_REVIEW_EVIDENCE": (
+            {"schema_version", "reviewer_id", "reviewed_commit_sha", "result", "actor_independent"},
+            text("reviewer_id")
+            and value.get("reviewed_commit_sha") == item.commit_sha
+            and value.get("result") == "PASS"
+            and truth("actor_independent"),
+        ),
     }
+    expected = checks.get(item.kind)
+    return expected is not None and keys == expected[0] and expected[1]
+
+
+def _nonempty_text_list(value: object) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and len(value) <= 128
+        and all(isinstance(item, str) and bool(item) and len(item) <= 256 for item in value)
+    )
+
+
+def _public_addresses(value: object) -> bool:
+    if not _nonempty_text_list(value) or not isinstance(value, list):
+        return False
+    try:
+        return all(ipaddress.ip_address(item).is_global for item in value)
+    except ValueError:
+        return False
+
+
+def _integer_at_least(value: object, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
 def _constant_digest(content: bytes, expected: str) -> bool:

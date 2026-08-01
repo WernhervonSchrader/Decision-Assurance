@@ -101,13 +101,18 @@ REVOKE ALL ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,
 REVOKE ALL ON FUNCTION da_get_browser_session(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION da_revoke_browser_session(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION da_revoke_actor_sessions(TEXT,TEXT) FROM PUBLIC;
+GRANT USAGE, CREATE ON SCHEMA decision_assurance_private
+TO decision_assurance_session_owner;
+GRANT CREATE ON SCHEMA public TO decision_assurance_session_owner;
+GRANT EXECUTE ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) TO decision_assurance_application;
+GRANT EXECUTE ON FUNCTION da_get_browser_session(TEXT) TO decision_assurance_application;
+GRANT EXECUTE ON FUNCTION da_revoke_browser_session(TEXT) TO decision_assurance_application;
+GRANT EXECUTE ON FUNCTION da_revoke_actor_sessions(TEXT,TEXT) TO decision_assurance_application;
 ALTER TABLE decision_assurance_private.browser_sessions OWNER TO decision_assurance_session_owner;
 ALTER FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) OWNER TO decision_assurance_session_owner;
 ALTER FUNCTION da_get_browser_session(TEXT) OWNER TO decision_assurance_session_owner;
 ALTER FUNCTION da_revoke_browser_session(TEXT) OWNER TO decision_assurance_session_owner;
 ALTER FUNCTION da_revoke_actor_sessions(TEXT,TEXT) OWNER TO decision_assurance_session_owner;
+REVOKE CREATE ON SCHEMA decision_assurance_private FROM decision_assurance_session_owner;
+REVOKE CREATE ON SCHEMA public FROM decision_assurance_session_owner;
 GRANT USAGE ON SCHEMA decision_assurance_private TO decision_assurance_session_owner;
-GRANT EXECUTE ON FUNCTION da_create_browser_session(TEXT,TEXT,TEXT,JSONB,TEXT,TEXT,TIMESTAMPTZ) TO decision_assurance_application;
-GRANT EXECUTE ON FUNCTION da_get_browser_session(TEXT) TO decision_assurance_application;
-GRANT EXECUTE ON FUNCTION da_revoke_browser_session(TEXT) TO decision_assurance_application;
-GRANT EXECUTE ON FUNCTION da_revoke_actor_sessions(TEXT,TEXT) TO decision_assurance_application;

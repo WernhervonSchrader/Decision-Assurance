@@ -43,8 +43,19 @@ class PostgresSessionStore:
     def ready(self) -> bool:
         try:
             with self._connections.worker_connection() as connection:
-                row = connection.execute("SELECT 1 AS ready").fetchone()
-                return row is not None and row["ready"] == 1
+                row = connection.execute(
+                    """
+                    SELECT
+                      to_regclass('decision_assurance_private.browser_sessions') IS NOT NULL AS session_table,
+                      to_regprocedure('da_get_browser_session(text)') IS NOT NULL AS get_function,
+                      to_regprocedure('da_revoke_browser_session(text)') IS NOT NULL AS revoke_function,
+                      has_function_privilege(current_user, 'da_get_browser_session(text)', 'EXECUTE') AS can_get,
+                      has_function_privilege(current_user, 'da_revoke_browser_session(text)', 'EXECUTE') AS can_revoke,
+                      COALESCE((SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
+                        WHERE oid = 'decision_assurance_private.browser_sessions'::regclass), false) AS forced_rls
+                    """
+                ).fetchone()
+                return row is not None and all(bool(value) for value in row.values())
         except (PostgresError, PersistenceUnavailable):
             return False
 

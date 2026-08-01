@@ -71,12 +71,15 @@ def test_database_roles_are_separate_non_owner_and_cannot_bypass_rls() -> None:
         "decision_assurance_operations_readonly",
         "decision_assurance_audit_export",
         "decision_assurance_worker",
+        "decision_assurance_session_owner",
     ):
         assert f"CREATE ROLE {role}" in roles
         declaration = next(line for line in roles.splitlines() if f"CREATE ROLE {role}" in line)
         assert "NOSUPERUSER" in declaration
         assert "NOBYPASSRLS" in declaration
     assert "GRANT decision_assurance_migration TO decision_assurance_application" not in roles
+    assert "GRANT decision_assurance_session_owner TO decision_assurance_migration" in roles
+    assert "GRANT decision_assurance_session_owner TO decision_assurance_application" not in roles
 
 
 def test_lifecycle_ledgers_are_append_only_for_application_role() -> None:

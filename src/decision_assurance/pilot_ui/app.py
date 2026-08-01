@@ -219,9 +219,11 @@ def create_pilot_ui_app(
         transaction = logins.consume(state, request.cookies.get(LOGIN_COOKIE, ""))
         try:
             tokens = oidc.exchange(code, transaction)
-        except BrowserOidcError:
+        except BrowserOidcError as error:
             if metrics is not None:
-                metrics.set_gauge("keycloak_available", 0)
+                metrics.set_gauge(
+                    "keycloak_available", 0 if str(error) == "OIDC_PROVIDER_UNAVAILABLE" else 1
+                )
             raise
         if metrics is not None:
             metrics.set_gauge("keycloak_available", 1)

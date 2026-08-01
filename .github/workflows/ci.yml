@@ -124,6 +124,17 @@ jobs:
         run: python -m pip install --upgrade "pip>=26.1.2"
       - name: Install project
         run: python -m pip install -e ".[dev]"
+      - name: Migration parity with non-superuser identity
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -f migrations/postgresql/roles.sql
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE da_ci_migrator LOGIN PASSWORD 'postgres' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+          GRANT decision_assurance_migration TO da_ci_migrator;
+          CREATE DATABASE da_ci_migration OWNER da_ci_migrator;
+          SQL
+          python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://da_ci_migrator:postgres@localhost:5432/da_ci_migration'))).migrate()"
       - name: PostgreSQL integration and E2E
         run: python -m pytest -m postgresql -q
 

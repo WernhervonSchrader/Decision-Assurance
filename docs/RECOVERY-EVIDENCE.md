@@ -12,3 +12,8 @@ The verifier report has an exact field set and is bound to the CI head, named en
 source/restore databases, PostgreSQL 16, schema 004, all forced-RLS tables, drill row counts,
 post-backup data absence and completion timestamp. Minimal or relabeled `PASS` JSON is rejected. A
 real pilot must repeat this with representative scale on actual infrastructure.
+
+The verifier enumerates all 28 tables declared with `FORCE ROW LEVEL SECURITY` across migrations
+001-004, including private browser sessions, Intake/Research/idempotency/budget/handoff/runtime-limit
+tables and the acceptance ledger. Database names, PostgreSQL version number, counts, booleans,
+environment, timestamps and commit identifiers are type- and format-checked rather than coerced.

@@ -83,6 +83,9 @@ with forced RLS; tenant-aware create and bulk-revocation functions bind the vali
 while opaque-session lookup/revocation is constrained to the exact HMAC digest. Functions and the
 table are owned by a dedicated `NOBYPASSRLS` role rather than a migration superuser, so forced RLS is
 also effective in the deployed owner topology. One tenant cannot revoke another tenant's sessions.
+The one-shot migration role alone may transfer these objects to the session-owner role; application
+and worker roles have no such membership. CI repeats all migrations through an actual non-superuser
+migration login so superuser execution cannot mask ownership or schema-grant errors.
 The edge
 limits bodies and serves only allowlisted hosts/routes, including an
 explicit public Keycloak OIDC/login-resource allowlist. Retrieved research

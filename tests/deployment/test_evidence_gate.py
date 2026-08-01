@@ -13,6 +13,7 @@ from decision_assurance.deployment.evidence import (
     DeploymentBundle,
     EvidenceItem,
     EvidenceStatus,
+    FileEvidenceArtifactResolver,
     InMemoryAcceptanceAudit,
     InMemoryEvidenceArtifactResolver,
     PilotAcceptanceGate,
@@ -22,7 +23,11 @@ from decision_assurance.deployment.evidence import (
 )
 from decision_assurance.identity import ActorKind, Identity, Role
 from decision_assurance.observability.alerts import AlertEvaluator, default_alert_rules
-from decision_assurance.observability.metrics import InMemoryMetrics, initialize_pilot_metrics
+from decision_assurance.observability.metrics import (
+    InMemoryMetrics,
+    PilotOperationalEvidenceCollector,
+    initialize_pilot_metrics,
+)
 from decision_assurance.recovery.evidence import RecoveryEvidence
 from decision_assurance.tenancy import TenantContext
 
@@ -90,10 +95,99 @@ def _artifact_bytes(
             "verified": verified,
             "observed_at": observed_at.isoformat().replace("+00:00", "Z"),
             "source": source,
+            "payload": _payload_for(kind),
         },
         sort_keys=True,
         separators=(",", ":"),
     ).encode()
+
+
+def _payload_for(kind: str) -> dict[str, object]:
+    sha = "sha256:" + "f" * 64
+    payloads: dict[str, dict[str, object]] = {
+        "TLS_CERTIFICATE_EVIDENCE": {
+            "host": "research.pilot.example",
+            "certificate_sha256": sha,
+            "not_before": (NOW - timedelta(days=1)).isoformat(),
+            "not_after": (NOW + timedelta(days=30)).isoformat(),
+            "chain_verified": True,
+            "minimum_tls": "1.3",
+        },
+        "PUBLIC_HOST_EVIDENCE": {
+            "hostname": "research.pilot.example",
+            "resolved_addresses": ["1.1.1.1"],
+            "public_only": True,
+        },
+        "EDGE_CONFIGURATION_EVIDENCE": {
+            "config_sha256": sha,
+            "host_allowlist_valid": True,
+            "tls_redirect_valid": True,
+            "validation_tool": "caddy-adapt",
+        },
+        "OIDC_REDIRECT_EVIDENCE": {
+            "issuer": "https://identity.pilot.example/realms/da",
+            "redirect_uri": "https://research.pilot.example/auth/callback",
+            "exact_match": True,
+            "pkce_required": True,
+        },
+        "MFA_POLICY_EVIDENCE": {
+            "policy_version": "controlled-pilot-mfa-v1",
+            "methods": ["otp", "webauthn"],
+            "flow_tested": True,
+        },
+        "DATABASE_MIGRATION_EVIDENCE": {
+            "database_schema_version": "004",
+            "forced_rls_tables": 28,
+            "application_role_tested": True,
+            "migration_role_tested": True,
+        },
+        "RECOVERY_EVIDENCE": {
+            "status": "PASS",
+            "commit_sha": "a" * 40,
+            "report_sha256": sha,
+            "source_database": "decision_assurance",
+            "restore_database": "da_restore",
+            "observed_rpo_seconds": 5,
+            "observed_rto_seconds": 20,
+            "integrity_verified": True,
+        },
+        "MONITORING_EVIDENCE": {
+            "scrape_endpoint": "https://research.pilot.example/internal/metrics",
+            "metric_names": ["session_store_available", "keycloak_available"],
+            "scrape_success": True,
+        },
+        "ALERT_TEST_EVIDENCE": {
+            "alert_name": "SessionStoreUnavailable",
+            "receiver": "pilot-ops",
+            "triggered": True,
+            "notification_received": True,
+        },
+        "MULTI_INSTANCE_EVIDENCE": {
+            "instance_count": 2,
+            "shared_session_verified": True,
+            "cross_instance_revoke_verified": True,
+            "tenant_isolation_verified": True,
+        },
+        "SIGNED_EXPORT_EVIDENCE": {
+            "export_sha256": sha,
+            "algorithm": "EdDSA",
+            "key_id": "pilot-key-1",
+            "offline_verified": True,
+        },
+        "RETENTION_LEGAL_HOLD_EVIDENCE": {
+            "retention_policy_version": "pilot-retention-v1",
+            "deletion_verified": True,
+            "legal_hold_block_verified": True,
+            "restore_resurrection_blocked": True,
+        },
+        "INDEPENDENT_REVIEW_EVIDENCE": {
+            "reviewer_id": "independent-reviewer",
+            "reviewed_commit_sha": "a" * 40,
+            "result": "PASS",
+            "actor_independent": True,
+        },
+    }
+    return {"schema_version": "1.0.0", **payloads[kind]}
 
 
 def _artifact_for(item: EvidenceItem) -> bytes:
@@ -203,6 +297,52 @@ def test_gate_blocks_missing_tampered_stale_or_self_declared_evidence() -> None:
         .status
         is EvidenceStatus.BLOCKED
     )
+
+
+def test_gate_rejects_semantically_empty_artifact_and_file_store_resolves_content(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle()
+    item = bundle.evidence[0]
+    empty = json.dumps(
+        {
+            "kind": item.kind,
+            "deployment_id": item.deployment_id,
+            "tenant_id": item.tenant_id,
+            "commit_sha": item.commit_sha,
+            "verified": item.verified,
+            "observed_at": item.observed_at.isoformat().replace("+00:00", "Z"),
+            "source": item.source,
+            "payload": {"schema_version": "1.0.0"},
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    empty_item = EvidenceItem(
+        item.kind,
+        item.verified,
+        item.observed_at,
+        "sha256:" + hashlib.sha256(empty).hexdigest(),
+        item.source,
+        item.deployment_id,
+        item.tenant_id,
+        item.commit_sha,
+    )
+    changed = bundle.with_evidence((empty_item, *bundle.evidence[1:]))
+    artifacts = {candidate.digest: _artifact_for(candidate) for candidate in changed.evidence[1:]}
+    artifacts[empty_item.digest] = empty
+    result = PilotAcceptanceGate(
+        max_age=timedelta(days=1),
+        evidence_resolver=InMemoryEvidenceArtifactResolver(artifacts),
+    ).evaluate(changed, now=NOW)
+    assert result.status is EvidenceStatus.BLOCKED
+    assert "EVIDENCE_ARTIFACT_UNRESOLVED" in result.reasons
+
+    content = _artifact_for(item)
+    digest = "sha256:" + hashlib.sha256(content).hexdigest()
+    (tmp_path / f"{digest.removeprefix('sha256:')}.json").write_bytes(content)
+    assert FileEvidenceArtifactResolver(tmp_path).resolve(digest) == content
+    assert FileEvidenceArtifactResolver(tmp_path).resolve("sha256:" + "0" * 64) is None
 
 
 def test_tls_evidence_checks_host_validity_chain_and_measurement() -> None:
@@ -353,6 +493,30 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels() -> None:
     assert "backup_success 0" in baseline_rendered
     assert "restore_success 0" in baseline_rendered
     assert "keycloak_available 0" in baseline_rendered
+
+    collector = PilotOperationalEvidenceCollector(baseline)
+    assert collector.publish_tls(
+        not_after=NOW + timedelta(days=30),
+        hostname_verified=True,
+        chain_verified=True,
+        now=NOW,
+    )
+    assert collector.publish_recovery(
+        {
+            "schema_version": "1.0.0",
+            "data_bytes": 4096,
+            "verification_report_sha256": "sha256:" + "f" * 64,
+            "audit_chains_valid": True,
+            "exports_valid": True,
+            "tenant_isolation_valid": True,
+            "session_decryption_valid": True,
+            "target_met": True,
+        }
+    )
+    measured = baseline.render_prometheus()
+    assert "backup_success 1" in measured
+    assert "restore_success 1" in measured
+    assert "tls_certificate_days_remaining 30" in measured
 
 
 def test_evidence_schemas_are_packaged_and_alert_rules_are_bounded() -> None:

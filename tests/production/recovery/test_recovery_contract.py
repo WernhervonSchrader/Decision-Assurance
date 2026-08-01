@@ -19,7 +19,7 @@ def _verification_report() -> dict[str, object]:
         "server_version_num": "160009",
         "verification_completed_at": datetime.now(timezone.utc).isoformat(),
         "database_schema_version": "004",
-        "rls_tables_verified": 13,
+        "rls_tables_verified": 28,
         "session_store_verified": True,
         "drill_data_verified": True,
         "drill_counts": {
@@ -53,6 +53,25 @@ def test_recovery_report_is_bound_to_full_drill_commit_and_environment() -> None
             expected_environment="github-actions-postgresql-16",
         )
     report["commit_sha"] = "b" * 40
+    with pytest.raises(ValueError, match="RECOVERY_VERIFICATION_REPORT_FAILED"):
+        load_verification_report(
+            json.dumps(report).encode(),
+            expected_commit_sha="a" * 40,
+            expected_environment="github-actions-postgresql-16",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("source_database", None),
+        ("restore_database", 7),
+        ("server_version_num", "16not-postgresql"),
+    ),
+)
+def test_recovery_report_rejects_wrong_identity_field_types(field: str, value: object) -> None:
+    report = _verification_report()
+    report[field] = value
     with pytest.raises(ValueError, match="RECOVERY_VERIFICATION_REPORT_FAILED"):
         load_verification_report(
             json.dumps(report).encode(),

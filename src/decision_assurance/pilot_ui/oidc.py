@@ -104,6 +104,15 @@ class OidcBrowserClient:
             )
             response.raise_for_status()
             payload = response.json()
+        except (httpx.TimeoutException, httpx.NetworkError):
+            raise BrowserOidcError("OIDC_PROVIDER_UNAVAILABLE") from None
+        except httpx.HTTPStatusError as error:
+            code = (
+                "OIDC_PROVIDER_UNAVAILABLE"
+                if error.response.status_code >= 500
+                else "OIDC_CODE_EXCHANGE_FAILED"
+            )
+            raise BrowserOidcError(code) from None
         except (httpx.HTTPError, ValueError):
             raise BrowserOidcError("OIDC_CODE_EXCHANGE_FAILED") from None
         if not isinstance(payload, dict):

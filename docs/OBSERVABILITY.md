@@ -8,8 +8,11 @@ test passes a real counter/gauge through Prometheus rendering before evaluating 
 Controlled-pilot runtimes publish every operational gauge from their first scrape with a fail-closed
 zero baseline. The BFF refreshes the shared-session gauge from a real PostgreSQL probe and updates
 Keycloak availability around the token exchange; MFA policy denials increment their dedicated
-counter. Backup, restore and TLS remain unhealthy until the deployment collector supplies measured
-success/expiry values. Critical availability rules also use `absent(...)`, so a missing exporter or
+counter. Tenant conflicts, audit-persistence failures, export-signing failures and legal-hold delete
+attempts are incremented at their fail-closed runtime boundaries. Client-side OIDC rejection no
+longer marks Keycloak unavailable; only network/timeouts and provider 5xx do. Backup, restore and TLS
+remain unhealthy until the operational evidence collector supplies a measured, integrity-valid
+recovery report and verified certificate lifetime. Critical availability rules use `absent(...)`, so a missing exporter or
 missing series fires instead of silently evaluating to healthy.
 
 Production telemetry is operational evidence, not a second business datastore. Every API request,

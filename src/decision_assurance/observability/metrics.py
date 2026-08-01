@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from threading import Lock
 
 _ALLOWED_NAMES = frozenset(
@@ -110,6 +111,59 @@ def initialize_pilot_metrics(metrics: InMemoryMetrics) -> None:
         "assurance_block_review_rate",
     ):
         metrics.set_gauge(name, 0)
+
+
+class PilotOperationalEvidenceCollector:
+    """Publish gauges only from measured TLS and recovery evidence."""
+
+    def __init__(self, metrics: InMemoryMetrics):
+        self._metrics = metrics
+
+    def publish_tls(
+        self,
+        *,
+        not_after: datetime,
+        hostname_verified: bool,
+        chain_verified: bool,
+        now: datetime,
+    ) -> bool:
+        if not_after.tzinfo is None or now.tzinfo is None:
+            raise ValueError("TLS_METRIC_TIME_MUST_BE_AWARE")
+        seconds = (
+            not_after.astimezone(timezone.utc) - now.astimezone(timezone.utc)
+        ).total_seconds()
+        days = max(0, int(seconds // 86_400))
+        valid = hostname_verified and chain_verified and seconds > 0
+        self._metrics.set_gauge("tls_certificate_days_remaining", days if valid else 0)
+        return valid
+
+    def publish_recovery(self, report: Mapping[str, object]) -> bool:
+        integrity = all(
+            report.get(name) is True
+            for name in (
+                "audit_chains_valid",
+                "exports_valid",
+                "tenant_isolation_valid",
+                "session_decryption_valid",
+                "target_met",
+            )
+        )
+        data_bytes = report.get("data_bytes")
+        digest = report.get("verification_report_sha256")
+        measured = (
+            report.get("schema_version") == "1.0.0"
+            and isinstance(data_bytes, int)
+            and not isinstance(data_bytes, bool)
+            and data_bytes > 0
+            and isinstance(digest, str)
+            and len(digest) == 71
+            and digest.startswith("sha256:")
+            and all(character in "0123456789abcdef" for character in digest[7:])
+            and integrity
+        )
+        self._metrics.set_gauge("backup_success", 1 if measured else 0)
+        self._metrics.set_gauge("restore_success", 1 if measured else 0)
+        return measured
 
 
 def _labels(labels: tuple[tuple[str, str], ...]) -> str:
