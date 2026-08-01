@@ -1,0 +1,37 @@
+FROM node:24.15.0-bookworm-slim AS ui-builder
+WORKDIR /build/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY ui/ ./
+RUN npm run build
+
+FROM python:3.12-slim-bookworm AS python-builder
+WORKDIR /build
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN python -m pip install --no-cache-dir "build>=1.2,<2" && python -m build --wheel
+
+FROM python:3.12-slim-bookworm AS runtime
+ARG DA_VERSION=0.5.0
+ARG DA_COMMIT_SHA=unknown
+ARG DA_BUILD_TIMESTAMP=unknown
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DA_VERSION=${DA_VERSION} \
+    DA_COMMIT_SHA=${DA_COMMIT_SHA} \
+    DA_BUILD_TIMESTAMP=${DA_BUILD_TIMESTAMP} \
+    DA_PILOT_UI_ASSETS=/app/ui-assets
+RUN groupadd --gid 10001 decision-assurance \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin decision-assurance
+COPY --from=python-builder /build/dist/*.whl /tmp/
+RUN python -m pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+WORKDIR /app
+COPY --chown=10001:10001 config ./config
+COPY --from=ui-builder --chown=10001:10001 /build/ui/dist ./ui-assets
+USER 10001:10001
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+ENTRYPOINT ["decision-assurance-pilot-ui"]

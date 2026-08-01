@@ -1,0 +1,2 @@
+class BrowserOidcError(ValueError):
+    pass

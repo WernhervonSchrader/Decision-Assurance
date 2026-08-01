@@ -149,3 +149,12 @@ professional approval.
 Reference code is licensed under Apache-2.0. Normative specification licensing
 may be separated in a future reviewed release. Internal research sources such as
 RIF or RRS are not public product claims and are not required to run this MVP.
+
+## Controlled pilot candidate
+
+The `controlled-pilot` profile adds a Caddy HTTPS edge, a minimal German/English browser UI and a
+server-side OIDC BFF. Access and refresh tokens never enter browser storage. The profile requires
+PostgreSQL, OIDC, explicit public hosts, external secret references, persistent audit, backup and
+retention configuration. It remains a pilot profile—not a production approval. See
+[Pilot](docs/PILOT.md), [Deployment](docs/DEPLOYMENT.md) and the
+[pilot acceptance checklist](docs/PILOT-ACCEPTANCE.md).

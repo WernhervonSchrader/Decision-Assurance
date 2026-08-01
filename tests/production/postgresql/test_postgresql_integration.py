@@ -55,15 +55,19 @@ def test_migrations_are_repeatable_and_reach_expected_version(postgres_dsn: str)
 
     runner.migrate()
 
-    assert runner.current_version() == "002"
+    assert runner.current_version() == "003"
 
 
 def test_failed_migration_rolls_back_without_advancing_ledger(
     postgres_dsn: str, tmp_path: Path
 ) -> None:
-    for name in ("001_v0_4_baseline.sql", "002_production_foundation_v0_5.sql"):
+    for name in (
+        "001_v0_4_baseline.sql",
+        "002_production_foundation_v0_5.sql",
+        "003_controlled_pilot_v0_8.sql",
+    ):
         shutil.copyfile(MIGRATIONS / name, tmp_path / name)
-    (tmp_path / "003_invalid.sql").write_text(
+    (tmp_path / "004_invalid.sql").write_text(
         "CREATE TABLE migration_rollback_probe (value TEXT);\nNOT VALID SQL;\n",
         encoding="utf-8",
     )
@@ -77,7 +81,7 @@ def test_failed_migration_rolls_back_without_advancing_ledger(
         probe = connection.execute(
             "SELECT to_regclass('public.migration_rollback_probe')"
         ).fetchone()
-    assert version == ("002",)
+    assert version == ("003",)
     assert probe == (None,)
 
 
@@ -159,6 +163,20 @@ def test_runtime_roles_are_non_owner_and_cannot_bypass_rls(postgres_dsn: str) ->
     assert len(rows) == 3
     assert all(not any(row[1:]) for row in rows)
     assert ledger_privileges == (False,)
+
+
+def test_application_role_cannot_mutate_lifecycle_ledgers(postgres_dsn: str) -> None:
+    with psycopg.connect(postgres_dsn, autocommit=True) as application:
+        _as_role(application, "decision_assurance_application", "audit-tenant")
+        for ledger in ("lifecycle_audit_events", "legal_hold_audit_events"):
+            privileges = application.execute(
+                "SELECT has_table_privilege(current_user, %s, 'SELECT,INSERT'), "
+                "has_table_privilege(current_user, %s, 'UPDATE,DELETE')",
+                (ledger, ledger),
+            ).fetchone()
+            assert privileges == (True, False)
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                application.execute(f"DELETE FROM {ledger}")  # noqa: S608 - fixed table names
 
 
 def _seed_job_run(connection: Connection[tuple[object, ...]], run_id: str) -> None:
@@ -422,12 +440,25 @@ def _proposed_run(run_id: str, fingerprint: str) -> ResearchRun:
     )
 
 
-def test_research_run_budget_job_and_queue_audit_submit_atomically(postgres_dsn: str) -> None:
-    with psycopg.connect(postgres_dsn, autocommit=True) as owner:
+def _clear_atomic_tenant(dsn: str) -> None:
+    with psycopg.connect(dsn, autocommit=True) as owner:
         owner.execute("DELETE FROM research_job_events WHERE tenant_id = 'atomic-tenant'")
         owner.execute("DELETE FROM research_jobs WHERE tenant_id = 'atomic-tenant'")
         owner.execute("DELETE FROM research_budget_usage WHERE tenant_id = 'atomic-tenant'")
         owner.execute("DELETE FROM research_runs WHERE tenant_id = 'atomic-tenant'")
+
+
+@pytest.fixture
+def clean_atomic_tenant(postgres_dsn: str) -> Iterator[None]:
+    _clear_atomic_tenant(postgres_dsn)
+    yield
+    _clear_atomic_tenant(postgres_dsn)
+
+
+def test_research_run_budget_job_and_queue_audit_submit_atomically(
+    postgres_dsn: str, clean_atomic_tenant: None
+) -> None:
+    del clean_atomic_tenant
     repository = PostgresJobRepository(
         PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     )

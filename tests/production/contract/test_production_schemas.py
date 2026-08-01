@@ -18,7 +18,9 @@ def schema(name: str) -> dict:  # type: ignore[type-arg]
 def test_public_and_packaged_production_schemas_are_byte_identical() -> None:
     names = sorted(item.name for item in PUBLIC.glob("*.schema.json"))
     assert names == [
+        "data-lifecycle.schema.json",
         "health-report.schema.json",
+        "pilot-export.schema.json",
         "pilot-profile.schema.json",
         "release-verification.schema.json",
         "research-job.schema.json",

@@ -1,0 +1,98 @@
+{
+  "profile": "production",
+  "operating_mode": "controlled-pilot",
+  "data_residency": {
+    "storage_locations": ["DE"],
+    "processing_locations": ["DE"],
+    "backup_locations": ["DE"],
+    "support_access_locations": ["DE"],
+    "external_processing_locations": ["DE"],
+    "evidence_refs": ["https://compliance.invalid/pilot-residency-evidence-required"]
+  },
+  "database_backend": "postgresql",
+  "authentication_mode": "oidc",
+  "secret_provider": "external",
+  "database_dsn_secret": "decision-assurance-database-dsn",
+  "worker_database_dsn_secret": "decision-assurance-worker-database-dsn",
+  "oidc": {
+    "issuer": "https://identity.pilot.example/realms/decision-assurance",
+    "audience": "decision-assurance-api",
+    "jwks_uri": "https://identity.pilot.example/realms/decision-assurance/protocol/openid-connect/certs",
+    "algorithms": ["RS256"],
+    "tenant_claim": "tenant_id",
+    "actor_id_claim": "sub",
+    "role_claim": "realm_access.roles",
+    "actor_kind_claim": "actor_kind",
+    "organization_claim": "organization",
+    "groups_claim": "groups",
+    "clock_skew_seconds": 30,
+    "authorized_parties": ["decision-assurance-pilot-ui"],
+    "required_scopes": ["da.api"],
+    "allow_insecure_loopback": false
+  },
+  "egress_allowed_hosts": ["api.openai.com", "api.firecrawl.dev"],
+  "provider_egress": [
+    {
+      "provider": "openai-web-search",
+      "service": "responses-web-search-v1",
+      "host": "api.openai.com",
+      "processing_location": "DE",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["pilot-tenant"],
+      "attestation": {
+        "evidence_id": "pilot-openai-attestation-pending",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "https://compliance.invalid/openai-evidence-required",
+        "issuer": "pilot-operator",
+        "issued_at": "2026-08-01T00:00:00Z",
+        "valid_from": "2026-08-01T00:00:00Z",
+        "expires_at": "2027-08-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    },
+    {
+      "provider": "firecrawl",
+      "service": "scrape-v2",
+      "host": "api.firecrawl.dev",
+      "processing_location": "DE",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["pilot-tenant"],
+      "attestation": {
+        "evidence_id": "pilot-firecrawl-attestation-pending",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "https://compliance.invalid/firecrawl-evidence-required",
+        "issuer": "pilot-operator",
+        "issued_at": "2026-08-01T00:00:00Z",
+        "valid_from": "2026-08-01T00:00:00Z",
+        "expires_at": "2027-08-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    }
+  ],
+  "worker": {
+    "max_attempts": 3,
+    "lease_seconds": 60,
+    "base_backoff_seconds": 5,
+    "maximum_backoff_seconds": 120
+  },
+  "controlled_pilot": {
+    "public_base_url": "https://research.pilot.example",
+    "oidc_redirect_uri": "https://research.pilot.example/auth/callback",
+    "post_logout_redirect_uri": "https://research.pilot.example/",
+    "allowed_hosts": ["research.pilot.example"],
+    "trusted_proxy_cidrs": ["172.30.0.0/24"],
+    "audit_persistence": true,
+    "backup_configuration_ref": "pilot-backup-policy-v1",
+    "lifecycle_pseudonymization_secret": "pilot-lifecycle-pepper",
+    "retention_days": 30,
+    "pilot_tenant": "pilot-tenant",
+    "health_path": "/health/live",
+    "readiness_path": "/health/ready"
+  }
+}

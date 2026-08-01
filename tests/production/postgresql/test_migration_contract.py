@@ -26,6 +26,11 @@ TENANT_TABLES = (
     "research_jobs",
     "research_job_events",
     "tenant_runtime_limits",
+    "tenant_retention_policies",
+    "legal_holds",
+    "legal_hold_audit_events",
+    "deletion_requests",
+    "lifecycle_audit_events",
 )
 
 
@@ -74,9 +79,33 @@ def test_database_roles_are_separate_non_owner_and_cannot_bypass_rls() -> None:
     assert "GRANT decision_assurance_migration TO decision_assurance_application" not in roles
 
 
+def test_lifecycle_ledgers_are_append_only_for_application_role() -> None:
+    sql = all_migrations()
+
+    assert (
+        "GRANT SELECT, INSERT ON legal_hold_audit_events, lifecycle_audit_events "
+        "TO decision_assurance_application;"
+    ) in sql
+    assert (
+        "REVOKE UPDATE, DELETE ON legal_hold_audit_events, lifecycle_audit_events "
+        "FROM decision_assurance_application;"
+    ) in sql
+    for ledger in ("legal_hold_audit_events", "lifecycle_audit_events"):
+        assert not re.search(
+            rf"GRANT[^;]*(?:UPDATE|DELETE)[^;]*\b{ledger}\b[^;]*"
+            r"TO decision_assurance_application;",
+            sql,
+        )
+
+
 def test_public_and_packaged_postgresql_migrations_are_byte_identical() -> None:
     packaged = ROOT / "src" / "decision_assurance" / "migrations" / "postgresql"
     names = sorted(item.name for item in MIGRATIONS.glob("*.sql"))
-    assert names == ["001_v0_4_baseline.sql", "002_production_foundation_v0_5.sql", "roles.sql"]
+    assert names == [
+        "001_v0_4_baseline.sql",
+        "002_production_foundation_v0_5.sql",
+        "003_controlled_pilot_v0_8.sql",
+        "roles.sql",
+    ]
     for name in names:
         assert (MIGRATIONS / name).read_bytes() == (packaged / name).read_bytes()

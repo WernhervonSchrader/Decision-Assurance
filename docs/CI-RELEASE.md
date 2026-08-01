@@ -50,3 +50,9 @@ python -m scripts.release.generate_report --input gate-results.json `
 
 Do not convert unavailable tooling into a passing gate. Record a missing mandatory gate and retain
 the resulting `BLOCK` report until the evidence exists.
+
+The pilot adds blocking UI typecheck/unit/build, Chromium two-tenant E2E, npm audit, Compose/Caddy
+validation, Pilot UI/Edge non-root image inspection, Trivy and CycloneDX SBOMs. Existing Python,
+PostgreSQL 16, restore, Keycloak, OpenAPI, Gitleaks, Bandit, Ruff, Mypy and package-build gates remain.
+CI PASS is repository evidence only; deployment, organizational and production approvals are distinct
+signed gates.

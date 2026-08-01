@@ -17,3 +17,10 @@ assurance outcome itself changed.
 Minimum alerts cover authentication failures, database unavailability, migration mismatch, stale
 worker heartbeat, oldest queued-job age, dead letters, provider error rate, budget rejection and
 audit-sequence anomalies.
+
+Pilot dashboards use only bounded labels (`route`, `status`, `outcome`, `provider`, `reason`,
+`retryable`). Track login rejection ratio, API 4xx/5xx and latency, oldest queued job/job outcomes,
+provider failure ratio, assurance outcome distribution, approval result and lifecycle status. Never
+label metrics with tenant, actor, URL, decision, claim or correlation ID. Correlation IDs belong in
+redacted logs/audit. Alert examples: auth rejection >10%/5m, any tenant-conflict or audit anomaly,
+oldest queue >5m, provider 5xx >20%/10m, and BLOCK-rate deviation >3x the reviewed baseline.

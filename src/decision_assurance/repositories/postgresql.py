@@ -55,6 +55,33 @@ class PostgresDecisionRepository:
             ).fetchone()
         return None if row is None else dict(row["document_json"])
 
+    def list_decisions(
+        self, tenant: TenantContext, *, limit: int, offset: int
+    ) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("INVALID_PAGE_LIMIT")
+        with self._connections.tenant_connection(tenant) as connection:
+            rows = connection.execute(
+                """
+                SELECT document_json, updated_at
+                FROM decisions
+                WHERE tenant_id = %s
+                ORDER BY updated_at DESC, decision_id DESC
+                LIMIT %s OFFSET %s
+                """,
+                (tenant.tenant_id, limit, offset),
+            ).fetchall()
+        return [
+            {
+                "decision_id": row["document_json"]["decision_id"],
+                "title": row["document_json"].get("title") or row["document_json"]["decision_id"],
+                "status": row["document_json"]["status"],
+                "outcome": row["document_json"].get("outcome"),
+                "updated_at": row["updated_at"].isoformat(),
+            }
+            for row in rows
+        ]
+
     def save_result(
         self,
         tenant: TenantContext,
@@ -65,6 +92,10 @@ class PostgresDecisionRepository:
     ) -> None:
         decision_id = str(document["decision_id"])
         with self._connections.tenant_connection(tenant) as connection:
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"{tenant.tenant_id}\x1f{decision_id}",),
+            )
             cursor = connection.execute(
                 """
                 UPDATE decisions

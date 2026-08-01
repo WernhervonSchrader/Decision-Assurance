@@ -7,13 +7,15 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response
 
+from ..export.service import PilotExportService
 from ..i18n import localize, select_locale
 from ..identity import Authenticator
 from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
+from ..lifecycle.service import PilotLifecycleService
 from ..observability.health import HealthService
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
@@ -25,6 +27,7 @@ from ..web_research.service import ResearchSubmissionService
 from .errors import ApiError
 from .routes.decisions import router
 from .routes.intakes import router as intake_router
+from .routes.pilot import router as pilot_router
 from .routes.research import router as research_router
 
 MAX_BODY_BYTES = 1_048_576
@@ -44,6 +47,8 @@ def create_app(
     api_version: str = "0.4.0",
     build_metadata: BuildMetadata | None = None,
     security_events: SecurityEventSink | None = None,
+    export_service: PilotExportService | None = None,
+    lifecycle_service: PilotLifecycleService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Decision Assurance API",
@@ -60,6 +65,9 @@ def create_app(
     app.state.research_orchestrator = research_orchestrator
     app.state.research_submission_service = research_submission_service
     app.state.security_events = security_events or NullSecurityEventSink()
+    app.state.export_service = export_service
+    app.state.lifecycle_service = lifecycle_service
+    app.state.metrics = metrics
 
     @app.middleware("http")
     async def request_controls(
@@ -138,6 +146,12 @@ def create_app(
     def live() -> dict[str, str]:
         return {"status": "ok"}
 
+    if metrics is not None:
+
+        @app.get("/internal/metrics", include_in_schema=False)
+        def internal_metrics() -> PlainTextResponse:
+            return PlainTextResponse(metrics.render_prometheus())
+
     if build_metadata is not None:
 
         @app.get("/version", tags=["health"])
@@ -176,6 +190,7 @@ def create_app(
         )
 
     app.include_router(router)
+    app.include_router(pilot_router)
     if intake_repository is not None and policy_registry is not None:
         app.include_router(intake_router)
     if research_repository is not None and research_orchestrator is not None:

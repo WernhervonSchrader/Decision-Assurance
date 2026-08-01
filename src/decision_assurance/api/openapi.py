@@ -47,7 +47,7 @@ def generate(path: Path, *, api_version: str = "0.4.0") -> None:
                 version="0.5.0",
                 commit_sha="0" * 40,
                 build_timestamp="2026-07-30T00:00:00Z",
-                database_schema_version="002",
+                database_schema_version="003",
             )
         app = create_app(
             repository,

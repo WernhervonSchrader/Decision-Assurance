@@ -30,16 +30,17 @@ encryption, backup locations and provider retention. Configuration or evidence d
 suspected runtime drift disables provider egress and triggers the incident procedure in
 [Operations](OPERATIONS.md).
 
-Data is minimized to Decision, Intake, Research, job, audit and idempotency records. The pilot sets a
-30-day retention ceiling, but automated export/deletion and legal hold are not implemented. Deployers
-must supply and test those controls before storing real personal or regulated data.
+Data is minimized to Decision, Intake, Research, job, audit and idempotency records. The controlled
+pilot sets a 30-day retention ceiling and implements governed export, physical deletion and legal
+hold with tenant-scoped authorization, append-only hold/deletion evidence and atomic completion
+audit. Other operating profiles do not infer production readiness from these pilot controls.
 
-For both operating profiles, exports and deletion require tenant-scoped authorization, two-person
-approval, audit evidence and verification that no second tenant is included. Because the current
-application does not implement a general export/deletion workflow, deployments with an immediate
-automated erasure, legal-hold or portability obligation remain blocked until the documented
-operational control is implemented and tested. Backup expiry must follow the same profile boundary;
-restores may not silently resurrect data past its deletion deadline.
+Exports and deletion require tenant-scoped authorization, audit evidence and verification that no
+second tenant is included. Only the controlled-pilot profile implements the bounded v0.8 workflow;
+it is not a general production release or evidence of jurisdictional fitness. Deployments outside
+that profile with an immediate erasure, legal-hold or portability obligation remain blocked until
+their operational control is implemented and tested. Backup expiry must follow the same profile
+boundary; restores may not silently resurrect data past its deletion deadline.
 
 Web Research treats search and scraped material as untrusted and applies HTTPS/public-address,
 credential, redirect, domain, MIME, size, active-content, secret-redaction and prompt-injection
@@ -65,4 +66,12 @@ audience, `exp`, `iat`, optional `nbf`, `azp`, `sub`, controlled tenant/actor cl
 Tenant conflicts in header, path or JSON body and missing permissions are rejected before domain
 repository/provider access. Security events use stable reason codes and pseudonymize an unverified
 token reference; tokens, cookies, passwords and secrets are excluded. See [Keycloak](KEYCLOAK.md).
+
+The pilot browser uses Authorization Code + S256 PKCE with one-time state/nonce bound to the
+initiating browser, bounded server-side sessions and an opaque `__Host-da_session`
+Secure/HttpOnly/SameSite=Lax cookie. Callback access logging is disabled. Every BFF mutation
+requires CSRF and rejects tenant/actor overrides. The Caddy edge discards inbound forwarding headers,
+sets its own trusted values, limits bodies and serves only allowlisted hosts/routes, including an
+explicit public Keycloak OIDC/login-resource allowlist. Retrieved research
+and submitted text remain untrusted; the UI uses text nodes and never derives an assurance outcome.
 

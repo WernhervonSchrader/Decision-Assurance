@@ -11,7 +11,7 @@ $backupPath = Join-Path (Split-Path -Parent $manifestFile) $manifest.backup_file
 if (-not (Test-Path -LiteralPath $backupPath)) { throw "BACKUP_FILE_MISSING" }
 $actualChecksum = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actualChecksum -ne $manifest.sha256) { throw "BACKUP_CHECKSUM_MISMATCH" }
-if ($manifest.database_schema_version -ne "002") { throw "BACKUP_SCHEMA_INCOMPATIBLE" }
+if ($manifest.database_schema_version -ne "003") { throw "BACKUP_SCHEMA_INCOMPATIBLE" }
 
 $databaseDsn = (Get-Content -LiteralPath $secretPath -Raw).Trim()
 if ([string]::IsNullOrWhiteSpace($databaseDsn)) { throw "RESTORE_DSN_UNAVAILABLE" }

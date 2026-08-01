@@ -26,3 +26,11 @@ Stop automated processing immediately on tenant-isolation failure, unbounded pro
 integrity failure or secret disclosure. Cancel queued jobs, preserve sanitized evidence, notify the
 pilot owner and security contact, and follow `docs/INCIDENT-RESPONSE.md`. Do not expand users, tenants,
 data classes, providers, budgets or retention without a reviewed profile change and new evidence.
+
+## v0.8 journey
+
+The supported journey is one Sales Quote Review: Keycloak login, intake text/file, human fact
+confirmation, compile, guarded asynchronous research, evidence/source review, engine evaluation,
+independent human transition/approval, audit inspection and portable export. Tenant administration is
+limited to legal hold and deletion controls. General onboarding, billing, organization administration,
+productive email/SMS, additional use cases and production data are out of scope.

@@ -16,3 +16,10 @@
 Rollback uses the prior immutable image and compatible schema only. Forward-only database changes
 require a tested compensating migration or restore into a fresh instance; never rewrite the migration
 ledger or delete audit evidence.
+
+The pilot-abort triggers are any tenant crossover, token/secret disclosure, broken audit persistence,
+unexplained approval, deletion despite hold, provider egress bypass, sustained job backlog or TLS/private
+key compromise. Disable external edge reachability first, revoke sessions/credentials as appropriate,
+preserve redacted correlation IDs and immutable audit/export hashes, and avoid logging request bodies.
+Reopening requires fresh negative isolation tests, audit-chain verification, restore evidence and a
+separate human decision by security and pilot owners.

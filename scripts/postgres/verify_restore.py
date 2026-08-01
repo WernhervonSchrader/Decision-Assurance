@@ -59,7 +59,7 @@ def verify(dsn: str) -> dict[str, object]:
             raise RuntimeError("AUDIT_SEQUENCE_GAP")
     return {
         "schema_version": "0.5.0",
-        "database_schema_version": "002",
+        "database_schema_version": "003",
         "rls_tables_verified": len(TENANT_TABLES),
         "status": "PASS",
     }

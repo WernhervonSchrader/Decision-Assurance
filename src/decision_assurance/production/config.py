@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -94,6 +95,75 @@ _EVIDENCE_TYPES = frozenset(
     }
 )
 _VERIFICATION_STATUSES = frozenset({"VERIFIED", "UNVERIFIED", "EXPIRED", "REVOKED"})
+_CONTROLLED_PILOT_FIELDS = frozenset(
+    {
+        "public_base_url",
+        "oidc_redirect_uri",
+        "post_logout_redirect_uri",
+        "allowed_hosts",
+        "trusted_proxy_cidrs",
+        "audit_persistence",
+        "backup_configuration_ref",
+        "lifecycle_pseudonymization_secret",
+        "retention_days",
+        "pilot_tenant",
+        "health_path",
+        "readiness_path",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ControlledPilotConfig:
+    public_base_url: str
+    oidc_redirect_uri: str
+    post_logout_redirect_uri: str
+    allowed_hosts: tuple[str, ...]
+    trusted_proxy_cidrs: tuple[str, ...]
+    audit_persistence: bool
+    backup_configuration_ref: str
+    lifecycle_pseudonymization_secret: SecretReference
+    retention_days: int
+    pilot_tenant: str
+    health_path: str
+    readiness_path: str
+
+    def __post_init__(self) -> None:
+        urls = (self.public_base_url, self.oidc_redirect_uri, self.post_logout_redirect_uri)
+        parsed = tuple(urlsplit(value) for value in urls)
+        if any(item.scheme != "https" or not item.hostname for item in parsed):
+            raise ValueError("PILOT_HTTPS_REQUIRED")
+        if any(item.hostname in {"localhost", "127.0.0.1", "::1"} for item in parsed):
+            raise ValueError("PILOT_LOOPBACK_FORBIDDEN")
+        if any(item.username or item.password or item.fragment for item in parsed):
+            raise ValueError("INVALID_PILOT_PUBLIC_URL")
+        normalized_hosts = tuple(item.casefold().rstrip(".") for item in self.allowed_hosts)
+        if not normalized_hosts or any(not item for item in normalized_hosts):
+            raise ValueError("PILOT_ALLOWED_HOSTS_REQUIRED")
+        public_host = parsed[0].hostname
+        if public_host is None or public_host.casefold().rstrip(".") not in normalized_hosts:
+            raise ValueError("PILOT_PUBLIC_HOST_NOT_ALLOWED")
+        if any(item.hostname != public_host for item in parsed[1:]):
+            raise ValueError("PILOT_REDIRECT_HOST_MISMATCH")
+        object.__setattr__(self, "allowed_hosts", normalized_hosts)
+        if not self.trusted_proxy_cidrs:
+            raise ValueError("PILOT_TRUSTED_PROXY_REQUIRED")
+        try:
+            for network in self.trusted_proxy_cidrs:
+                ipaddress.ip_network(network, strict=True)
+        except ValueError:
+            raise ValueError("INVALID_PILOT_TRUSTED_PROXY") from None
+        if not self.audit_persistence:
+            raise ValueError("PILOT_AUDIT_PERSISTENCE_REQUIRED")
+        backup = self.backup_configuration_ref.strip().casefold()
+        if not backup or backup in {"example", "default", "placeholder", "changeme"}:
+            raise ValueError("PILOT_BACKUP_CONFIGURATION_REQUIRED")
+        if not 1 <= self.retention_days <= 3650:
+            raise ValueError("PILOT_RETENTION_REQUIRED")
+        if not self.pilot_tenant.strip():
+            raise ValueError("PILOT_TENANT_REQUIRED")
+        if self.health_path != "/health/live" or self.readiness_path != "/health/ready":
+            raise ValueError("PILOT_HEALTH_PROBES_REQUIRED")
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,9 +272,15 @@ class RuntimeConfig:
     oidc: OidcRuntimeConfig | None
     egress_allowed_hosts: tuple[str, ...]
     provider_egress: tuple[ProviderEgress, ...]
+    controlled_pilot: ControlledPilotConfig | None
     worker_policy: JobPolicy
 
     def __post_init__(self) -> None:
+        if self.operating_mode is OperatingMode.CONTROLLED_PILOT:
+            if self.controlled_pilot is None:
+                raise ValueError("CONTROLLED_PILOT_CONFIGURATION_REQUIRED")
+        elif self.controlled_pilot is not None:
+            raise ValueError("CONTROLLED_PILOT_PROFILE_REQUIRED")
         if self.profile in {EnvironmentProfile.STAGING, EnvironmentProfile.PRODUCTION}:
             if self.operating_mode is None:
                 raise ValueError("OPERATING_MODE_REQUIRED")
@@ -329,6 +405,12 @@ class RuntimeConfig:
         hosts = raw.get("egress_allowed_hosts", [])
         if not isinstance(hosts, list) or any(not isinstance(item, str) for item in hosts):
             raise ValueError("INVALID_EGRESS_ALLOWLIST")
+        controlled_pilot_raw = raw.get("controlled_pilot")
+        controlled_pilot = (
+            _controlled_pilot_config(controlled_pilot_raw)
+            if controlled_pilot_raw is not None
+            else None
+        )
         return cls(
             profile=profile,
             operating_mode=operating_mode,
@@ -343,6 +425,7 @@ class RuntimeConfig:
             oidc=oidc,
             egress_allowed_hosts=tuple(hosts),
             provider_egress=_provider_egress(raw.get("provider_egress", [])),
+            controlled_pilot=controlled_pilot,
             worker_policy=JobPolicy(
                 max_attempts=int(worker.get("max_attempts", 5)),
                 lease_seconds=int(worker.get("lease_seconds", 60)),
@@ -414,6 +497,42 @@ def _locations(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:
     values = _string_tuple(raw, key)
     development_sentinels = {"local", "local-development", "external-unspecified"}
     return tuple(value if value in development_sentinels else value.upper() for value in values)
+
+
+def _controlled_pilot_config(raw: object) -> ControlledPilotConfig:
+    if not isinstance(raw, Mapping):
+        raise ValueError("INVALID_CONTROLLED_PILOT_CONFIGURATION")
+    if set(raw).difference(_CONTROLLED_PILOT_FIELDS):
+        raise ValueError("UNKNOWN_CONTROLLED_PILOT_FIELD")
+    audit_persistence = raw.get("audit_persistence")
+    if not isinstance(audit_persistence, bool):
+        raise ValueError("PILOT_AUDIT_PERSISTENCE_REQUIRED")
+    return ControlledPilotConfig(
+        public_base_url=_required_nonempty(raw, "public_base_url"),
+        oidc_redirect_uri=_required_nonempty(raw, "oidc_redirect_uri"),
+        post_logout_redirect_uri=_required_nonempty(raw, "post_logout_redirect_uri"),
+        allowed_hosts=_string_tuple(raw, "allowed_hosts"),
+        trusted_proxy_cidrs=_string_tuple(raw, "trusted_proxy_cidrs"),
+        audit_persistence=audit_persistence,
+        backup_configuration_ref=_required_nonempty(raw, "backup_configuration_ref"),
+        lifecycle_pseudonymization_secret=_pilot_secret_reference(
+            raw, "lifecycle_pseudonymization_secret"
+        ),
+        retention_days=int(raw.get("retention_days", 0)),
+        pilot_tenant=_required(raw, "pilot_tenant"),
+        health_path=_required(raw, "health_path"),
+        readiness_path=_required(raw, "readiness_path"),
+    )
+
+
+def _pilot_secret_reference(raw: Mapping[str, Any], key: str) -> SecretReference:
+    value = _required_nonempty(raw, key)
+    if value.casefold() in {"example", "default", "placeholder", "changeme"}:
+        raise ValueError("PILOT_SECRET_REFERENCE_REQUIRED")
+    try:
+        return SecretReference(value)
+    except ValueError:
+        raise ValueError("PILOT_SECRET_REFERENCE_REQUIRED") from None
 
 
 def _string_tuple(raw: Mapping[str, Any], key: str) -> tuple[str, ...]:

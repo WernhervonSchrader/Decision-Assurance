@@ -46,3 +46,10 @@ recovery is required, keep all regular Keycloak nodes stopped, run the profile-g
 permanent administration, delete the temporary identity and start the regular service without
 bootstrap secret mounts. Production Keycloak RPO/RTO, PITR and geographic placement require a
 separate approved service design.
+
+For controlled-pilot data, restore only into an isolated fresh PostgreSQL 16 database, apply roles,
+verify migration `003`, validate forced RLS for every tenant table, verify lifecycle event chains and
+reapply the protected deletion ledger before reconnecting edge/worker traffic. Prove one retained case,
+one completed deletion tombstone and one legal hold, then repeat cross-tenant export/read/delete denial.
+Record archive hash, operator, verifier, start/end time and RPO/RTO; repository tests do not constitute
+a measured deployment restore.

@@ -24,6 +24,9 @@ class Permission(str, Enum):
     RESEARCH_HANDOFF = "research:handoff"
     RESEARCH_FORCE_REFRESH = "research:force-refresh"
     RESEARCH_AUDIT_READ = "research:audit-read"
+    PILOT_EXPORT = "pilot:export"
+    DATA_DELETE = "data:delete"
+    LEGAL_HOLD_MANAGE = "legal-hold:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -65,6 +68,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.INTAKE_CONFIRM,
             Permission.INTAKE_COMPILE,
             Permission.RESEARCH_READ,
+            Permission.PILOT_EXPORT,
         }
     ),
     Role.AUDITOR: frozenset(
@@ -75,6 +79,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.INTAKE_READ,
             Permission.RESEARCH_READ,
             Permission.RESEARCH_AUDIT_READ,
+            Permission.PILOT_EXPORT,
         }
     ),
     Role.REVIEWER: frozenset(

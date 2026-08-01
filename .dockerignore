@@ -14,5 +14,9 @@ __pycache__
 *.sqlite*
 build
 dist
+ui/node_modules
+ui/dist
+ui/playwright-report
+ui/test-results
 tests
 docs
