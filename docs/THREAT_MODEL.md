@@ -1,5 +1,9 @@
 # Threat Model — Production Foundation v0.5
 
+v0.9 additionally models export substitution/downgrade, wrong or revoked keys, legacy mislabeling,
+event-version confusion, forged TLS/recovery evidence, MFA downgrade, stale shared sessions, bundle
+replay and automatic organizational approval. Binding controls are in the v0.9 specification.
+
 Assets are Decision Files, evidence references, approvals, reports, audit
 history, tenant configuration and identities. Actors are tenant users, agents,
 auditors, administrators and attackers. Trust boundaries exist at HTTP input,

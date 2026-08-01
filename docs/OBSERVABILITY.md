@@ -1,5 +1,9 @@
 # Observability contract
 
+Reference rules live in `deploy/observability/decision-assurance-alerts.yml`; a deterministic local
+evaluator proves firing. A real pilot must connect actual Prometheus-compatible collection and a
+notification receiver, trigger a canary alert and record receipt as deployment evidence.
+
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only
 allowlisted operational fields; request bodies, raw Intake text, extracted content, bearer tokens,

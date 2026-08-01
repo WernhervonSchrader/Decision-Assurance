@@ -1,5 +1,9 @@
 # Incident response
 
+New pilot-stop triggers include signature/key failure, suspected key disclosure, MFA downgrade,
+shared-session compromise, evidence replay/tampering and failed recovery or alert delivery. Revoke
+keys/sessions, block review, preserve redacted evidence and require independent re-approval.
+
 1. Declare severity, incident lead, time and affected environment; stop the controlled pilot for any
    suspected secret disclosure, tenant crossover, audit corruption or unbounded provider spend.
 2. Contain with credential revocation, egress disablement, queue cancellation or service removal from

@@ -1,5 +1,10 @@
 # Decision Assurance
 
+v0.9 adds provider-neutral deployment evidence foundations: Ed25519-signed exports, offline public
+key verification, explicit event versions, MFA evidence, shared PostgreSQL BFF sessions, measured
+recovery reports and a human-gated deployment bundle. This prepares a controlled pilot; it does not
+deploy or authorize production.
+
 **Public Draft v0.5 — production foundation and controlled-pilot candidate, not a recognized
 standard or certification.**
 

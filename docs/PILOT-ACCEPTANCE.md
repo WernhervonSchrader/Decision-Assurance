@@ -1,5 +1,8 @@
 # Controlled pilot acceptance checklist
 
+The automated maximum is `PILOT_REVIEW_REQUIRED`. Validate every evidence type at the exact commit,
+then record a different authorized reviewer. Production authorization remains separate.
+
 ## Repository CI evidence
 
 - [ ] Ruff, Mypy strict, Python tests, PostgreSQL 16, OpenAPI drift and package builds pass.

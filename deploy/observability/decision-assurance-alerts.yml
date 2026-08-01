@@ -1,0 +1,21 @@
+groups:
+  - name: decision-assurance-controlled-pilot
+    rules:
+      - alert: ExportSignatureFailure
+        expr: increase(da_export_signature_failures_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: SessionStoreUnavailable
+        expr: da_session_store_available < 1
+        labels: {severity: critical}
+      - alert: MfaDenialBurst
+        expr: increase(da_mfa_denials_total[5m]) > 5
+        labels: {severity: warning}
+      - alert: AuditPersistenceFailure
+        expr: increase(da_audit_failures_total[5m]) > 0
+        labels: {severity: critical}
+      - alert: RestoreVerificationFailure
+        expr: da_restore_success < 1
+        labels: {severity: critical}
+      - alert: CertificateExpiring
+        expr: da_tls_certificate_days_remaining < 14
+        labels: {severity: warning}

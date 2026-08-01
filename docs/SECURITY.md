@@ -1,5 +1,12 @@
 # Security Model
 
+## v0.9 provenance boundary
+
+Ed25519 binds export manifests and member digests. Private keys remain behind file/KMS/HSM adapters.
+Shared sessions persist only HMAC handles and encrypted tokens in a private PostgreSQL schema.
+Critical-role sessions bind validated MFA context and policy version. Unknown evidence/event versions
+and self-declaration fail closed.
+
 Authentication is an injected boundary; the reference static-token adapter is
 for local evaluation only. Authorization is centralized and enforced before
 object access. Repository lookup always includes tenant. Cross-tenant misses

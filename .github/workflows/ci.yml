@@ -129,6 +129,9 @@ jobs:
 
   restore-verification:
     runs-on: ubuntu-latest
+    env:
+      DA_RECOVERY_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PGPASSWORD: postgres
     services:
       postgres:
         image: postgres:16
@@ -143,8 +146,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -158,15 +159,53 @@ jobs:
           python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://postgres:postgres@localhost:5432/decision_assurance'))).migrate()"
       - name: Backup and restore into a fresh database
         run: |
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO decisions (tenant_id, decision_id, document_json) VALUES
+            ('recovery-tenant-a', 'recovery-decision-1', '{"status":"REVIEW"}'),
+            ('recovery-tenant-b', 'recovery-decision-2', '{"status":"BLOCKED"}');
+          INSERT INTO audit_events (tenant_id, decision_id, event_id, event_json) VALUES
+            ('recovery-tenant-a', 'recovery-decision-1', 'recovery-event-1', '{"event_type":"governance.decided","event_hash":"hash-1"}'),
+            ('recovery-tenant-b', 'recovery-decision-2', 'recovery-event-2', '{"event_type":"governance.decided","event_hash":"hash-2"}');
+          INSERT INTO research_runs
+            (tenant_id, research_run_id, decision_file_id, semantic_fingerprint, status, run_json, created_at, updated_at)
+          VALUES
+            ('recovery-tenant-a', 'recovery-run-1', 'recovery-decision-1', 'recovery-fingerprint-1', 'COMPLETED', '{"sources":2}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+            ('recovery-tenant-b', 'recovery-run-2', 'recovery-decision-2', 'recovery-fingerprint-2', 'COMPLETED', '{"sources":1}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+          INSERT INTO decision_assurance_private.browser_sessions
+            (session_digest, tenant_id, actor_id, identity_json, csrf_token, token_ciphertext, expires_at)
+          VALUES
+            ('sha256:1111111111111111111111111111111111111111111111111111111111111111', 'recovery-tenant-a', 'recovery-actor-1', '{"role":"auditor"}', 'recovery-csrf-1', 'recovery-ciphertext-1', CURRENT_TIMESTAMP + INTERVAL '1 hour'),
+            ('sha256:2222222222222222222222222222222222222222222222222222222222222222', 'recovery-tenant-b', 'recovery-actor-2', '{"role":"decision_approver"}', 'recovery-csrf-2', 'recovery-ciphertext-2', CURRENT_TIMESTAMP + INTERVAL '1 hour');
+          SQL
+          BACKUP_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner --no-privileges --file=/tmp/decision-assurance.dump
+          BACKUP_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO decisions (tenant_id, decision_id, document_json) VALUES ('recovery-tenant-a', 'recovery-post-backup', '{\"status\":\"DRAFT\"}')"
+          FAILURE_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           createdb -h localhost -U postgres decision_assurance_restore
+          RESTORE_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --no-privileges --exit-on-error /tmp/decision-assurance.dump
-          DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
+          RESTORE_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          DA_RECOVERY_EXPECT_DRILL_DATA=true DA_RESTORE_DSN=postgresql://postgres:postgres@localhost:5432/decision_assurance_restore python scripts/postgres/verify_restore.py | tee /tmp/restore-verification.json
+          python -m scripts.postgres.generate_recovery_evidence \
+            --output /tmp/recovery-evidence.json \
+            --environment github-actions-postgresql-16 \
+            --commit-sha "$DA_RECOVERY_COMMIT_SHA" \
+            --data-bytes "$(stat -c %s /tmp/decision-assurance.dump)" \
+            --backup-started "$BACKUP_STARTED" \
+            --backup-completed "$BACKUP_COMPLETED" \
+            --failure-at "$FAILURE_AT" \
+            --restore-started "$RESTORE_STARTED" \
+            --restore-completed "$RESTORE_COMPLETED" \
+            --latest-restored-record-at "$BACKUP_COMPLETED"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: restore-verification
-          path: /tmp/restore-verification.json
+          path: |
+            /tmp/restore-verification.json
+            /tmp/recovery-evidence.json
           if-no-files-found: warn
 
   container-security:
