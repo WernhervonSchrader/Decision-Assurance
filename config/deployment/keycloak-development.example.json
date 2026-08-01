@@ -1,0 +1,84 @@
+{
+  "profile": "development",
+  "operating_mode": "development-provider-integration",
+  "data_residency": {
+    "storage_locations": ["local-development"],
+    "processing_locations": ["local-development"],
+    "backup_locations": ["local-development"],
+    "support_access_locations": ["local-development"],
+    "external_processing_locations": ["external-unspecified"],
+    "evidence_refs": []
+  },
+  "database_backend": "sqlite",
+  "authentication_mode": "oidc",
+  "secret_provider": "environment",
+  "database_dsn_secret": "DEVELOPMENT_DATABASE_UNUSED",
+  "worker_database_dsn_secret": "DEVELOPMENT_WORKER_DATABASE_UNUSED",
+  "oidc": {
+    "issuer": "http://127.0.0.1:8080/realms/decision-assurance",
+    "audience": "decision-assurance-api",
+    "jwks_uri": "http://127.0.0.1:8080/realms/decision-assurance/protocol/openid-connect/certs",
+    "algorithms": ["RS256"],
+    "tenant_claim": "tenant_id",
+    "actor_id_claim": "sub",
+    "role_claim": "realm_access.roles",
+    "actor_kind_claim": "actor_kind",
+    "organization_claim": "organization",
+    "groups_claim": "groups",
+    "clock_skew_seconds": 30,
+    "authorized_parties": ["decision-assurance-ui", "decision-assurance-e2e"],
+    "required_scopes": ["da.api"],
+    "allow_insecure_loopback": true
+  },
+  "egress_allowed_hosts": ["api.openai.com", "api.firecrawl.dev"],
+  "provider_egress": [
+    {
+      "provider": "openai-web-search",
+      "service": "responses-web-search-v1",
+      "host": "api.openai.com",
+      "processing_location": "external-unspecified",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "development-only-openai-unverified",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "development-only:not-residency-evidence",
+        "issuer": "local-developer",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    },
+    {
+      "provider": "firecrawl",
+      "service": "scrape-v2",
+      "host": "api.firecrawl.dev",
+      "processing_location": "external-unspecified",
+      "confirmed_processing_locations": [],
+      "tenant_ids": ["*"],
+      "attestation": {
+        "evidence_id": "development-only-firecrawl-unverified",
+        "evidence_type": "OPERATOR_SELF_DECLARATION",
+        "evidence_ref": "development-only:not-residency-evidence",
+        "issuer": "local-developer",
+        "issued_at": "2026-01-01T00:00:00Z",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "expires_at": "2027-01-01T00:00:00Z",
+        "verification_status": "UNVERIFIED",
+        "verified_at": null,
+        "verified_by": null,
+        "document_hash": null
+      }
+    }
+  ],
+  "worker": {
+    "max_attempts": 2,
+    "lease_seconds": 60,
+    "base_backoff_seconds": 2,
+    "maximum_backoff_seconds": 30
+  }
+}

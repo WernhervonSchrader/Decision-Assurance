@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlsplit
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 _SHA = re.compile(r"^[0-9a-f]{40,64}$")
@@ -93,9 +94,22 @@ class OidcPolicy:
     organization_claim: str | None = None
     groups_claim: str | None = None
     clock_skew_seconds: int = 30
+    authorized_parties: tuple[str, ...] = ()
+    required_scopes: tuple[str, ...] = ()
+    allow_insecure_loopback: bool = False
 
     def __post_init__(self) -> None:
-        if not self.issuer.startswith("https://") or not self.audience.strip():
+        issuer = urlsplit(self.issuer)
+        loopback = issuer.scheme == "http" and issuer.hostname in {"127.0.0.1", "::1", "localhost"}
+        if (
+            (issuer.scheme != "https" and not (self.allow_insecure_loopback and loopback))
+            or not issuer.hostname
+            or issuer.username is not None
+            or issuer.password is not None
+            or bool(issuer.query)
+            or bool(issuer.fragment)
+            or not self.audience.strip()
+        ):
             raise ValueError("INVALID_OIDC_TRUST_CONFIGURATION")
         if not self.algorithms or any(item not in {"RS256", "ES256"} for item in self.algorithms):
             raise ValueError("INVALID_OIDC_ALGORITHM_ALLOWLIST")
@@ -109,6 +123,10 @@ class OidcPolicy:
             raise ValueError("INVALID_OIDC_CLAIM_MAPPING")
         if not 0 <= self.clock_skew_seconds <= 120:
             raise ValueError("INVALID_OIDC_CLOCK_SKEW")
+        if any(not item.strip() or len(item) > 256 for item in self.authorized_parties):
+            raise ValueError("INVALID_OIDC_AUTHORIZED_PARTY")
+        if any(not item.strip() or len(item) > 128 for item in self.required_scopes):
+            raise ValueError("INVALID_OIDC_REQUIRED_SCOPE")
 
 
 @dataclass(frozen=True, slots=True)

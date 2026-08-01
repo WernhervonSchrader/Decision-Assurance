@@ -11,12 +11,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from ...audit import payload_hash
 from ...authorization import Permission
 from ...decision_file import evaluate_decision_file, validate_semantics
-from ...identity import Identity
+from ...identity import Identity, Role
 from ...repositories.protocols import DecisionRepository, IdempotencyWrite
 from ...repositories.sqlite import IdempotencyConflict
 from ...transitions import TransitionPolicy, TransitionRejected
 from ...validation import ContractValidationError, ContractValidator
-from ..dependencies import get_identity, require, require_idempotency_key
+from ..dependencies import get_identity, require, require_idempotency_key, require_one_of
 from ..errors import ApiError
 from ..schemas import AuditPage, TransitionRequest
 
@@ -51,8 +51,15 @@ def _idempotency_write(
     return identity.actor_id, operation, key, digest, status, body
 
 
-def _actor(identity: Identity) -> dict[str, str]:
-    return {"id": identity.actor_id, "role": identity.role.value, "kind": identity.kind.value}
+def _actor(identity: Identity, permission: Permission) -> dict[str, str]:
+    preferred = {
+        Permission.DECISION_CREATE: Role.GENERATOR,
+        Permission.DECISION_EVALUATE: Role.VALIDATOR,
+        Permission.DECISION_VALIDATE: Role.VALIDATOR,
+        Permission.DECISION_APPROVE: Role.APPROVER,
+    }.get(permission)
+    role = preferred if preferred in identity.roles else identity.role
+    return {"id": identity.actor_id, "role": role.value, "kind": identity.kind.value}
 
 
 @router.post("", status_code=201)
@@ -62,7 +69,7 @@ async def create_decision(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.DECISION_CREATE)
+    require(request, identity, Permission.DECISION_CREATE)
     key = require_idempotency_key(idempotency_key)
     try:
         body = cast(dict[str, Any], await request.json())
@@ -77,14 +84,14 @@ async def create_decision(
         validate_semantics(body)
     except (ContractValidationError, ValueError) as error:
         raise ApiError(422, "INVALID_REQUEST", {"validation": str(error)}) from error
-    if body["created_by"] != _actor(identity):
+    if body["created_by"] != _actor(identity, Permission.DECISION_CREATE):
         raise ApiError(403, "FORBIDDEN", {"reason_code": "ACTOR_SPOOFING"})
     document = copy.deepcopy(body)
     event = {
         "event_id": f"{document['decision_id']}:created:1",
         "event_type": "decision.created",
         "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "actor": _actor(identity),
+        "actor": _actor(identity, Permission.DECISION_CREATE),
         "from_status": None,
         "to_status": "DRAFT",
         "reason_codes": ["DECISION_CREATED"],
@@ -111,7 +118,7 @@ async def create_decision(
 def get_decision(
     request: Request, decision_id: str, identity: Identity = Depends(get_identity)
 ) -> dict[str, Any]:
-    require(identity, Permission.DECISION_READ)
+    require(request, identity, Permission.DECISION_READ)
     document = _repository(request).get_decision(identity.tenant, decision_id)
     if document is None:
         raise ApiError(404, "NOT_FOUND")
@@ -126,7 +133,7 @@ def evaluate(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.DECISION_EVALUATE)
+    require(request, identity, Permission.DECISION_EVALUATE)
     key = require_idempotency_key(idempotency_key)
     digest, replay = _operation(request, identity, key, f"decision:evaluate:{decision_id}", {})
     if replay:
@@ -168,16 +175,25 @@ def transition(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
     key = require_idempotency_key(idempotency_key)
+    if transition_request.target == "APPROVED":
+        require(request, identity, Permission.DECISION_APPROVE)
+    elif transition_request.target == "BLOCKED":
+        require_one_of(
+            request,
+            identity,
+            (Permission.DECISION_VALIDATE, Permission.DECISION_APPROVE),
+        )
+    else:
+        require(request, identity, Permission.DECISION_VALIDATE)
     document = _repository(request).get_decision(identity.tenant, decision_id)
     if document is None:
         raise ApiError(404, "NOT_FOUND")
     is_approval_action = transition_request.target == "APPROVED" or (
         transition_request.target == "BLOCKED" and document["status"] == "REVIEW"
     )
-    require(
-        identity,
-        Permission.DECISION_APPROVE if is_approval_action else Permission.DECISION_VALIDATE,
-    )
+    permission = Permission.DECISION_APPROVE if is_approval_action else Permission.DECISION_VALIDATE
+    if transition_request.target == "BLOCKED":
+        require(request, identity, permission)
     operation = f"decision:transition:{decision_id}:{transition_request.target}"
     digest, replay = _operation(request, identity, key, operation, transition_request.model_dump())
     if replay:
@@ -185,7 +201,7 @@ def transition(
         return replay[1]
     try:
         updated = TransitionPolicy().transition(
-            document, transition_request.target, _actor(identity)
+            document, transition_request.target, _actor(identity, permission)
         )
     except TransitionRejected as error:
         raise ApiError(409, "CONFLICT", {"reason_codes": error.reason_codes}) from error
@@ -211,7 +227,7 @@ def transition(
 def get_report(
     request: Request, decision_id: str, identity: Identity = Depends(get_identity)
 ) -> dict[str, Any]:
-    require(identity, Permission.REPORT_READ)
+    require(request, identity, Permission.REPORT_READ)
     report = _repository(request).get_report(identity.tenant, decision_id)
     if report is None:
         raise ApiError(404, "NOT_FOUND")
@@ -226,7 +242,7 @@ def get_audit(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    require(identity, Permission.AUDIT_READ)
+    require(request, identity, Permission.AUDIT_READ)
     if _repository(request).get_decision(identity.tenant, decision_id) is None:
         raise ApiError(404, "NOT_FOUND")
     return {

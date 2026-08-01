@@ -6,6 +6,10 @@ dependency audit, build and OpenAPI drift checks. Separate jobs exercise a real 
 service, forced tenant RLS, database roles and migrations; scan the complete Git history for
 secrets; build all three production images and scan them for critical vulnerabilities; and restore a
 native PostgreSQL backup into a fresh database before checking schema, RLS, roles and audit order.
+The isolated Keycloak job also builds the pinned image, checks its non-root user, imports the realm
+into a separate PostgreSQL 16 service, and runs real PKCE/JWKS/tenant/Research/persistence E2E tests.
+The computed `oidc-validation` gate is sourced from that job, and `container-scan` requires the
+Keycloak Critical scan alongside API, Worker and MCP scans.
 
 The container job emits CycloneDX SBOMs for the API, Worker and MCP images. The release-evidence job runs
 only after every required job succeeds, builds the wheel and source distribution, downloads the

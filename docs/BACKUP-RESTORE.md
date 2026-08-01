@@ -35,3 +35,14 @@ is available, remain unavailable and declare the recovery incident rather than r
 undeclared region. Record actual RPO/RTO, lost job window, provider side effects, config/evidence
 hashes and corrective action. Quarterly drills must exercise both selected profile placement and a
 negative restore to a prohibited location, which must fail closed.
+
+The local Keycloak PostgreSQL volume is a separate backup domain. Never merge it into the Decision
+Assurance application database or reuse application credentials. Back it up in PostgreSQL custom
+format to encrypted restricted storage and restore only into a fresh isolated Keycloak database;
+then run realm contracts, PKCE/JWKS authentication, tenant denial, role/actor-independence and
+restart-persistence tests. Restore never replays initial bootstrap automatically. If administrator
+recovery is required, keep all regular Keycloak nodes stopped, run the profile-gated
+`bootstrap-admin user` service once, canary-scan its captured output without displaying it, restore
+permanent administration, delete the temporary identity and start the regular service without
+bootstrap secret mounts. Production Keycloak RPO/RTO, PITR and geographic placement require a
+separate approved service design.

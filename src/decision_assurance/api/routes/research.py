@@ -113,9 +113,9 @@ async def create_research_run(
     identity: Identity = Depends(get_identity),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
-    require(identity, Permission.RESEARCH_CREATE)
+    require(request, identity, Permission.RESEARCH_CREATE)
     if body.force_refresh:
-        require(identity, Permission.RESEARCH_FORCE_REFRESH)
+        require(request, identity, Permission.RESEARCH_FORCE_REFRESH)
     operation = "research:create"
     payload = body.model_dump(mode="json")
     key, digest, replay = _begin(request, identity, operation, idempotency_key, payload)
@@ -169,7 +169,7 @@ def get_research_run(
     request: Request,
     identity: Identity = Depends(get_identity),
 ) -> dict[str, Any]:
-    require(identity, Permission.RESEARCH_READ)
+    require(request, identity, Permission.RESEARCH_READ)
     return _summary(_required(request, identity, research_run_id))
 
 
@@ -181,7 +181,7 @@ def get_research_sources(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    require(identity, Permission.RESEARCH_READ)
+    require(request, identity, Permission.RESEARCH_READ)
     _required(request, identity, research_run_id)
     return {
         "items": _research(request).list_sources(
@@ -200,7 +200,7 @@ def get_research_evidence(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
-    require(identity, Permission.RESEARCH_READ)
+    require(request, identity, Permission.RESEARCH_READ)
     _required(request, identity, research_run_id)
     return {
         "items": _research(request).list_evidence(
@@ -217,7 +217,7 @@ def get_research_audit(
     request: Request,
     identity: Identity = Depends(get_identity),
 ) -> dict[str, Any]:
-    require(identity, Permission.RESEARCH_AUDIT_READ)
+    require(request, identity, Permission.RESEARCH_AUDIT_READ)
     _required(request, identity, research_run_id)
     return {"items": _research(request).list_audit(identity.tenant, research_run_id)}
 
@@ -232,7 +232,7 @@ async def _action(
     idempotency_key: str | None,
 ) -> dict[str, Any]:
     permission = Permission.RESEARCH_RETRY if action == "retry" else Permission.RESEARCH_CANCEL
-    require(identity, permission)
+    require(request, identity, permission)
     _required(request, identity, research_run_id)
     operation = f"research:{action}:{research_run_id}"
     payload = body.model_dump(mode="json")

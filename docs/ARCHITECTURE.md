@@ -84,3 +84,12 @@ ADR-005 adds `decision_assurance.mcp` as a separate Streamable-HTTP process in t
 The transport authenticates and delegates to one application service; the service reuses existing
 Decision/Research repositories, RBAC, submission/orchestration, compiler and handoff ports. It owns
 no provider logic and exposes exactly five bounded tools. See [MCP Web Research](MCP-WEB-RESEARCH.md).
+
+# Keycloak OIDC identity boundary
+
+The existing authenticator port now accepts a Keycloak OIDC implementation; no parallel identity
+architecture was introduced. Browser clients use Authorization Code with S256 PKCE. The API verifies
+the signed token and creates an immutable identity/tenant context before centralized authorization,
+repository access or Research provider dispatch. Keycloak roles are inputs to the application
+permission matrix, never lifecycle approval. Keycloak uses its own PostgreSQL database and account.
+See [Local Keycloak OIDC](KEYCLOAK.md).

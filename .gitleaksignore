@@ -1,2 +1,4 @@
 # False positive: prose describing rejection of empty/placeholder secrets.
 2dfa0e4c4cf79b7d9541aa0efb8c45391de44622:docs/specifications/DA-PRODUCTION-FOUNDATION-v0.5-IMPLEMENTATION-PLAN.md:generic-api-key:179
+# False positive: fixed internal JDBC service URL contains no credential.
+2d4caf224f130143e34e816a19b63708f2f7d23a:compose.keycloak.yaml:generic-api-key:35

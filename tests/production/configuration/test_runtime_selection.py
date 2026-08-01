@@ -52,6 +52,8 @@ def test_configured_production_runtime_selects_only_production_adapters(
             "audience": "decision-assurance",
             "jwks_uri": "https://identity.example/jwks.json",
             "algorithms": ["RS256"],
+            "authorized_parties": ["decision-assurance-ui"],
+            "required_scopes": ["da.api"],
         },
         "egress_allowed_hosts": ["provider.example"],
         "provider_egress": [
@@ -104,3 +106,23 @@ def test_configured_production_runtime_selects_only_production_adapters(
     assert app.state.research_submission_service is not None
     assert role_checks == [True]
     assert "canary-value" not in repr(app.state)
+
+
+def test_explicit_keycloak_development_profile_uses_oidc_without_static_identities(
+    tmp_path: Path,
+) -> None:
+    secret_directory = tmp_path / "secrets"
+    secret_directory.mkdir()
+    app = load_runtime(
+        {
+            "DA_CONFIG_PATH": "config/deployment/keycloak-development.example.json",
+            "DA_DATABASE_PATH": str(tmp_path / "keycloak-development.db"),
+            "DA_SECRET_DIRECTORY": str(secret_directory),
+        },
+        oidc_http_client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(503))
+        ),
+    )
+
+    assert isinstance(app.state.authenticator, OidcAuthenticator)
+    assert app.state.repository.ready()

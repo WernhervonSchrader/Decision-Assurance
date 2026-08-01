@@ -142,7 +142,14 @@ def _authenticator() -> tuple[OidcAuthenticator, Any]:
     )
     return (
         OidcAuthenticator(
-            OidcPolicy(issuer=ISSUER, audience=AUDIENCE, algorithms=("RS256",)), keys
+            OidcPolicy(
+                issuer=ISSUER,
+                audience=AUDIENCE,
+                algorithms=("RS256",),
+                authorized_parties=("pilot-client",),
+                required_scopes=("da.api",),
+            ),
+            keys,
         ),
         private,
     )
@@ -161,6 +168,8 @@ def _token(private: Any, tenant: str, actor: str, role: str, kind: str = "HUMAN"
             "tenant_id": tenant,
             "role": role,
             "actor_kind": kind,
+            "azp": "pilot-client",
+            "scope": "da.api",
         },
         private,
         algorithm="RS256",
@@ -283,12 +292,17 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
     )
     api = TestClient(app)
     tokens = {
-        f"{tenant}:{role.lower()}": _token(private, tenant, f"{tenant}-{role.lower()}", role)
+        f"{tenant}:{label}": _token(private, tenant, f"{tenant}-{label}", external_role)
         for tenant in TENANTS
-        for role in ("GENERATOR", "VALIDATOR", "APPROVER", "AUDITOR")
+        for label, external_role in (
+            ("generator", "decision_author"),
+            ("validator", "decision_reviewer"),
+            ("approver", "decision_approver"),
+            ("auditor", "auditor"),
+        )
     }
     tokens["pilot-tenant-a:agent-approver"] = _token(
-        private, "pilot-tenant-a", "pilot-agent", "APPROVER", "AGENT"
+        private, "pilot-tenant-a", "pilot-agent", "decision_approver", "AGENT"
     )
 
     approved = _create_intake_and_compile(

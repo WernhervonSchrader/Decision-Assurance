@@ -74,7 +74,8 @@ def test_tenant_is_rejected_from_client_payload_and_compile_is_outcome_free(tmp_
             "tenant_id": "b",
         },
     )
-    assert invalid.status_code == 422
+    assert invalid.status_code == 403
+    assert invalid.json()["details"]["reason_code"] == "AUTH_TENANT_MISMATCH"
     created = api.post(
         "/v1/intakes",
         headers=headers("a-generator"),

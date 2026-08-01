@@ -4,6 +4,7 @@ import threading
 import time
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from jwt import PyJWK
@@ -22,9 +23,18 @@ class CachedJwksProvider:
         client: httpx.Client,
         cache_ttl_seconds: int = 300,
         maximum_keys: int = 20,
+        allow_insecure_loopback: bool = False,
         clock: Callable[[], float] = time.monotonic,
     ):
-        if not issuer.startswith("https://") or not jwks_uri.startswith("https://"):
+        def trusted_url(value: str) -> bool:
+            parsed = urlsplit(value)
+            return parsed.scheme == "https" or (
+                allow_insecure_loopback
+                and parsed.scheme == "http"
+                and parsed.hostname in {"127.0.0.1", "::1", "localhost"}
+            )
+
+        if not trusted_url(issuer) or not trusted_url(jwks_uri):
             raise ValueError("OIDC_HTTPS_REQUIRED")
         if not 30 <= cache_ttl_seconds <= 86_400:
             raise ValueError("INVALID_JWKS_CACHE_TTL")
@@ -75,13 +85,20 @@ class CachedJwksProvider:
             for raw in raw_keys:
                 if not isinstance(raw, dict):
                     raise JwksResolutionError("INVALID_JWKS_KEY")
+                # OIDC providers commonly publish encryption and signing keys in
+                # one JWKS. Encryption keys are valid document members but must
+                # never enter the verification-key cache.
+                if raw.get("use", "sig") != "sig":
+                    continue
                 kid = raw.get("kid")
                 if not isinstance(kid, str) or not kid or kid in parsed:
                     raise JwksResolutionError("INVALID_JWKS_KEY_ID")
-                if raw.get("use", "sig") != "sig" or raw.get("kty") not in {"RSA", "EC"}:
+                if raw.get("kty") not in {"RSA", "EC"}:
                     raise JwksResolutionError("INVALID_JWKS_KEY_USE")
                 parsed[kid] = PyJWK.from_dict(raw)
         except (KeyError, TypeError, ValueError):
             raise JwksResolutionError("INVALID_JWKS_KEY") from None
+        if not parsed:
+            raise JwksResolutionError("INVALID_JWKS_KEY_COUNT")
         self._keys = parsed
         self._expires_at = self._clock() + self._cache_ttl_seconds

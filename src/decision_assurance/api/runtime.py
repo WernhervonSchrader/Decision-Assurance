@@ -37,6 +37,7 @@ from ..production.secrets import (
     SecretResolutionError,
 )
 from ..repositories.sqlite import SqliteDecisionRepository
+from ..security_events import LoggingSecurityEventSink
 from ..tenancy import TenantContext
 from ..web_research.circuit_breaker import InMemoryProviderCircuitBreaker
 from ..web_research.compiler import (
@@ -66,7 +67,9 @@ def load_runtime(
     if config_path := values.get("DA_CONFIG_PATH"):
         config = load_config(Path(config_path), values)
         if config.profile is EnvironmentProfile.DEVELOPMENT:
-            return _load_reference_runtime(values, provider_config=config)
+            return _load_reference_runtime(
+                values, provider_config=config, oidc_http_client=oidc_http_client
+            )
         return _load_configured_runtime(
             config,
             values,
@@ -77,23 +80,34 @@ def load_runtime(
 
 
 def _load_reference_runtime(
-    values: Mapping[str, str], *, provider_config: RuntimeConfig | None = None
+    values: Mapping[str, str],
+    *,
+    provider_config: RuntimeConfig | None = None,
+    oidc_http_client: httpx.Client | None = None,
 ) -> FastAPI:
     database_value = values.get("DA_DATABASE_PATH")
     identities_value = values.get("DA_IDENTITIES_PATH")
-    if not database_value or not identities_value:
-        raise RuntimeError("DA_DATABASE_PATH and DA_IDENTITIES_PATH are required")
-    identities_path = Path(identities_value)
-    raw = cast(dict[str, dict[str, Any]], json.loads(identities_path.read_text(encoding="utf-8")))
-    identities = {
-        token: Identity(
-            actor_id=str(item["actor_id"]),
-            tenant=TenantContext(str(item["tenant_id"])),
-            role=Role(str(item["role"])),
-            kind=ActorKind(str(item["kind"])),
+    if not database_value:
+        raise RuntimeError("DA_DATABASE_PATH is required")
+    identities: dict[str, Identity] = {}
+    if identities_value:
+        identities_path = Path(identities_value)
+        raw = cast(
+            dict[str, dict[str, Any]], json.loads(identities_path.read_text(encoding="utf-8"))
         )
-        for token, item in raw.items()
-    }
+        identities = {
+            token: Identity(
+                actor_id=str(item["actor_id"]),
+                tenant=TenantContext(str(item["tenant_id"])),
+                role=Role(str(item["role"])),
+                kind=ActorKind(str(item["kind"])),
+            )
+            for token, item in raw.items()
+        }
+    elif (
+        provider_config is None or provider_config.authentication_mode is AuthenticationMode.STATIC
+    ):
+        raise RuntimeError("DA_IDENTITIES_PATH is required for static authentication")
     repository = SqliteDecisionRepository(Path(database_value))
     intake_repository = SqliteIntakeRepository(Path(database_value))
     research_repository = SqliteResearchRepository(Path(database_value))
@@ -128,6 +142,21 @@ def _load_reference_runtime(
             expected_profile=EnvironmentProfile.DEVELOPMENT,
         )
     logger = JsonEventLogger(print)
+    if (
+        provider_config is not None
+        and provider_config.authentication_mode is AuthenticationMode.OIDC
+        and provider_config.oidc is not None
+    ):
+        oidc_client = oidc_http_client or httpx.Client(follow_redirects=False, timeout=5.0)
+        authenticator = create_authenticator(
+            profile=EnvironmentProfile.DEVELOPMENT,
+            mode=AuthenticationMode.OIDC,
+            oidc_policy=provider_config.oidc.policy,
+            jwks_uri=provider_config.oidc.jwks_uri,
+            http_client=oidc_client,
+        )
+    else:
+        authenticator = StaticTokenAuthenticator(identities)
     provider_telemetry = ProviderCallTelemetry(logger)
     research_orchestrator = ResearchOrchestrator(
         OpenAIWebSearchProvider(
@@ -160,7 +189,7 @@ def _load_reference_runtime(
     )
     return create_app(
         repository,
-        StaticTokenAuthenticator(identities),
+        authenticator,
         intake_repository,
         InMemoryPolicyRegistry(
             {tenant_id: policy_from_dict(item) for tenant_id, item in policies.items()}
@@ -168,6 +197,7 @@ def _load_reference_runtime(
         research_repository,
         research_orchestrator,
         logger=logger,
+        security_events=LoggingSecurityEventSink(logger),
     )
 
 
@@ -295,6 +325,7 @@ def _load_configured_runtime(
         metrics=InMemoryMetrics(),
         api_version="0.5.0",
         build_metadata=build_metadata,
+        security_events=LoggingSecurityEventSink(logger),
     )
     app.state.job_repository = jobs
     app.state.operating_mode = config.operating_mode

@@ -1,0 +1,194 @@
+{
+  "realm": "decision-assurance",
+  "displayName": "Decision Assurance",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 0,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": true,
+  "offlineSessionMaxLifespan": 5184000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "name": "decision-assurance-user-profile",
+        "providerId": "declarative-user-profile",
+        "subType": "user-profile",
+        "config": {
+          "kc.user.profile.config": ["{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"required\":{\"roles\":[\"user\"]},\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"required\":{\"roles\":[\"user\"]},\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"required\":{\"roles\":[\"user\"]},\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"multivalued\":false},{\"name\":\"tenant_id\",\"displayName\":\"Tenant identifier\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"validations\":{\"length\":{\"min\":1,\"max\":128}},\"multivalued\":false},{\"name\":\"actor_kind\",\"displayName\":\"Actor kind\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"validations\":{\"options\":{\"options\":[\"HUMAN\",\"SERVICE\"]}},\"multivalued\":false},{\"name\":\"organization\",\"displayName\":\"Organization\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"validations\":{\"length\":{\"max\":255}},\"multivalued\":false}]}" ]
+        }
+      }
+    ]
+  },
+  "roles": {
+    "realm": [
+      {"name": "da_admin", "description": "Platform administration without implicit tenant-data access"},
+      {"name": "tenant_admin", "description": "Tenant-scoped administration"},
+      {"name": "decision_author", "description": "Create and maintain decisions"},
+      {"name": "decision_reviewer", "description": "Review and validate decisions"},
+      {"name": "decision_approver", "description": "Approve decisions subject to independence rules"},
+      {"name": "auditor", "description": "Read decisions and audit evidence"},
+      {"name": "research_operator", "description": "Operate tenant-scoped web research"},
+      {"name": "readonly", "description": "Read tenant-scoped decisions and reports"}
+    ]
+  },
+  "scopeMappings": [
+    {
+      "clientScope": "roles",
+      "roles": [
+        "da_admin",
+        "tenant_admin",
+        "decision_author",
+        "decision_reviewer",
+        "decision_approver",
+        "auditor",
+        "research_operator",
+        "readonly"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "Stable subject and authentication-time claims",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "false", "display.on.consent.screen": "false"},
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {"access.token.claim": "true", "introspection.token.claim": "true"}
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "description": "Realm roles for Decision Assurance local authorization mapping",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "false", "display.on.consent.screen": "false"},
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {"multivalued": "true", "claim.name": "realm_access.roles", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true"}
+        }
+      ]
+    },
+    {
+      "name": "da.api",
+      "description": "Decision Assurance API audience and controlled identity claims",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"},
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {"user.attribute": "tenant_id", "claim.name": "tenant_id", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true", "multivalued": "false"}
+        },
+        {
+          "name": "actor_kind",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {"user.attribute": "actor_kind", "claim.name": "actor_kind", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true", "multivalued": "false"}
+        },
+        {
+          "name": "organization",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {"user.attribute": "organization", "claim.name": "organization", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "true", "userinfo.token.claim": "true", "multivalued": "false"}
+        },
+        {
+          "name": "api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {"included.client.audience": "decision-assurance-api", "access.token.claim": "true", "id.token.claim": "false"}
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "decision-assurance-api",
+      "name": "Decision Assurance API",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "decision-assurance-ui",
+      "name": "Decision Assurance UI",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "rootUrl": "http://127.0.0.1:3000",
+      "baseUrl": "http://127.0.0.1:3000/",
+      "redirectUris": ["http://127.0.0.1:3000/callback", "http://localhost:3000/callback"],
+      "webOrigins": ["http://127.0.0.1:3000", "http://localhost:3000"],
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://127.0.0.1:3000/##http://localhost:3000/"},
+      "defaultClientScopes": ["basic", "roles", "da.api"],
+      "optionalClientScopes": [],
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "decision-assurance-e2e",
+      "name": "Decision Assurance isolated E2E client",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "rootUrl": "http://127.0.0.1:18080",
+      "baseUrl": "http://127.0.0.1:18080/",
+      "redirectUris": ["http://127.0.0.1:18080/callback"],
+      "webOrigins": ["http://127.0.0.1:18080"],
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://127.0.0.1:18080/"},
+      "defaultClientScopes": ["basic", "roles", "da.api"],
+      "optionalClientScopes": [],
+      "protocol": "openid-connect"
+    }
+  ]
+}

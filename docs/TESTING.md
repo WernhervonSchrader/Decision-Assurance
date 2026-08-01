@@ -67,11 +67,27 @@ two roles and German/English behavior; existing PostgreSQL tests prove forced-RL
 configuration is deployment-wide, so the negative `tenant_id` provider-field test proves no tenant
 can select a separate region or egress route.
 
-Local and CI commands are `ruff format --check src tests`, `ruff check src tests`, `mypy src`, the
+Local and CI commands are `ruff format --check src tests scripts/security`,
+`ruff check src tests scripts/security`, `mypy src`, the
 targeted configuration/E2E tests, `pytest -m "not postgresql" -q` and `pytest -m postgresql -q`
 against isolated PostgreSQL 16. CI additionally runs Bandit, dependency audit, secret scan, container
 scan, build/OpenAPI verification, backup/restore verification and commit-bound release evidence.
 Tests use fresh temp directories/databases and deterministic fakes without retry; no browser UI means
 device screenshots/traces remain inapplicable. Sanitized pytest, build and release evidence is
 retained by CI on failure.
+
+## Keycloak OIDC evidence
+
+`tests/keycloak/contract` validates the secret-free realm, exact roles, managed tenant claims,
+least-privilege clients, S256 PKCE, Compose isolation, health checks and non-root image. The explicitly
+opted-in `keycloak_e2e` suite runs against Keycloak 26.7.0 and its PostgreSQL 16 database, creates and
+deletes random users, executes a real Authorization Code/S256 flow, validates the resulting JWT via
+the live JWKS endpoint, proves tenant denial before provider access, exercises multi-role actor
+independence, runs authenticated fake OpenAI/Firecrawl Research, and restarts Keycloak to prove
+persistence. Contract tests prove that only the eight exact, case-sensitive external roles map to
+permissions and that internal enum names or variants fail before repository/provider access. CI uses
+unique bootstrap username/password canaries, captures rather than prints bootstrap/runtime output,
+and scans it together with the database-password canary. It also inspects the regular container for
+the absence of bootstrap mounts and variables. No real provider credential or user password is
+printed or committed.
 

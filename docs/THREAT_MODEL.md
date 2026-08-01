@@ -25,6 +25,11 @@ future identity provider.
 | Tenant-selected jurisdiction or scope mismatch | low / critical | deployment-only profile, explicit provider tenant scope and request-time tenant check | `EGRESS_TENANT_MISMATCH`, no network call, incident review |
 | Residency/config tampering | low / high | read-only reviewed config, exact allowlist equality and configuration hash in release evidence | remove from readiness, rotate credentials and redeploy reviewed config; host/CI administrator remains privileged |
 | Regional outage or denial of service | medium / high | bounded retry, approved in-profile backup/restore and no automatic cross-region fallback | degraded operation or reviewed in-boundary recovery; correlated regional failure remains |
+| OIDC token forgery or algorithm confusion | medium / critical | exact algorithm/issuer/audience/party checks; signature-only JWKS keys; manipulated-token tests | revoke sessions/keys and stop API; IdP signing-key compromise remains critical |
+| Keycloak tenant/role claim tampering | medium / critical | claims are admin-managed; token signature precedes mapping; central RBAC and tenant-conflict guard run before I/O | deny and emit stable security event; compromised realm administrator remains trusted |
+| JWKS poisoning or rotation outage | low / high | HTTPS in production; bounded cache/key count; duplicate `kid` rejection; one refresh on unknown key; fail closed | restore trusted issuer/JWKS and rotate; known cached keys live only to bounded expiry |
+| PKCE interception or redirect abuse | medium / high | Authorization Code, required S256, exact redirect/origin/logout URIs, no direct grants | revoke session/client and investigate; malicious endpoint/browser remains residual risk |
+| Keycloak database/backup disclosure | low / critical | separate database/user, secret files, restricted local binding, encrypted production backup prerequisite | rotate credentials/keys, invalidate sessions and restore verified copy; local disk encryption is operator-owned |
 
 OIDC, PostgreSQL RLS, redacted observability and release gates are implemented. Rollout remains
 blocked until the deployment owner supplies managed identity/database/secrets, edge controls,

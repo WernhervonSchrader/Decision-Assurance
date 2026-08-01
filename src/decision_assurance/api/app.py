@@ -18,6 +18,7 @@ from ..observability.health import HealthService
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
+from ..security_events import NullSecurityEventSink, SecurityEventSink
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
 from ..web_research.service import ResearchSubmissionService
@@ -42,8 +43,15 @@ def create_app(
     metrics: MetricsPort | None = None,
     api_version: str = "0.4.0",
     build_metadata: BuildMetadata | None = None,
+    security_events: SecurityEventSink | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Decision Assurance API", version=api_version)
+    app = FastAPI(
+        title="Decision Assurance API",
+        version=api_version,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository
@@ -51,6 +59,7 @@ def create_app(
     app.state.research_repository = research_repository
     app.state.research_orchestrator = research_orchestrator
     app.state.research_submission_service = research_submission_service
+    app.state.security_events = security_events or NullSecurityEventSink()
 
     @app.middleware("http")
     async def request_controls(
