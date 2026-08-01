@@ -1,0 +1,13 @@
+{
+  "pilot-tenant": {
+    "policy_id": "PILOT-SALES-QUOTE",
+    "policy_version": "1",
+    "effective_date": "2026-08-01",
+    "maximum_discount_percent": "10",
+    "minimum_margin_percent": "25",
+    "maximum_duration_months_without_exception": 24,
+    "requires_approval_above_amount": "50000",
+    "maximum_evidence_age_days": 365,
+    "required_approval_count": 1
+  }
+}

@@ -17,6 +17,9 @@ class DecisionRepository(Protocol):
         idempotency: IdempotencyWrite | None = None,
     ) -> None: ...
     def get_decision(self, tenant: TenantContext, decision_id: str) -> dict[str, Any] | None: ...
+    def list_decisions(
+        self, tenant: TenantContext, *, limit: int, offset: int
+    ) -> list[dict[str, Any]]: ...
     def save_result(
         self,
         tenant: TenantContext,

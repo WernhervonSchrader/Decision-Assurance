@@ -11,11 +11,15 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 
+from ..export.postgresql import PostgresExportRepository
+from ..export.service import PilotExportService
 from ..identity import ActorKind, Identity, Role, StaticTokenAuthenticator
 from ..intake.codec import policy_from_dict
 from ..intake.repository import SqliteIntakeRepository
 from ..intake.verification import InMemoryPolicyRegistry
 from ..jobs.postgresql import PostgresJobRepository
+from ..lifecycle.postgresql import PostgresLifecycleRepository
+from ..lifecycle.service import PilotLifecycleService
 from ..observability.health import HealthService, ReadinessDependency, StaticHealthProbe
 from ..observability.logging import JsonEventLogger
 from ..observability.metrics import InMemoryMetrics
@@ -27,6 +31,7 @@ from ..production.contracts import (
     BuildMetadata,
     EnvironmentProfile,
     HealthStatus,
+    OperatingMode,
     SecretReference,
 )
 from ..production.egress import HttpsEgressAllowlist, ResidencyEgressGuard
@@ -216,9 +221,12 @@ def _load_configured_runtime(
     openai_base = egress.validate(runtime_tenant, openai_url).rstrip("/")
     firecrawl_base = egress.validate(runtime_tenant, firecrawl_url).rstrip("/")
     if config.secret_provider.value == "external":
-        if external_secrets is None:
+        if external_secrets is not None:
+            secrets = external_secrets
+        elif directory := values.get("DA_SECRET_DIRECTORY"):
+            secrets = FileSecretProvider(Path(directory))
+        else:
             raise RuntimeError("EXTERNAL_SECRET_PROVIDER_REQUIRED")
-        secrets = external_secrets
     else:
         secrets = EnvironmentSecretProvider(config.profile, values)
     database_dsn = secrets.resolve(config.database_dsn_secret)
@@ -308,8 +316,25 @@ def _load_configured_runtime(
         version=values.get("DA_VERSION", ""),
         commit_sha=values.get("DA_COMMIT_SHA", ""),
         build_timestamp=values.get("DA_BUILD_TIMESTAMP", ""),
-        database_schema_version="002",
+        database_schema_version="003",
     )
+    export_service = None
+    lifecycle_service = None
+    if config.operating_mode is OperatingMode.CONTROLLED_PILOT:
+        if config.controlled_pilot is None:
+            raise RuntimeError("CONTROLLED_PILOT_CONFIGURATION_REQUIRED")
+        lifecycle_secret = secrets.resolve(
+            config.controlled_pilot.lifecycle_pseudonymization_secret
+        )
+        export_service = PilotExportService(
+            PostgresExportRepository(persistence.connections),
+            version=build_metadata.version,
+            commit_sha=build_metadata.commit_sha,
+            policy_versions={"sales-quote": "1", "export": "0.8.0"},
+        )
+        lifecycle_service = PilotLifecycleService(
+            PostgresLifecycleRepository(persistence.connections), lifecycle_secret
+        )
     app = create_app(
         persistence.decisions,
         authenticator,
@@ -326,6 +351,8 @@ def _load_configured_runtime(
         api_version="0.5.0",
         build_metadata=build_metadata,
         security_events=LoggingSecurityEventSink(logger),
+        export_service=export_service,
+        lifecycle_service=lifecycle_service,
     )
     app.state.job_repository = jobs
     app.state.operating_mode = config.operating_mode

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.example/schemas/production/data-lifecycle.schema.json",
+  "title": "Pilot data lifecycle record v0.8",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "case_ref_hash", "status", "requested_at", "reason_code", "legal_hold_active", "event_hash", "previous_event_hash"],
+  "properties": {
+    "schema_version": {"const": "0.8.0"},
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "case_ref_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "status": {"enum": ["REQUESTED", "BLOCKED_BY_HOLD", "EXECUTING", "COMPLETED", "FAILED"]},
+    "requested_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": ["string", "null"], "format": "date-time"},
+    "reason_code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$"},
+    "legal_hold_active": {"type": "boolean"},
+    "event_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "previous_event_hash": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

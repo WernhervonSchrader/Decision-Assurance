@@ -108,6 +108,18 @@ class PostgresConnectionProvider:
             yield connection
 
     @contextmanager
+    def tenant_snapshot_connection(
+        self, tenant: TenantContext
+    ) -> Iterator[Connection[dict[str, Any]]]:
+        with self._connect() as connection, connection.transaction():
+            connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            connection.execute(
+                "SELECT set_config('decision_assurance.tenant_id', %s, true)",
+                (tenant.tenant_id,),
+            )
+            yield connection
+
+    @contextmanager
     def worker_connection(self) -> Iterator[Connection[dict[str, Any]]]:
         """Unscoped queue session; the worker role has access only to job-owned tables."""
         with self._connect() as connection, connection.transaction():

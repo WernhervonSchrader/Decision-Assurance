@@ -62,6 +62,23 @@ def _actor(identity: Identity, permission: Permission) -> dict[str, str]:
     return {"id": identity.actor_id, "role": role.value, "kind": identity.kind.value}
 
 
+@router.get("")
+def list_decisions(
+    request: Request,
+    identity: Identity = Depends(get_identity),
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    require(request, identity, Permission.DECISION_READ)
+    if set(request.query_params).difference({"limit", "offset"}):
+        raise ApiError(422, "INVALID_REQUEST")
+    return {
+        "items": _repository(request).list_decisions(identity.tenant, limit=limit, offset=offset),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 @router.post("", status_code=201)
 async def create_decision(
     request: Request,
@@ -220,6 +237,10 @@ def transition(
         [event],
         _idempotency_write(identity, key, operation, digest, 200, updated),
     )
+    if is_approval_action and request.app.state.metrics is not None:
+        request.app.state.metrics.increment(
+            "pilot_approval_total", labels={"status": transition_request.target.lower()}
+        )
     return updated
 
 

@@ -65,6 +65,21 @@ class SqliteDecisionRepository:
             ).fetchone()
         return json.loads(row["document_json"]) if row else None
 
+    def list_decisions(
+        self, tenant: TenantContext, *, limit: int, offset: int
+    ) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("INVALID_PAGE_LIMIT")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT document_json, updated_at FROM decisions "
+                "WHERE tenant_id = ? ORDER BY updated_at DESC, decision_id DESC LIMIT ? OFFSET ?",
+                (tenant.tenant_id, limit, offset),
+            ).fetchall()
+        return [
+            _decision_summary(json.loads(row["document_json"]), row["updated_at"]) for row in rows
+        ]
+
     def save_result(
         self,
         tenant: TenantContext,
@@ -184,3 +199,13 @@ class SqliteDecisionRepository:
         if row["request_hash"] != request_hash:
             raise IdempotencyConflict("IDEMPOTENCY_KEY_REUSED")
         return row["status_code"], json.loads(row["response_json"])
+
+
+def _decision_summary(document: dict[str, Any], updated_at: str) -> dict[str, Any]:
+    return {
+        "decision_id": document["decision_id"],
+        "title": document.get("title") or document["decision_id"],
+        "status": document["status"],
+        "outcome": document.get("outcome"),
+        "updated_at": updated_at,
+    }
