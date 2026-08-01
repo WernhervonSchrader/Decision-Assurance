@@ -110,6 +110,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate measured pilot recovery evidence")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--environment", required=True)
+    parser.add_argument("--deployment-id", required=True)
     parser.add_argument("--commit-sha", required=True)
     parser.add_argument("--data-bytes", required=True, type=int)
     parser.add_argument("--backup-started", required=True, type=_instant)
@@ -130,6 +131,7 @@ def main() -> None:
     )
     report = RecoveryEvidence(
         schema_version="1.0.0",
+        deployment_id=arguments.deployment_id,
         environment=arguments.environment,
         commit_sha=arguments.commit_sha,
         data_bytes=arguments.data_bytes,

@@ -7,6 +7,7 @@ from datetime import datetime
 @dataclass(frozen=True, slots=True)
 class RecoveryEvidence:
     schema_version: str
+    deployment_id: str
     environment: str
     commit_sha: str
     data_bytes: int
@@ -34,6 +35,7 @@ class RecoveryEvidence:
         )
         if (
             self.schema_version != "1.0.0"
+            or not self.deployment_id
             or not self.environment
             or len(self.commit_sha) not in {40, 64}
             or self.data_bytes <= 0
@@ -58,6 +60,7 @@ class RecoveryEvidence:
         observed_rto = int((self.restore_completed - self.failure_at).total_seconds())
         return {
             "schema_version": self.schema_version,
+            "deployment_id": self.deployment_id,
             "environment": self.environment,
             "commit_sha": self.commit_sha,
             "data_bytes": self.data_bytes,

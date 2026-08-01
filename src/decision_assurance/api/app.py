@@ -17,7 +17,7 @@ from ..intake.repository import IntakeRepository
 from ..intake.verification import PolicyRegistry
 from ..lifecycle.service import PilotLifecycleService
 from ..observability.health import HealthService
-from ..observability.metrics import AssuranceOutcomeCollector, InMemoryMetrics
+from ..observability.metrics import AssuranceOutcomeCollector
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
@@ -71,7 +71,7 @@ def create_app(
     app.state.lifecycle_service = lifecycle_service
     app.state.metrics = metrics
     app.state.assurance_outcomes = (
-        AssuranceOutcomeCollector(metrics) if isinstance(metrics, InMemoryMetrics) else None
+        AssuranceOutcomeCollector(metrics) if metrics is not None else None
     )
 
     @app.middleware("http")

@@ -160,9 +160,10 @@ class OidcBrowserClient:
         except BrowserOidcError:
             raise
         except JwksResolutionError as error:
+            reason = str(error)
             code = (
                 "OIDC_PROVIDER_UNAVAILABLE"
-                if str(error) == "JWKS_UNAVAILABLE"
+                if reason == "JWKS_UNAVAILABLE" or reason.startswith("INVALID_JWKS_")
                 else "OIDC_ID_TOKEN_INVALID"
             )
             raise BrowserOidcError(code) from None

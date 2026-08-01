@@ -71,6 +71,75 @@ _SESSION_TENANT_POLICY = (
     "(session_digest = current_setting('decision_assurance.session_digest'::text, true)))"
 )
 
+
+def _expected_rls_policies() -> set[tuple[object, ...]]:
+    expected: set[tuple[object, ...]] = {
+        (
+            schema,
+            table,
+            f"{table}_tenant_isolation",
+            "PERMISSIVE",
+            ("public",),
+            "ALL",
+            _SESSION_TENANT_POLICY if table == "browser_sessions" else _STANDARD_TENANT_POLICY,
+            _SESSION_TENANT_POLICY if table == "browser_sessions" else _STANDARD_TENANT_POLICY,
+        )
+        for schema, table in TENANT_TABLE_REFS
+    }
+    expected.update(
+        {
+            (
+                "public",
+                "research_job_events",
+                "research_job_events_worker_access",
+                "PERMISSIVE",
+                ("decision_assurance_worker",),
+                "ALL",
+                "true",
+                "true",
+            ),
+            (
+                "public",
+                "research_jobs",
+                "research_jobs_worker_access",
+                "PERMISSIVE",
+                ("decision_assurance_worker",),
+                "ALL",
+                "true",
+                "true",
+            ),
+            (
+                "public",
+                "research_jobs",
+                "research_jobs_metrics_read",
+                "PERMISSIVE",
+                ("decision_assurance_metrics_owner",),
+                "SELECT",
+                "true",
+                None,
+            ),
+            (
+                "public",
+                "tenant_runtime_limits",
+                "tenant_runtime_limits_worker_access",
+                "PERMISSIVE",
+                ("decision_assurance_worker",),
+                "ALL",
+                "true",
+                "true",
+            ),
+        }
+    )
+    return expected
+
+
+def _rls_policies_valid(rows: list[tuple[object, ...]]) -> bool:
+    normalized = {
+        (*row[:4], tuple(row[4]) if isinstance(row[4], list) else row[4], *row[5:]) for row in rows
+    }
+    return normalized == _expected_rls_policies()
+
+
 DRILL_PRE_BACKUP_DECISIONS = ("recovery-decision-1", "recovery-decision-2")
 DRILL_POST_BACKUP_DECISION = "recovery-post-backup"
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -123,25 +192,11 @@ def verify(dsn: str) -> dict[str, object]:
             SELECT schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check
             FROM pg_policies
             WHERE schemaname || '.' || tablename = ANY(%s)
-              AND policyname = tablename || '_tenant_isolation'
             """,
             ([f"{schema}.{table}" for schema, table in TENANT_TABLE_REFS],),
         ).fetchall()
-        if len(policies) != len(TENANT_TABLE_REFS):
+        if not _rls_policies_valid(policies):
             raise RuntimeError("RLS_POLICY_RESTORE_VERIFICATION_FAILED")
-        for schema, table, policy, permissive, roles, command, qual, with_check in policies:
-            del schema, policy
-            expected_policy = (
-                _SESSION_TENANT_POLICY if table == "browser_sessions" else _STANDARD_TENANT_POLICY
-            )
-            if (
-                permissive != "PERMISSIVE"
-                or roles != ["public"]
-                or command != "ALL"
-                or qual != expected_policy
-                or with_check != expected_policy
-            ):
-                raise RuntimeError("RLS_POLICY_RESTORE_VERIFICATION_FAILED")
         unsafe_roles = connection.execute(
             """
             SELECT rolname FROM pg_roles

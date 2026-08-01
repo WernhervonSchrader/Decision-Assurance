@@ -9,6 +9,8 @@ from threading import Lock
 
 from jsonschema import Draft202012Validator
 
+from ..production.ports import MetricsPort
+
 _ALLOWED_NAMES = frozenset(
     {
         "http_requests_total",
@@ -107,7 +109,7 @@ class InMemoryMetrics:
         return name, tuple(sorted(values.items()))
 
 
-def initialize_pilot_metrics(metrics: InMemoryMetrics) -> None:
+def initialize_pilot_metrics(metrics: MetricsPort) -> None:
     """Publish every pilot gauge with a fail-closed baseline before the first scrape."""
     for name in (
         "backup_success",
@@ -124,7 +126,7 @@ def initialize_pilot_metrics(metrics: InMemoryMetrics) -> None:
 class PilotOperationalEvidenceCollector:
     """Publish gauges only from measured TLS and recovery evidence."""
 
-    def __init__(self, metrics: InMemoryMetrics):
+    def __init__(self, metrics: MetricsPort):
         self._metrics = metrics
 
     def publish_tls(
@@ -179,7 +181,14 @@ class PilotOperationalEvidenceCollector:
         tls_evidence: Path,
         recovery_evidence: Path,
         now: datetime,
+        expected_commit_sha: str,
+        expected_environment: str,
+        expected_deployment_id: str,
+        allowed_hosts: tuple[str, ...],
     ) -> bool:
+        self._metrics.set_gauge("backup_success", 0)
+        self._metrics.set_gauge("restore_success", 0)
+        self._metrics.set_gauge("tls_certificate_days_remaining", 0)
         try:
             tls = _bounded_json(tls_evidence)
             recovery = _bounded_json(recovery_evidence)
@@ -187,6 +196,10 @@ class PilotOperationalEvidenceCollector:
                 set(tls)
                 != {
                     "schema_version",
+                    "deployment_id",
+                    "environment",
+                    "commit_sha",
+                    "hostname",
                     "not_after",
                     "hostname_verified",
                     "chain_verified",
@@ -202,6 +215,16 @@ class PilotOperationalEvidenceCollector:
                 / "recovery-evidence.schema.json"
             )
             if not Draft202012Validator(recovery_schema).is_valid(recovery):
+                return False
+            if (
+                recovery.get("commit_sha") != expected_commit_sha
+                or recovery.get("environment") != expected_environment
+                or recovery.get("deployment_id") != expected_deployment_id
+                or tls.get("commit_sha") != expected_commit_sha
+                or tls.get("environment") != expected_environment
+                or tls.get("deployment_id") != expected_deployment_id
+                or tls.get("hostname") not in allowed_hosts
+            ):
                 return False
             tls_valid = self.publish_tls(
                 not_after=not_after,
@@ -226,7 +249,7 @@ def _bounded_json(path: Path) -> dict[str, object]:
 class AssuranceOutcomeCollector:
     """Derive the escalation rate from outcomes observed by this API instance."""
 
-    def __init__(self, metrics: InMemoryMetrics):
+    def __init__(self, metrics: MetricsPort):
         self._metrics = metrics
         self._review_or_block = 0
         self._total = 0

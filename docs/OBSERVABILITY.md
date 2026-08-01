@@ -22,6 +22,14 @@ expired or failed evidence keeps `/health/ready` at HTTP 503. Example files are 
 must never be interpreted as pilot acceptance evidence. The API measures the global Research backlog
 from its PostgreSQL worker connection at scrape time; authentication, deletion and assurance-outcome
 series are emitted at their authoritative runtime boundaries.
+Every readiness probe reloads both bounded files, re-evaluates certificate expiry against current
+UTC time and requires the recovery report's `commit_sha` and `environment` to equal
+`DA_COMMIT_SHA`, `DA_PILOT_EVIDENCE_ENVIRONMENT` and `DA_PILOT_DEPLOYMENT_ID`; TLS evidence must
+also name one of the configured public hosts. A stale or replaced file therefore revokes readiness
+without restarting the BFF.
+The in-process assurance escalation gauge is intentionally a per-instance, since-start operational
+signal; Prometheus must retain the instance label and must not present it as an authoritative
+cross-instance business rate. Tenant-scoped audit events remain the authoritative outcome history.
 
 Production telemetry is operational evidence, not a second business datastore. Every API request,
 Research run and background job carries the same bounded correlation identifier. Logs contain only

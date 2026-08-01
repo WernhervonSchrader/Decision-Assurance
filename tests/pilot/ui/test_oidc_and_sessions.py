@@ -24,7 +24,10 @@ CLIENT_ID = "decision-assurance-pilot-ui"
 
 
 def _client(
-    nonce: str, *, returned_nonce: str | None = None, jwks_unavailable: bool = False
+    nonce: str,
+    *,
+    returned_nonce: str | None = None,
+    jwks_response: object | None = None,
 ) -> OidcBrowserClient:
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public = RSAAlgorithm.to_jwk(private.public_key(), as_dict=True)
@@ -46,8 +49,10 @@ def _client(
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/certs"):
-            if jwks_unavailable:
+            if jwks_response == "unavailable":
                 return httpx.Response(503)
+            if jwks_response is not None:
+                return httpx.Response(200, json=jwks_response)
             return httpx.Response(200, json={"keys": [public]})
         if request.url.path.endswith("/token"):
             body = request.content.decode()
@@ -116,8 +121,9 @@ def test_code_exchange_validates_nonce_and_discards_refresh_token() -> None:
 
 def test_jwks_outage_is_classified_as_provider_unavailable() -> None:
     transaction = LoginTransactionStore(clock=lambda: 10.0).create("/cases", "browser-binding")
-    with pytest.raises(BrowserOidcError, match="OIDC_PROVIDER_UNAVAILABLE"):
-        _client(transaction.nonce, jwks_unavailable=True).exchange("code", transaction)
+    for response in ("unavailable", {"not_keys": []}, {"keys": []}, {"keys": ["bad"]}):
+        with pytest.raises(BrowserOidcError, match="OIDC_PROVIDER_UNAVAILABLE"):
+            _client(transaction.nonce, jwks_response=response).exchange("code", transaction)
 
 
 @pytest.mark.parametrize("verifier", ["", "short", "a" * 129, "a" * 42 + "!"])

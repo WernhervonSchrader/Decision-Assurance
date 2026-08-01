@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from .api_client import HttpPilotApiClient
 from .app import PilotUiSettings, create_pilot_ui_app
 from .oidc import OidcBrowserClient
 from .session_postgresql import PostgresSessionStore
+
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
 def load_pilot_ui(
@@ -80,12 +83,30 @@ def load_pilot_ui(
     initialize_pilot_metrics(runtime_metrics)
     tls_evidence_path = values.get("DA_PILOT_TLS_EVIDENCE_PATH")
     recovery_evidence_path = values.get("DA_PILOT_RECOVERY_EVIDENCE_PATH")
-    if tls_evidence_path and recovery_evidence_path:
-        PilotOperationalEvidenceCollector(runtime_metrics).load_files(
+    evidence_commit = values.get("DA_COMMIT_SHA", "")
+    evidence_environment = values.get("DA_PILOT_EVIDENCE_ENVIRONMENT", "")
+    evidence_deployment_id = values.get("DA_PILOT_DEPLOYMENT_ID", "")
+    if (
+        not _COMMIT_SHA.fullmatch(evidence_commit)
+        or not evidence_environment.strip()
+        or not evidence_deployment_id.strip()
+    ):
+        raise RuntimeError("PILOT_EVIDENCE_BINDING_REQUIRED")
+    collector = PilotOperationalEvidenceCollector(runtime_metrics)
+
+    def operational_readiness() -> bool:
+        if not tls_evidence_path or not recovery_evidence_path:
+            return False
+        return collector.load_files(
             tls_evidence=Path(tls_evidence_path),
             recovery_evidence=Path(recovery_evidence_path),
             now=datetime.now(timezone.utc),
+            expected_commit_sha=evidence_commit,
+            expected_environment=evidence_environment,
+            expected_deployment_id=evidence_deployment_id,
+            allowed_hosts=pilot.allowed_hosts,
         )
+
     return create_pilot_ui_app(
         PilotUiSettings(
             allowed_hosts=pilot.allowed_hosts,
@@ -104,11 +125,7 @@ def load_pilot_ui(
                 allowed_methods=frozenset({"otp", "webauthn"}),
                 max_auth_age=timedelta(minutes=15),
             ),
-            operational_readiness=lambda: (
-                runtime_metrics.gauge("backup_success") == 1
-                and runtime_metrics.gauge("restore_success") == 1
-                and (runtime_metrics.gauge("tls_certificate_days_remaining") or 0) > 0
-            ),
+            operational_readiness=operational_readiness,
         ),
         browser_oidc,
         api_client,

@@ -220,6 +220,9 @@ services:
       DA_INTERNAL_API_URL: http://api:8000
       DA_PILOT_UI_HOST: 0.0.0.0
       DA_PILOT_UI_PORT: "8080"
+      DA_COMMIT_SHA: ${DA_COMMIT_SHA:?DA_COMMIT_SHA is required}
+      DA_PILOT_EVIDENCE_ENVIRONMENT: ${DA_PILOT_EVIDENCE_ENVIRONMENT:?DA_PILOT_EVIDENCE_ENVIRONMENT is required}
+      DA_PILOT_DEPLOYMENT_ID: ${DA_PILOT_DEPLOYMENT_ID:?DA_PILOT_DEPLOYMENT_ID is required}
       DA_PILOT_TLS_EVIDENCE_PATH: /run/secrets/pilot-tls-evidence
       DA_PILOT_RECOVERY_EVIDENCE_PATH: /run/secrets/pilot-recovery-evidence
     secrets:

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts.postgres.generate_recovery_evidence import load_verification_report
+from scripts.postgres.verify_restore import _expected_rls_policies, _rls_policies_valid
 
 ROOT = Path(__file__).parents[3]
 
@@ -107,3 +108,21 @@ def test_backup_and_restore_are_checksum_verified_and_fail_fast() -> None:
     ).read_text(encoding="utf-8")
     assert "relforcerowsecurity" in verifier
     assert "AUDIT_HASH_CHAIN_INVALID" in verifier
+
+
+def test_restore_policy_contract_rejects_any_additional_policy() -> None:
+    expected = list(_expected_rls_policies())
+    assert _rls_policies_valid(expected)
+    expected.append(
+        (
+            "public",
+            "decisions",
+            "backdoor",
+            "PERMISSIVE",
+            ["public"],
+            "ALL",
+            "true",
+            "true",
+        )
+    )
+    assert not _rls_policies_valid(expected)

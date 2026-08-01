@@ -80,6 +80,8 @@ jobs:
         env:
           DA_COMMIT_SHA: ${{ github.sha }}
           DA_BUILD_TIMESTAMP: "2026-08-01T00:00:00Z"
+          DA_PILOT_EVIDENCE_ENVIRONMENT: github-actions-controlled-pilot
+          DA_PILOT_DEPLOYMENT_ID: github-actions-controlled-pilot
         run: |
           for example in .secrets/*.example; do cp "$example" "${example%.example}"; done
           docker compose -f compose.controlled-pilot.yaml config --quiet
@@ -193,6 +195,7 @@ jobs:
           python -m scripts.postgres.generate_recovery_evidence \
             --output /tmp/recovery-evidence.json \
             --environment github-actions-postgresql-16 \
+            --deployment-id github-actions-controlled-pilot \
             --commit-sha "$DA_RECOVERY_COMMIT_SHA" \
             --data-bytes "$(stat -c %s /tmp/decision-assurance.dump)" \
             --backup-started "$BACKUP_STARTED" \

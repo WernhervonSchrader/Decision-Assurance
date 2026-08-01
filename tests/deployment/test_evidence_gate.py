@@ -441,6 +441,7 @@ def test_gate_rejects_cross_tenant_or_commit_evidence_replay() -> None:
 def test_recovery_evidence_reports_observed_not_promised_rpo_rto() -> None:
     evidence = RecoveryEvidence(
         schema_version="1.0.0",
+        deployment_id="pilot-eu-1",
         environment="isolated-postgresql-16",
         commit_sha="a" * 40,
         data_bytes=4096,
@@ -525,6 +526,10 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels(tmp_path: P
         json.dumps(
             {
                 "schema_version": "1.0.0",
+                "deployment_id": "pilot-eu-1",
+                "environment": "controlled-pilot-test",
+                "commit_sha": "a" * 40,
+                "hostname": "pilot.example",
                 "not_after": (NOW + timedelta(days=30)).isoformat(),
                 "hostname_verified": True,
                 "chain_verified": True,
@@ -536,6 +541,7 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels(tmp_path: P
         json.dumps(
             {
                 "schema_version": "1.0.0",
+                "deployment_id": "pilot-eu-1",
                 "environment": "controlled-pilot-test",
                 "commit_sha": "a" * 40,
                 "data_bytes": 4096,
@@ -557,9 +563,26 @@ def test_local_alert_evaluator_fires_without_high_cardinality_labels(tmp_path: P
     from_files = InMemoryMetrics()
     initialize_pilot_metrics(from_files)
     assert PilotOperationalEvidenceCollector(from_files).load_files(
-        tls_evidence=tls_path, recovery_evidence=recovery_path, now=NOW
+        tls_evidence=tls_path,
+        recovery_evidence=recovery_path,
+        now=NOW,
+        expected_commit_sha="a" * 40,
+        expected_environment="controlled-pilot-test",
+        expected_deployment_id="pilot-eu-1",
+        allowed_hosts=("pilot.example",),
     )
     assert from_files.gauge("backup_success") == 1
+    assert not PilotOperationalEvidenceCollector(from_files).load_files(
+        tls_evidence=tls_path,
+        recovery_evidence=recovery_path,
+        now=NOW + timedelta(days=31),
+        expected_commit_sha="b" * 40,
+        expected_environment="other-deployment",
+        expected_deployment_id="pilot-eu-2",
+        allowed_hosts=("other.example",),
+    )
+    assert from_files.gauge("backup_success") == 0
+    assert from_files.gauge("tls_certificate_days_remaining") == 0
 
     outcomes = AssuranceOutcomeCollector(from_files)
     outcomes.record("REVIEW")
