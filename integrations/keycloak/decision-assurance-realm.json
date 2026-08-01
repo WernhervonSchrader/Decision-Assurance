@@ -170,6 +170,27 @@
       "protocol": "openid-connect"
     },
     {
+      "clientId": "decision-assurance-pilot-ui",
+      "name": "Decision Assurance controlled pilot BFF",
+      "enabled": true,
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "rootUrl": "https://research.pilot.example",
+      "baseUrl": "https://research.pilot.example/",
+      "redirectUris": ["https://research.pilot.example/auth/callback"],
+      "webOrigins": ["https://research.pilot.example"],
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "https://research.pilot.example/"},
+      "defaultClientScopes": ["basic", "roles", "da.api"],
+      "optionalClientScopes": [],
+      "protocol": "openid-connect"
+    },
+    {
       "clientId": "decision-assurance-e2e",
       "name": "Decision Assurance isolated E2E client",
       "enabled": true,

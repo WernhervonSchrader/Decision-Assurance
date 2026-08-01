@@ -43,6 +43,8 @@ decision-assurance-openapi = "decision_assurance.api.openapi:main"
 decision-assurance-worker = "decision_assurance.api.worker_runtime:main"
 decision-assurance-migrate = "decision_assurance.persistence.migrate:main"
 decision-assurance-mcp = "decision_assurance.mcp.runtime:main"
+decision-assurance-pilot-ui = "decision_assurance.pilot_ui.runtime:main"
+decision-assurance-validate-export = "decision_assurance.export.validator:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/decision_assurance"]

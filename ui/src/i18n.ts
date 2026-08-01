@@ -1,0 +1,81 @@
+export const messages = {
+  en: {
+    title: "Decision Assurance Pilot",
+    login: "Sign in with Keycloak",
+    logout: "Sign out",
+    cases: "Sales quote cases",
+    newCase: "New sales quote",
+    intakeId: "Case reference",
+    quoteText: "Quote text",
+    upload: "Load plain-text file",
+    create: "Create intake",
+    openIntake: "Open intake",
+    compile: "Compile verified intake",
+    confirm: "Confirm fact",
+    research: "Start guarded research",
+    evaluate: "Evaluate with Decision Assurance Engine",
+    validation: "Move to validation",
+    review: "Move to human review",
+    approve: "Approve as independent human",
+    audit: "Audit timeline",
+    export: "Download portable evidence",
+    delete: "Request deletion",
+    deleteConfirm: "Permanently delete this case unless a legal hold blocks it?",
+    deleteStatus: "Deletion status",
+    hold: "Place legal hold",
+    releaseHold: "Release legal hold",
+    sources: "Sources",
+    evidence: "Evidence",
+    findings: "Findings",
+    outcome: "Governance outcome",
+    status: "Lifecycle status",
+    untrusted: "External content is untrusted and never supplies agent instructions.",
+    loading: "Loading…",
+    error: "The operation failed. Use the correlation ID for support.",
+  },
+  de: {
+    title: "Decision-Assurance-Pilot",
+    login: "Mit Keycloak anmelden",
+    logout: "Abmelden",
+    cases: "Angebotsprüfungen",
+    newCase: "Neue Angebotsprüfung",
+    intakeId: "Fallreferenz",
+    quoteText: "Angebotstext",
+    upload: "Textdatei laden",
+    create: "Intake anlegen",
+    openIntake: "Intake öffnen",
+    compile: "Geprüften Intake kompilieren",
+    confirm: "Fakt bestätigen",
+    research: "Abgesicherte Recherche starten",
+    evaluate: "Mit der Decision-Assurance-Engine bewerten",
+    validation: "In Validierung überführen",
+    review: "In menschliches Review überführen",
+    approve: "Als unabhängiger Mensch freigeben",
+    audit: "Audit-Zeitleiste",
+    export: "Portablen Nachweis herunterladen",
+    delete: "Löschung anfordern",
+    deleteConfirm: "Diesen Fall dauerhaft löschen, sofern kein Legal Hold dies sperrt?",
+    deleteStatus: "Löschstatus",
+    hold: "Legal Hold setzen",
+    releaseHold: "Legal Hold aufheben",
+    sources: "Quellen",
+    evidence: "Evidenz",
+    findings: "Feststellungen",
+    outcome: "Governance-Ergebnis",
+    status: "Lifecycle-Status",
+    untrusted: "Externe Inhalte sind nicht vertrauenswürdig und geben dem Agenten keine Anweisungen.",
+    loading: "Wird geladen…",
+    error: "Der Vorgang ist fehlgeschlagen. Nutze die Korrelations-ID für den Support.",
+  },
+} as const;
+
+export type Locale = keyof typeof messages;
+export type MessageKey = keyof (typeof messages)["en"];
+
+export function selectLocale(value: string | null): Locale {
+  return value?.toLowerCase().startsWith("de") ? "de" : "en";
+}
+
+export function translate(locale: Locale, key: MessageKey): string {
+  return messages[locale][key] ?? messages.en[key];
+}
