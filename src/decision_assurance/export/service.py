@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from ..authorization import Permission, authorize
 from ..identity import Identity
 from .ports import ExportRepository
+from .signing import ExportSigner
 
 EXPORT_MEMBERS = (
     "decision/decision-file.json",
@@ -58,6 +59,8 @@ class PilotExportService:
         version: str,
         commit_sha: str,
         policy_versions: Mapping[str, str],
+        signer: ExportSigner | None = None,
+        event_schema_version: str = "0.8.0",
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ):
         if not version.strip() or len(commit_sha) not in {40, 64}:
@@ -66,6 +69,8 @@ class PilotExportService:
         self._version = version
         self._commit_sha = commit_sha
         self._policy_versions = dict(policy_versions)
+        self._signer = signer
+        self._event_schema_version = event_schema_version
         self._clock = clock
 
     def build(self, identity: Identity, decision_id: str) -> ExportArchive:
@@ -87,8 +92,9 @@ class PilotExportService:
                 "commit": self._commit_sha,
             }
         )
-        manifest = {
-            "schema_version": "0.8.0",
+        schema_version = "0.9.0" if self._signer is not None else "0.8.0"
+        manifest: dict[str, object] = {
+            "schema_version": schema_version,
             "export_id": "export-" + hashlib.sha256(export_seed).hexdigest()[:24],
             "case_ref": decision_id,
             "generated_at": generated_at,
@@ -103,11 +109,26 @@ class PilotExportService:
                 for name, content in members.items()
             ],
         }
+        if self._signer is not None:
+            manifest.update(
+                {
+                    "tenant_id": identity.tenant.tenant_id,
+                    "decision_id": decision_id,
+                    "event_schema_version": self._event_schema_version,
+                }
+            )
+        manifest_bytes = _canonical_json(manifest)
         output = io.BytesIO()
         with zipfile.ZipFile(
             output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
         ) as archive:
-            _write_member(archive, "manifest.json", _canonical_json(manifest))
+            _write_member(archive, "manifest.json", manifest_bytes)
+            if self._signer is not None:
+                _write_member(
+                    archive,
+                    "signature.json",
+                    _canonical_json(self._signer.sign(manifest_bytes).as_dict()),
+                )
             for name, content in members.items():
                 _write_member(archive, name, content)
         return ExportArchive(output.getvalue())
