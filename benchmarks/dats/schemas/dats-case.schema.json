@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://decision-assurance.example/schemas/dats-case-1.0.json",
+  "title": "DATS Gold Case",
+  "type": "object",
+  "required": [
+    "schema_version", "id", "title", "objective", "task", "expected_result",
+    "failure_signals", "provenance"
+  ],
+  "properties": {
+    "schema_version": {"const": "decision-assurance.dats-case/1.0"},
+    "id": {"type": "string", "pattern": "^DATS-[0-9]{3}$"},
+    "title": {"type": "string", "minLength": 5},
+    "objective": {"type": "string", "minLength": 10},
+    "task": {
+      "type": "object",
+      "required": ["kind", "locale", "instruction", "input"],
+      "properties": {
+        "kind": {"const": "ASSESSMENT"},
+        "locale": {"type": "string", "pattern": "^[a-z]{2}$"},
+        "instruction": {"type": "string", "minLength": 10},
+        "input": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "expected_result": {
+      "type": "object",
+      "required": [
+        "gate_decision", "engine_outcome", "human_review", "reason_codes",
+        "finding_reason_codes", "audit_event_types"
+      ],
+      "properties": {
+        "gate_decision": {"enum": ["PASS", "FAIL", "REQUIRES_HUMAN_REVIEW"]},
+        "engine_outcome": {"enum": ["PASS", "BLOCK", "REVIEW"]},
+        "human_review": {"type": "boolean"},
+        "reason_codes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "finding_reason_codes": {"type": "array", "items": {"type": "string"}},
+        "audit_event_types": {"type": "array", "minItems": 3, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "failure_signals": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "provenance": {
+      "type": "object",
+      "required": ["source_type", "baseline", "license", "contains_sensitive_data"],
+      "properties": {
+        "source_type": {"const": "PROJECT_OWNED_SYNTHETIC"},
+        "baseline": {"const": "DATS-v0.1.0"},
+        "license": {"type": "string", "minLength": 1},
+        "contains_sensitive_data": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

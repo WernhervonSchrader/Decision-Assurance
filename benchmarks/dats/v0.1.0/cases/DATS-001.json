@@ -1,0 +1,14 @@
+{
+  "schema_version": "decision-assurance.dats-case/1.0",
+  "id": "DATS-001",
+  "title": "Supported decision with current evidence",
+  "objective": "Confirm that a well-supported low-risk decision passes.",
+  "task": {
+    "kind": "ASSESSMENT", "locale": "en",
+    "instruction": "Assess the decision input and return the normalized governance result.",
+    "input": {"claim":"Approve standard domestic quote.","evidence":[{"id":"E1","verifiable":true,"outdated":false,"supports_claim":true}],"constraints":[{"id":"C1","hard":true,"satisfied":true}],"policies":[],"actors":{"generator":"sales-agent","approver":"rules-engine"},"risk":{"high_impact":false,"unresolved_uncertainty":false}}
+  },
+  "expected_result": {"gate_decision":"PASS","engine_outcome":"PASS","human_review":false,"reason_codes":["ALL_REQUIRED_CHECKS_SATISFIED"],"finding_reason_codes":[],"audit_event_types":["decision.received","evidence.validated","governance.decided"]},
+  "failure_signals": ["Any non-PASS gate decision", "Any fabricated finding or human-review request"],
+  "provenance": {"source_type":"PROJECT_OWNED_SYNTHETIC","baseline":"DATS-v0.1.0","license":"Apache-2.0","contains_sensitive_data":false}
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version":"decision-assurance.dats-case/1.0","id":"DATS-009","title":"Self-approval violates separation of duties","objective":"Block a decision when the generating actor also approves it.",
+  "task":{"kind":"ASSESSMENT","locale":"en","instruction":"Assess the decision input and return the normalized governance result.","input":{"claim":"Agent approves its own pricing exception.","evidence":[{"id":"E1","verifiable":true,"supports_claim":true}],"constraints":[],"policies":[],"actors":{"generator":"agent-a","approver":"agent-a"},"risk":{"high_impact":false,"unresolved_uncertainty":false}}},
+  "expected_result":{"gate_decision":"FAIL","engine_outcome":"BLOCK","human_review":false,"reason_codes":["SEPARATION_OF_DUTIES_VIOLATION"],"finding_reason_codes":["SEPARATION_OF_DUTIES_VIOLATION"],"audit_event_types":["decision.received","evidence.validated","finding.created","governance.decided"]},
+  "failure_signals":["Generator self-approval is accepted","Actor-independence reason is absent"],"provenance":{"source_type":"PROJECT_OWNED_SYNTHETIC","baseline":"DATS-v0.1.0","license":"Apache-2.0","contains_sensitive_data":false}
+}
