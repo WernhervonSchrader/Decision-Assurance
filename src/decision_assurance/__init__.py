@@ -2,8 +2,13 @@
 
 from .decision_file import (
     DecisionFileSemanticError,
+    approval_digest,
+    bind_approval,
+    bind_canonical_action,
+    canonical_action_digest,
     evaluate_decision_file,
     load_decision_file,
+    migrate_decision_file_v0_1_to_v0_2,
     validate_semantics,
 )
 from .engine import DecisionAssuranceEngine, evaluate
@@ -20,9 +25,14 @@ __all__ = [
     "Severity",
     "TransitionPolicy",
     "TransitionRejected",
+    "approval_digest",
+    "bind_approval",
+    "bind_canonical_action",
+    "canonical_action_digest",
     "evaluate",
     "evaluate_decision_file",
     "load_decision_file",
+    "migrate_decision_file_v0_1_to_v0_2",
     "validate_semantics",
 ]
 

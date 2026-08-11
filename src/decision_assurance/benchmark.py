@@ -69,7 +69,7 @@ def _run_case(case: dict[str, Any], root: Path) -> dict[str, Any]:
 
 def _transition_fixture() -> dict[str, Any]:
     return {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "decision_id": "BENCHMARK-TRANSITION",
         "title": "Transition benchmark fixture",
         "description": "Self-contained deterministic transition input.",
@@ -79,7 +79,9 @@ def _transition_fixture() -> dict[str, Any]:
         "created_at": "2026-01-01T00:00:00Z",
         "updated_at": "2026-01-01T00:00:00Z",
         "created_by": {"id": "generator", "role": "GENERATOR", "kind": "AGENT"},
+        "requested_by": {"id": "requester", "role": "OWNER", "kind": "HUMAN"},
         "current_owner": {"id": "owner", "role": "OWNER", "kind": "HUMAN"},
+        "canonical_action": None,
         "claims": [{"id": "C-1", "statement": "Fixture claim", "mandatory_evidence": False}],
         "evidence": [],
         "assumptions": [],
