@@ -63,7 +63,14 @@ class TransitionPolicy:
             "to_status": destination.value,
             "reason_codes": ["TRANSITION_AUTHORIZED"],
             "payload_hash": payload_hash(
-                {"from": source.value, "to": destination.value, "actor": actor}
+                {
+                    "from": source.value,
+                    "to": destination.value,
+                    "actor": actor,
+                    "approval_digests": sorted(
+                        item["approval_digest"] for item in document["approvals"]
+                    ),
+                }
             ),
             "previous_event_hash": payload_hash(previous) if previous else None,
         }
@@ -118,8 +125,12 @@ class TransitionPolicy:
                     for approval in document["approvals"]
                     if approval["requirement_ref"] == requirement["id"]
                     and approval["decision"] == "APPROVE"
-                    and approval["actor"]["kind"] == "HUMAN"
-                    and approval["actor"]["role"] == requirement["required_role"]
+                    and approval["approver"]["kind"] == "HUMAN"
+                    and approval["approver"]["role"] == requirement["required_role"]
+                    and (
+                        requirement["required_role"] != "APPROVER"
+                        or approval["approver"]["id"] == actor.get("id")
+                    )
                 ]
                 if not matching:
                     reasons.append("MANDATORY_HUMAN_APPROVAL_MISSING")

@@ -1,0 +1,21 @@
+{
+  "schema_version": "decision-assurance.dats-catalog/1.0",
+  "dataset_id": "decision-assurance-gold",
+  "dataset_version": "0.1.0",
+  "status": "ACCEPTED",
+  "created_at": "2026-07-25T00:00:00Z",
+  "license": "Apache-2.0",
+  "case_count": 10,
+  "cases": [
+    {"id": "DATS-001", "path": "cases/DATS-001.json"},
+    {"id": "DATS-002", "path": "cases/DATS-002.json"},
+    {"id": "DATS-003", "path": "cases/DATS-003.json"},
+    {"id": "DATS-004", "path": "cases/DATS-004.json"},
+    {"id": "DATS-005", "path": "cases/DATS-005.json"},
+    {"id": "DATS-006", "path": "cases/DATS-006.json"},
+    {"id": "DATS-007", "path": "cases/DATS-007.json"},
+    {"id": "DATS-008", "path": "cases/DATS-008.json"},
+    {"id": "DATS-009", "path": "cases/DATS-009.json"},
+    {"id": "DATS-010", "path": "cases/DATS-010.json"}
+  ]
+}

@@ -4,6 +4,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from decision_assurance.api.app import create_app
+from decision_assurance.audit import payload_hash
+from decision_assurance.decision_file import bind_canonical_action, validate_semantics
 from decision_assurance.identity import ActorKind, Identity, Role, StaticTokenAuthenticator
 from decision_assurance.repositories.sqlite import SqliteDecisionRepository
 from decision_assurance.tenancy import TenantContext
@@ -131,3 +133,120 @@ def test_oversized_request_fails_before_processing(tmp_path: Path) -> None:
     response = client.post("/v1/decisions", content=b"x" * 1_048_577)
     assert response.status_code == 413
     assert response.json()["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_authenticated_approver_binds_action_and_idempotent_replay(tmp_path: Path) -> None:
+    identities = {
+        "gen": Identity("generator", TenantContext("tenant-a"), Role.GENERATOR, ActorKind.AGENT),
+        "val": Identity("validator", TenantContext("tenant-a"), Role.VALIDATOR, ActorKind.HUMAN),
+        "app": Identity("approver", TenantContext("tenant-a"), Role.APPROVER, ActorKind.HUMAN),
+    }
+    repository = SqliteDecisionRepository(tmp_path / "action-approval.db")
+    repository.initialize()
+    client = TestClient(create_app(repository, StaticTokenAuthenticator(identities)))
+
+    def headers(token: str, key: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}", "Idempotency-Key": key}
+
+    document = json.loads(
+        (ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8")
+    )
+    document["decision_id"] = "ACTION-APPROVAL-E2E-001"
+    document["created_by"] = {"id": "generator", "role": "GENERATOR", "kind": "AGENT"}
+    document["requested_by"] = {"id": "requester", "role": "OWNER", "kind": "HUMAN"}
+    document["canonical_action"] = bind_canonical_action(
+        {
+            "action_id": "ACTION-1",
+            "action_type": "quote.publish",
+            "effect": "Publish the approved quote.",
+            "target": {"type": "sales-quote", "id": "QUOTE-1"},
+            "parameters": {"amount": "40000.00", "currency": "EUR"},
+            "reversibility_class": "EXTERNALLY_REVERSIBLE",
+            "tenant_id": "tenant-a",
+            "execution_context_hash": "sha256:" + "a" * 64,
+        }
+    )
+    decision_id = document["decision_id"]
+
+    assert (
+        client.post("/v1/decisions", headers=headers("gen", "create"), json=document).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            f"/v1/decisions/{decision_id}/evaluate", headers=headers("val", "evaluate")
+        ).status_code
+        == 200
+    )
+    for target, key in (("VALIDATION", "validate"), ("REVIEW", "review")):
+        assert (
+            client.post(
+                f"/v1/decisions/{decision_id}/transitions",
+                headers=headers("val", key),
+                json={"target": target},
+            ).status_code
+            == 200
+        )
+
+    approval_response = client.post(
+        f"/v1/decisions/{decision_id}/transitions",
+        headers=headers("app", "approve"),
+        json={"target": "APPROVED"},
+    )
+    assert approval_response.status_code == 200
+    approved = approval_response.json()
+    approval = approved["approvals"][0]
+    assert approved["status"] == "APPROVED"
+    assert approved["review_requirements"][0]["satisfied"] is True
+    assert approval["approver"] == {"id": "approver", "role": "APPROVER", "kind": "HUMAN"}
+    assert approval["action_digest"] == approved["canonical_action"]["canonical_digest"]
+    assert approval["approval_digest"].startswith("sha256:")
+    assert len(approval["nonce"]) >= 22
+    assert approved["audit_events"][-1]["payload_hash"] == payload_hash(
+        {
+            "from": "REVIEW",
+            "to": "APPROVED",
+            "actor": approval["approver"],
+            "approval_digests": [approval["approval_digest"]],
+        }
+    )
+    validate_semantics(approved)
+
+    replay = client.post(
+        f"/v1/decisions/{decision_id}/transitions",
+        headers=headers("app", "approve"),
+        json={"target": "APPROVED"},
+    )
+    assert replay.status_code == 200
+    assert replay.json()["approvals"] == approved["approvals"]
+
+
+def test_canonical_action_cannot_cross_authenticated_tenant(tmp_path: Path) -> None:
+    identity = Identity("generator", TenantContext("tenant-a"), Role.GENERATOR, ActorKind.AGENT)
+    repository = SqliteDecisionRepository(tmp_path / "cross-tenant-action.db")
+    repository.initialize()
+    client = TestClient(create_app(repository, StaticTokenAuthenticator({"gen": identity})))
+    document = json.loads(
+        (ROOT / "examples" / "decision-cases" / "low-risk-pass.json").read_text(encoding="utf-8")
+    )
+    document["created_by"] = {"id": "generator", "role": "GENERATOR", "kind": "AGENT"}
+    document["canonical_action"] = bind_canonical_action(
+        {
+            "action_id": "ACTION-CROSS-TENANT",
+            "action_type": "quote.publish",
+            "effect": "Publish a quote.",
+            "target": {"type": "sales-quote", "id": "QUOTE-1"},
+            "parameters": {},
+            "reversibility_class": "REVERSIBLE",
+            "tenant_id": "tenant-b",
+            "execution_context_hash": "sha256:" + "a" * 64,
+        }
+    )
+
+    response = client.post(
+        "/v1/decisions",
+        headers={"Authorization": "Bearer gen", "Idempotency-Key": "cross-tenant"},
+        json=document,
+    )
+    assert response.status_code == 403
+    assert response.json()["details"]["reason_code"] == "CROSS_TENANT_ACTION"

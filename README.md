@@ -58,7 +58,7 @@ governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\decision-assurance.exe benchmark tests\gold\manifest.json
+.\.venv\Scripts\decision-assurance.exe benchmark benchmarks\dats\v0.1.0\catalog.json
 ```
 
 Linux and macOS use `.venv/bin/python` and `.venv/bin/decision-assurance`.
@@ -108,7 +108,7 @@ decision-assurance validate examples\decision-cases\low-risk-pass.json
 decision-assurance evaluate examples\decision-cases\hard-constraint-block.json
 decision-assurance report examples\decision-cases\missing-evidence-review.json
 decision-assurance transition case.json VALIDATION --actor-id validator-1 --actor-role VALIDATOR
-decision-assurance benchmark tests\gold\manifest.json
+decision-assurance benchmark benchmarks\dats\v0.1.0\catalog.json
 ```
 
 Controlled Intake keeps user text untrusted and emits no assurance outcome:
@@ -137,7 +137,7 @@ integrations/chatgpt-work/       validated personal-skill source templates (not 
 integrations/keycloak/           secret-free, versioned local realm import
 migrations/                      SQLite and PostgreSQL/RLS migrations
 tests/fixtures/invalid/           deliberately invalid contracts
-tests/gold/                       open Gold Dataset manifest
+benchmarks/dats/                  versioned DATS Gold Dataset, contracts and source records
 benchmarks/intake/cases/          13-case untrusted-text benchmark
 docs/                             contract, policy and architecture
 .github/workflows/ci.yml          public verification pipeline
@@ -148,6 +148,11 @@ Dockerfile.keycloak / compose.keycloak.yaml isolated Keycloak development target
 The included benchmark is the project-owned **open benchmark suite**. It is not
 an independent assessment. The engine does not simulate legal, medical or other
 professional approval.
+
+The canonical release is `benchmarks/dats/v0.1.0/catalog.json`. Consumers can pin the dataset
+version and reuse each task, normalized `PASS` / `FAIL` / `REQUIRES_HUMAN_REVIEW` result, failure
+signals and provenance without depending on internal test paths. The registered OWASP source is
+external context; DATS mappings and expected results remain project-owned interpretations.
 
 ## License and positioning
 

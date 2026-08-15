@@ -82,7 +82,7 @@ class DecisionFileCompiler:
             ).hexdigest()
         )
         return {
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "decision_id": decision_id,
             "title": f"Compiled intake {report.intake_id}",
             "description": "Decision File compiled exclusively from verified intake facts.",
@@ -92,7 +92,9 @@ class DecisionFileCompiler:
             "created_at": timestamp,
             "updated_at": timestamp,
             "created_by": actor,
+            "requested_by": actor,
             "current_owner": actor,
+            "canonical_action": None,
             "claims": claims,
             "evidence": evidence,
             "assumptions": [],

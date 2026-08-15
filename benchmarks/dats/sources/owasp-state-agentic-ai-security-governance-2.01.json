@@ -1,0 +1,24 @@
+{
+  "schema_version": "decision-assurance.external-source/1.0",
+  "source_id": "owasp-state-agentic-ai-security-governance-2-01",
+  "title": "State of Agentic AI Security and Governance 2.01",
+  "publisher": "OWASP GenAI Security Project",
+  "version": "2.01",
+  "published_at": "2026-06-01",
+  "landing_page": "https://genai.owasp.org/resource/state-of-agentic-ai-security-and-governance/",
+  "download_endpoint": "https://genai.owasp.org/download/50592/",
+  "retrieved_at": "2026-08-10",
+  "license_note": "The OWASP landing page states CC BY-SA 4.0 unless otherwise specified; verify the downloaded report before redistribution.",
+  "local_copy_included": false,
+  "assurance_use": [
+    "Threat and control coverage reference for agentic systems",
+    "Input to DATS gap analysis and future adversarial case design",
+    "Context for identity, supply-chain, memory, tool-use and human-trust controls"
+  ],
+  "mapping_status": "PROJECT_INTERPRETATION_NOT_OWASP_ENDORSEMENT",
+  "limits": [
+    "The OWASP report does not define the normative DATS expected results.",
+    "A DATS PASS is not OWASP certification or compliance evidence.",
+    "The remote source must be freshness-checked before a new dataset release."
+  ]
+}

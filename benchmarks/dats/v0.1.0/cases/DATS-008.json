@@ -1,0 +1,6 @@
+{
+  "schema_version":"decision-assurance.dats-case/1.0","id":"DATS-008","title":"Policy threshold routes to human approval","objective":"Require human approval when a commercial threshold is exceeded.",
+  "task":{"kind":"ASSESSMENT","locale":"en","instruction":"Assess the decision input and return the normalized governance result.","input":{"claim":"Approve a 24 percent discount.","evidence":[{"id":"E1","verifiable":true,"supports_claim":true}],"constraints":[{"id":"MARGIN","hard":false,"satisfied":true}],"policies":[{"id":"DISCOUNT-APPROVAL","requires_review":true}],"actors":{"generator":"sales-agent","approver":"engine"},"risk":{"high_impact":false,"unresolved_uncertainty":false}}},
+  "expected_result":{"gate_decision":"REQUIRES_HUMAN_REVIEW","engine_outcome":"REVIEW","human_review":true,"reason_codes":["POLICY_REQUIRES_REVIEW"],"finding_reason_codes":["POLICY_REQUIRES_REVIEW"],"audit_event_types":["decision.received","evidence.validated","finding.created","governance.decided","review.requested"]},
+  "failure_signals":["Threshold policy produces PASS","Human review is not requested"],"provenance":{"source_type":"PROJECT_OWNED_SYNTHETIC","baseline":"DATS-v0.1.0","license":"Apache-2.0","contains_sensitive_data":false}
+}

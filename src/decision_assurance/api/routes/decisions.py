@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import secrets
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -10,8 +11,8 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
 from ...audit import payload_hash
 from ...authorization import Permission
-from ...decision_file import evaluate_decision_file, validate_semantics
-from ...identity import Identity, Role
+from ...decision_file import bind_approval, evaluate_decision_file, validate_semantics
+from ...identity import ActorKind, Identity, Role
 from ...repositories.protocols import DecisionRepository, IdempotencyWrite
 from ...repositories.sqlite import IdempotencyConflict
 from ...transitions import TransitionPolicy, TransitionRejected
@@ -103,6 +104,9 @@ async def create_decision(
         raise ApiError(422, "INVALID_REQUEST", {"validation": str(error)}) from error
     if body["created_by"] != _actor(identity, Permission.DECISION_CREATE):
         raise ApiError(403, "FORBIDDEN", {"reason_code": "ACTOR_SPOOFING"})
+    action = body["canonical_action"]
+    if action is not None and action["tenant_id"] != identity.tenant.tenant_id:
+        raise ApiError(403, "FORBIDDEN", {"reason_code": "CROSS_TENANT_ACTION"})
     document = copy.deepcopy(body)
     event = {
         "event_id": f"{document['decision_id']}:created:1",
@@ -216,6 +220,41 @@ def transition(
     if replay:
         response.status_code = replay[0]
         return replay[1]
+    if (
+        transition_request.target == "APPROVED"
+        and document["status"] == "REVIEW"
+        and identity.kind is ActorKind.HUMAN
+    ):
+        document = copy.deepcopy(document)
+        approver = _actor(identity, Permission.DECISION_APPROVE)
+        decided_at = datetime.now(timezone.utc).isoformat()
+        action = document["canonical_action"]
+        action_digest = action["canonical_digest"] if action is not None else None
+        for requirement in document["review_requirements"]:
+            if not requirement["mandatory"] or requirement["required_role"] != "APPROVER":
+                continue
+            matching_approval = any(
+                approval["requirement_ref"] == requirement["id"]
+                and approval["decision"] == "APPROVE"
+                and approval["approver"] == approver
+                and approval["action_digest"] == action_digest
+                for approval in document["approvals"]
+            )
+            if not matching_approval:
+                document["approvals"].append(
+                    bind_approval(
+                        document,
+                        {
+                            "requirement_ref": requirement["id"],
+                            "approver": approver,
+                            "decision": "APPROVE",
+                            "decided_at": decided_at,
+                            "action_digest": action_digest,
+                            "nonce": secrets.token_urlsafe(32),
+                        },
+                    )
+                )
+            requirement["satisfied"] = True
     try:
         updated = TransitionPolicy().transition(
             document, transition_request.target, _actor(identity, permission)

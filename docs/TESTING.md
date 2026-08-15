@@ -10,6 +10,13 @@ compiler, SQLite isolation, CLI/API E2E, prompt-injection and metamorphic tests 
 raw-only and trusted-context variants. READY variants are compiled and evaluated by the existing
 engine; unresolved variants assert `NEEDS_CONFIRMATION` and do not manufacture an outcome.
 
+The canonical DATS Gold Dataset is versioned under `benchmarks/dats/`. Each case carries its task,
+normalized gate result, expected findings and audit-event sequence, failure signals and synthetic
+provenance. CI validates schemas and legacy-fixture parity, blocks path traversal and fails when
+engine behavior differs from an accepted result. Version 0.1.0 has English task text; reason codes
+and normalized results are locale-neutral. It contains no personal or tenant data and provides
+development regression evidence, not pilot or production evidence.
+
 Unit tests cover domain, permission and localization functions. Integration
 tests use a temporary SQLite database. Contract tests exercise OpenAPI requests
 and responses. E2E tests use FastAPI's in-process HTTP client, deterministic
@@ -102,4 +109,3 @@ gates from `ui/` with `npm ci`, `npm run lint`, `npm test`, `npm run build` and 
 installing Chromium. Browser E2E uses deterministic fake BFF responses and two isolated tenants;
 Python BFF security tests cover PKCE/session/CSRF/headers, while the existing opt-in Keycloak suite
 provides the real OIDC protocol integration. This layered CI evidence is not deployment evidence.
-

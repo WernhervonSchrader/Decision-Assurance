@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from decision_assurance.decision_file import evaluate_decision_file
+from decision_assurance.decision_file import bind_approval, evaluate_decision_file
 from decision_assurance.transitions import TransitionPolicy, TransitionRejected
 
 ROOT = Path(__file__).parents[1]
@@ -26,12 +26,17 @@ def test_full_draft_to_approved_process_is_audited() -> None:
     document = policy.transition(document, "REVIEW", VALIDATOR)
     document["review_requirements"][0]["satisfied"] = True
     document["approvals"] = [
-        {
-            "requirement_ref": "APPROVAL-1",
-            "actor": APPROVER,
-            "decision": "APPROVE",
-            "decided_at": NOW.isoformat(),
-        }
+        bind_approval(
+            document,
+            {
+                "requirement_ref": "APPROVAL-1",
+                "approver": APPROVER,
+                "decision": "APPROVE",
+                "decided_at": NOW.isoformat(),
+                "action_digest": None,
+                "nonce": "transition_nonce_000000000001",
+            },
+        )
     ]
     document = policy.transition(document, "APPROVED", APPROVER)
     assert document["status"] == "APPROVED"
@@ -77,3 +82,28 @@ def test_mandatory_constraint_prevents_approval() -> None:
     with pytest.raises(TransitionRejected) as error:
         TransitionPolicy().transition(document, "APPROVED", APPROVER)
     assert "MANDATORY_CONSTRAINT_UNSATISFIED" in error.value.reason_codes
+
+
+def test_human_cannot_use_another_approvers_bound_approval() -> None:
+    policy = TransitionPolicy(clock=lambda: NOW)
+    document, _ = evaluate_decision_file(fixture())
+    document = policy.transition(document, "VALIDATION", VALIDATOR)
+    document = policy.transition(document, "REVIEW", VALIDATOR)
+    document["review_requirements"][0]["satisfied"] = True
+    document["approvals"] = [
+        bind_approval(
+            document,
+            {
+                "requirement_ref": "APPROVAL-1",
+                "approver": APPROVER,
+                "decision": "APPROVE",
+                "decided_at": NOW.isoformat(),
+                "action_digest": None,
+                "nonce": "transition_nonce_000000000002",
+            },
+        )
+    ]
+    other = {"id": "approver-2", "role": "APPROVER", "kind": "HUMAN"}
+    with pytest.raises(TransitionRejected) as error:
+        policy.transition(document, "APPROVED", other)
+    assert "MANDATORY_HUMAN_APPROVAL_MISSING" in error.value.reason_codes
