@@ -10,23 +10,32 @@
 An independent reviewer checks the three documents for existing RIF/DA boundaries, authority
 separation, contract versioning, deterministic preflight, explicit fallback, data handling and
 testability. Resolve the four open decisions in the specification. Confirm target repository paths
-on the then-current `main` before implementation. The development profile uses synthetic or
-approved data. No provider credential is needed at this stage.
+on the then-current `main` before implementation. Identify the authoritative upstream RIF source:
+`main` contains no RIF orchestrator and explicitly treats RIF/RRS as optional research sources.
+Decide whether DA hosts a reference implementation or integrates an independently versioned RIF
+package; name contract owner and compatibility test. Without that decision, Stage 1 is `BLOCKED`.
+The development profile uses synthetic or approved data. No provider credential is needed here.
 
 ## Stage 1 — provider-neutral contract and deterministic baseline
 
-- Paths: `schemas/orchestration/reasoning-route-decision.schema.json`, packaged copy under
+- Provisional paths, subject to Gate 0 ownership decision:
+  `schemas/orchestration/reasoning-route-decision.schema.json`, packaged copy under
   `src/decision_assurance/schemas/orchestration/`,
   `src/decision_assurance/orchestration/{contracts,ports,policy,service}.py`, and
-  `src/decision_assurance/orchestration/providers/deterministic.py`. Update the event registry and
-  policy registry through their actual repository interfaces; do not create duplicate authority.
+  `src/decision_assurance/orchestration/providers/deterministic.py`. If the contract is owned in
+  another repository, publish it there and add only a versioned DA adapter. Update the event
+  registry and policy registry through their actual interfaces; do not create duplicate authority.
 - Interfaces: `ReasoningRouterPort.select(snapshot, candidates) -> SelectorSignal`,
   `RoutingPolicy.evaluate(context, signal) -> ReasoningRouteDecision`. Keep trusted actor, tenant,
   data classification and permitted routes outside provider-controlled fields. Define nullable
   abstention, specialist capability and typed blocked outcome in the schema.
-- First write contract tests for canonical hashing, unknown fields, invalid routes and scores,
+- First write contract tests for canonical and keyed digests, policy-content binding, unknown
+  fields, invalid routes and scores, specialist capability, three statuses and null cases,
   tenant substitution, absent signals and replay conflicts. Then implement deterministic preflight,
   baseline selector, versioned policy, idempotent dispatch and append-only redacted route events.
+  The current `EventRegistry` does not register `routing.decision`; specify its event schema,
+  tenant-scoped durable storage, export and retention path. Add a distinct permission instead of
+  borrowing approval capability; review the existing tenant-admin permission expansion.
 - Verify with `python -m pytest tests/orchestration -q`, schema parity checks, Ruff and strict Mypy;
   expected result: every malformed or forbidden downshift is denied before dispatch, baseline
   routes are stable, and no external network is needed.
@@ -39,6 +48,11 @@ approved data. No provider credential is needed at this stage.
   Record actual tested SDK/API versions; do not assume previously quoted model IDs or score
   semantics. If these facts cannot be verified or the deployment profile is incompatible, stop
   at Stage 1 and record `BLOCKED` for external integration.
+- The official SDK currently defaults to `jev-latest`, may skip unknown answer kinds or ignore
+  unknown response fields, and can log unredacted request/response bodies at debug level. The
+  adapter must pin an actually available model for evaluated runs, validate completeness against
+  the raw protocol response and prohibit body logging. Verify these behaviors again at the
+  chosen version: <https://docs.typesafe.ai/sdk/python/usage>.
 - Paths: `src/decision_assurance/orchestration/providers/typesafe_jev.py`, provider configuration
   and policy schemas, credential placeholder only, `tests/orchestration/test_jev_adapter.py` and
   an opt-in `tests/orchestration/test_jev_live.py`. Pin any added SDK only after compatibility and
@@ -73,7 +87,9 @@ approved data. No provider credential is needed at this stage.
 
 - Target the existing authenticated API/service boundary without granting the router a DA role.
   Reuse tenant-scoped persistence, central authorization, immutable audit and existing action
-  binding. Confirm `routing.decision` events enter the registered audit path before enabling it.
+  binding. Confirm `routing.decision` events enter the registered audit path and that the
+  persistence boundary rejects UPDATE/DELETE in ordinary operation before relying on append-only
+  claims. The current filesystem audit pattern alone is not database-level immutability.
 - Run API and workflow E2E in an isolated environment using at least two tenants and roles, DE
   and EN, local fake provider, allowed FULL route, prohibited FAST downgrade, wrong tenant,
   stale policy, provider outage, replay, prompt injection, missing audit sink and later DA denial.
