@@ -19,6 +19,8 @@ routing schema. Its README says RIF/RRS research sources are not required to run
 This ADR proposes a new integration boundary in this repository; it does not assert that an
 existing RIF component already complies with the proposed contract. The owner and source of the
 canonical upstream RIF contract must be identified before runtime code is added.
+The [public RIF overview](https://github.com/WernhervonSchrader/Reliable-Intelligence-Framework-Konzept-)
+describes the concept but does not publish a normative routing contract.
 
 ## Alternatives
 
