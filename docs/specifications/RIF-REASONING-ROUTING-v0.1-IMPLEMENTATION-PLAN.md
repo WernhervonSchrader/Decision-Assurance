@@ -9,8 +9,10 @@
 
 An independent reviewer checks the three documents for existing RIF/DA boundaries, authority
 separation, contract versioning, deterministic preflight, explicit fallback, data handling and
-testability. Resolve the four open decisions in the specification. Confirm target repository paths
-on the then-current `main` before implementation. Identify the authoritative upstream RIF source:
+testability. Confirm that mandatory RIF validation paths can contain multiple nodes and cannot be
+replaced by a single FAST/FULL choice. Resolve the four open decisions in the specification.
+Confirm target repository paths on the then-current `main` before implementation. Identify the
+authoritative upstream RIF source:
 `main` contains no RIF orchestrator and explicitly treats RIF/RRS as optional research sources.
 Decide whether DA hosts a reference implementation or integrates an independently versioned RIF
 package; name contract owner and compatibility test. Without that decision, Stage 1 is `BLOCKED`.
@@ -27,20 +29,23 @@ The development profile uses synthetic or approved data. No provider credential 
   `src/decision_assurance/orchestration/providers/deterministic.py`. If the contract is owned in
   another repository, publish it there and add only a versioned DA adapter. Update the event
   registry and policy registry through their actual interfaces; do not create duplicate authority.
-- Interfaces: `ReasoningRouterPort.select(snapshot, candidates) -> SelectorSignal`,
-  `RoutingPolicy.evaluate(context, signal) -> ReasoningRouteDecision`. Keep trusted actor, tenant,
-  data classification and permitted routes outside provider-controlled fields. Define nullable
-  abstention, specialist capability and typed blocked outcome in the schema.
+- Interfaces: `RoutingPolicy.required_path(context) -> OrderedPath`,
+  `ReasoningRouterPort.select(snapshot, path_digest, strategies, optional_nodes) -> SelectorSignal`,
+  and `RoutingPolicy.evaluate(context, path, signal) -> ReasoningRouteDecision`. Keep trusted actor,
+  tenant, data classification, required nodes and permitted strategies outside provider-controlled
+  fields. Define nullable abstention, specialist capability and typed blocked outcome in the schema.
 - First write contract tests for canonical and keyed digests, policy-content binding, unknown
-  fields, invalid routes and scores, specialist capability, three statuses and null cases,
-  tenant substitution, absent signals and replay conflicts. Then implement deterministic preflight,
+  fields, missing/reordered required nodes, forbidden additional nodes, invalid strategies and
+  scores, specialist capability,
+  three statuses and null cases, tenant substitution, absent signals and replay conflicts. Then
+  implement deterministic preflight,
   baseline selector, versioned policy, idempotent dispatch and append-only redacted route events.
   The current `EventRegistry` does not register `routing.decision`; specify its event schema,
   tenant-scoped durable storage, export and retention path. Add a distinct permission instead of
   borrowing approval capability; review the existing tenant-admin permission expansion.
 - Verify with `python -m pytest tests/orchestration -q`, schema parity checks, Ruff and strict Mypy;
-  expected result: every malformed or forbidden downshift is denied before dispatch, baseline
-  routes are stable, and no external network is needed.
+  expected result: every missing check, malformed strategy or forbidden downshift is denied before
+  dispatch, the baseline is stable, and no external network is needed.
 - Commit boundary: `feat(rif): add typed routing contract and deterministic policy`.
 
 ## Stage 2 — optional Jev adapter behind the port
@@ -74,13 +79,15 @@ The development profile uses synthetic or approved data. No provider credential 
 - Paths: `benchmarks/routing/` with a versioned case manifest, labels and provenance;
   `tests/orchestration/test_routing_benchmark.py` for metric calculations. Do not include
   confidential prompts or cross-tenant records in a public fixture.
-- Obtain independently reviewed labels for each case, including FAST, FULL, specialist capability
-  and human escalation; stratify DE/EN, ambiguity, regulated or sensitive content, tool need,
-  tenant and locale, and known adversarial injections. Hold out evaluation cases. Compare local
+- Obtain independently reviewed labels for each case, including its required-node path,
+  permissible extra nodes, FAST, FULL, specialist capability and human escalation; stratify DE/EN,
+  ambiguity, regulated or sensitive content, tool need, tenant and locale, and known adversarial
+  injections. Hold out evaluation cases. Compare local
   deterministic baseline, any existing LLM router if present, and Jev under the same candidate
   set and policy. An absent comparator is reported as absent, not synthesized.
-- Report confusion matrix, false-fast numerator/denominator by risk class, abstention/escalation,
-  calibration/Brier score only for documented probabilities, latency, cost, model-version drift
+- Report required-path completeness and order, confusion matrix, false-fast numerator/denominator
+  by risk class, abstention/escalation, calibration/Brier score only for documented probabilities,
+  latency, cost, model-version drift
   and reproducibility. Set acceptable thresholds only from the labeled evidence and independent
   risk review; a single accuracy figure cannot approve a downshift.
 - Commit boundary: `test(rif): add reviewed routing benchmark evidence`.
@@ -113,7 +120,7 @@ The development profile uses synthetic or approved data. No provider credential 
 
 | Requirement | Verification evidence required | Release condition |
 | --- | --- | --- |
-| Contract and input integrity | public/package schema parity, tamper and invalid-value tests | strict validation passes |
+| Contract and input integrity | public/package schema parity, required-path omission/order, tamper and invalid-value tests | strict validation passes |
 | Authentication, authorization and actor independence | role negatives; selector cannot emit DA approval | no bypass |
 | Tenant isolation | two-tenant API, persistence and replay negatives | no read/write/inference across tenants |
 | Multilingual routing and display | DE/EN equivalence, locale/date formatting and unsafe fallback tests | no silent downgrade |
