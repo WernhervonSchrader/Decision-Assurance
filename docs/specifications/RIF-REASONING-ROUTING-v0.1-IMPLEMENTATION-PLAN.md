@@ -11,11 +11,17 @@ An independent reviewer checks the three documents for existing RIF/DA boundarie
 separation, contract versioning, deterministic preflight, explicit fallback, data handling and
 testability. Confirm that mandatory RIF validation paths can contain multiple nodes and cannot be
 replaced by a single FAST/FULL choice. Resolve the four open decisions in the specification.
+The first independent review of PR #11 reported six design gaps; this revision addresses their
+proposed contract and plan changes, but does not turn that earlier `FAIL` into an approval. Obtain
+a new independent review of the revised head and reconcile the authoritative RIF rc3 source.
 Confirm target repository paths on the then-current `main` before implementation. Identify the
 authoritative upstream RIF source:
 `main` contains no RIF orchestrator and explicitly treats RIF/RRS as optional research sources.
 Decide whether DA hosts a reference implementation or integrates an independently versioned RIF
 package; name contract owner and compatibility test. Without that decision, Stage 1 is `BLOCKED`.
+The recommended topology is a RIF-owned normative contract and a version-pinned DA adapter;
+approval of the owner, delegated maintenance if any, and a publishable interface subset is still
+required. Keep the private full edition, prompts and confidential cases outside this public PR.
 The DA repository is public. Review the public/private publication boundary against the public
 RIF concept before adding any internal policy logic, prompts, benchmark corpus or provider data.
 The development profile uses synthetic or approved data. No provider credential is needed here.
@@ -30,19 +36,36 @@ The development profile uses synthetic or approved data. No provider credential 
   another repository, publish it there and add only a versioned DA adapter. Update the event
   registry and policy registry through their actual interfaces; do not create duplicate authority.
 - Interfaces: `RoutingPolicy.required_path(context) -> OrderedPath`,
-  `ReasoningRouterPort.select(snapshot, path_digest, strategies, optional_nodes) -> SelectorSignal`,
-  and `RoutingPolicy.evaluate(context, path, signal) -> ReasoningRouteDecision`. Keep trusted actor,
+  `ReasoningRouterPort.select(call_context, minimized_input, bound_candidates) -> SelectorSignal`,
+  and `RoutingPolicy.evaluate(context, path, signal, progress) -> ReasoningRouteDecision`.
+  `RoutingBindingPort.commit_manifest(...)` records full and minimized input separately;
+  `RoutingProgressPort.read/claim/accept(..., expected_revision)` validates step results and uses
+  compare-and-swap; `RoutingDecisionRepositoryPort` stores immutable decisions, handoffs and
+  idempotency keys; `RoutingDispatchPort.enqueue/claim/reconcile` stores durable intents; and
+  `RoutingAuditPort.append` writes registered route/egress events. Keep trusted actor,
   tenant, data classification, required nodes and permitted strategies outside provider-controlled
-  fields. Define nullable abstention, specialist capability and typed blocked outcome in the schema.
+  fields. The server-owned call context binds response to manifest, request, policy, candidate and
+  path digests. Cover all status/null combinations, early precontract failures and no-work results.
 - First write contract tests for canonical and keyed digests, policy-content binding, unknown
   fields, missing/reordered required nodes, forbidden additional nodes, invalid strategies and
-  scores, specialist capability,
-  three statuses and null cases, tenant substitution, absent signals and replay conflicts. Then
+  scores, specialist capability/version/executor, the complete status table, six selector outcomes,
+  tenant substitution, swapped provider responses, changed definitions and replay conflicts. Then
   implement deterministic preflight,
-  baseline selector, versioned policy, idempotent dispatch and append-only redacted route events.
+  baseline selector, versioned policy, trusted progress and append-only redacted route events.
   The current `EventRegistry` does not register `routing.decision`; specify its event schema,
   tenant-scoped durable storage, export and retention path. Add a distinct permission instead of
   borrowing approval capability; review the existing tenant-admin permission expansion.
+- On the then-current main, add the next available PostgreSQL migration for tenant-scoped decision,
+  handoff, step-progress, idempotency, audit and dispatch-intent tables, plus FORCE RLS and least
+  privilege grants. Ordinary application roles must have no UPDATE/DELETE on routing audit rows;
+  prove this at the database boundary. Extend the actual registered event schemas and tenant
+  export/deletion and retention mechanisms with tested policy durations; avoid claiming existing
+  DA audit tables are generally append-only. Commit a decision, required audit record and unique
+  intent in one transaction, with a progress-revision CAS where applicable. On failure before
+  commit nothing dispatches; after commit a recoverable worker claims the intent and rechecks
+  authority immediately before use. A crash after a potentially effective external call is an
+  uncertain result: reconcile by provider-supported idempotency key/status lookup or quarantine
+  for human resolution before a retry. Do not promise exactly-once remote effects.
 - Verify with `python -m pytest tests/orchestration -q`, schema parity checks, Ruff and strict Mypy;
   expected result: every missing check, malformed strategy or forbidden downshift is denied before
   dispatch, the baseline is stable, and no external network is needed.
@@ -68,9 +91,18 @@ The development profile uses synthetic or approved data. No provider credential 
   pattern, with routing-specific authorization and `routing.egress-decision` audit. Map only
   documented provider fields, preserve raw diagnostic scores safely, and reject unsupported or
   unversioned responses. Never send raw case bodies where minimized fields suffice.
+- Configure the selected SDK with internal retries disabled (its documented `RetryPolicy` allows
+  `max_retries=0`; see <https://docs.typesafe.ai/sdk/python/api/retries>), or verify and prove a
+  guard/audit at every underlying transport attempt. Use
+  a bounded adapter-owned retry loop: refresh auth, tenant, policy, stop switch, provider/region,
+  approval evidence, secret and remaining budget before each network attempt; durably record each
+  egress decision. Fix the allowlisted scheme/host/path, disallow redirects to unexpected targets,
+  and enforce a total time and cost ceiling. Revocation between attempts stops the second call.
 - Fake-provider contract tests cover timeout, malformed and partial response, wrong candidate
   set, model drift, quota/error, secret redaction, region rejection and zero network calls on
-  authorization, preflight or audit failure. Live tests run only with explicit opt-in, approved
+  authorization, preflight or audit failure. Include a failed first attempt followed by policy
+  revocation, proving zero second network calls; redirect and total-budget negatives. Live tests
+  run only with explicit opt-in, approved
   non-production data and runtime credentials outside Git.
 - Commit boundary: `feat(rif): add guarded optional Jev routing adapter`.
 
@@ -102,6 +134,11 @@ The development profile uses synthetic or approved data. No provider credential 
 - Run API and workflow E2E in an isolated environment using at least two tenants and roles, DE
   and EN, local fake provider, allowed FULL route, prohibited FAST downgrade, wrong tenant,
   stale policy, provider outage, replay, prompt injection, missing audit sink and later DA denial.
+  Specifically persist P1 `ROUTED`, revoke under P2, replay P1 and assert no redispatch; then
+  create a linked P2 decision. Race two workers on one progress revision; inject a crashed worker
+  before commit, after commit, before transport and after an uncertain transport result. Exercise
+  accepted supplementary steps, stale validator results, expired/cancelled handoffs, reviewer
+  independence, specialist revocation and region denial. Assert tenant RLS across every new table.
   Use deterministic seeds and cleanup, browser coverage only if a user-facing routing review UI
   is introduced. CI retains bounded redacted traces, failures and coverage; remove flaky reliance
   on external providers. Live integration gets a separate opt-in test with no production data.
@@ -125,8 +162,10 @@ The development profile uses synthetic or approved data. No provider credential 
 | Tenant isolation | two-tenant API, persistence and replay negatives | no read/write/inference across tenants |
 | Multilingual routing and display | DE/EN equivalence, locale/date formatting and unsafe fallback tests | no silent downgrade |
 | Privacy, residency, retention and secrets | approved provider terms, guard zero-call tests, canary scan | verified or external provider blocked |
-| Append-only audit and operational failure | route/egress records, outage, restart, restore and stop tests | no unaudited dispatch |
+| Append-only audit and operational failure | event registry/schema, RLS and grants, transactional outbox, outage, retry, restart, uncertain-effect reconciliation, restore and stop tests | no unaudited or stale dispatch |
 | E2E and benchmark | reproducible CI E2E and labeled false-fast analysis | independent acceptance decision |
 
-This Draft PR completes only Gate 0's reviewable input. Every implementation and release gate
-above remains `NOT TESTED` until executed and recorded at its own commit.
+This Draft PR contains only Gate 0's reviewable input. Gate 0 remains `BLOCKED` pending renewed
+independent review, authoritative RIF-rc3 reconciliation and the recorded owner/publication/role
+and provider decisions. Every implementation and release gate above remains `NOT TESTED` until
+executed and recorded at its own commit.
