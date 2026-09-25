@@ -43,6 +43,10 @@ deterministic policy validates the proposal, adds permitted supplementary checks
 order and records the effective strategy, complete path, next step and reason codes. A missing
 required capability or check blocks dispatch or creates a human routing handoff;
 uncertainty never silently removes a check or chooses a cheaper strategy.
+The next outstanding step is derived only from a trusted, revisioned progress record whose
+validated results are bound to their step instance, input and validator version. Once accepted,
+supplementary steps are part of the effective path and must also be completed. Concurrent
+advancement uses compare-and-swap on the progress revision; a selector cannot write progress.
 
 Routing, substantive judgment and execution authorization are different decisions. Neither the
 selector nor the orchestrator can issue `PASS`, `APPROVED`, `ALLOW_EXECUTION` or a substitute DA
@@ -56,6 +60,11 @@ rank; the required specialty must be explicit. `HUMAN_REVIEW` is an escalation s
 machine approval. Policy may prohibit FAST for defined risk or data classes before invocation.
 The routing human handoff is distinct from the DA Decision File `REVIEW` state. It requires its
 own actor-bound handoff and a new recorded routing decision before resuming automated work.
+The handoff records the authorized reviewer, scope, result, expiry or cancellation and an atomic
+resume transition. A historical route decision may be returned for inspection or idempotent
+replay but never grants current dispatch authority. Every dispatch rechecks present authorization,
+policy, stop switch, revocation, capability and progress revision; changed conditions require a
+new linked decision or a block. Old records remain immutable.
 
 Jev, if used, is an optional provider adapter behind a port. Its claims about probabilities,
 confidence, model IDs and API availability are not assumed by the canonical contract. The adapter
@@ -76,6 +85,14 @@ calibrated confidence. Route thresholds require a labeled benchmark and document
   reason codes and effective route. Plain hashes of sensitive or guessable task content are
   insufficient; use keyed digests when that content is involved. Preserve audit append-only
   semantics and avoid storing raw task text or credentials by default.
+- Bind the full trusted routing input separately from the minimized selector input, including
+  mission revision, immutable node/strategy/capability definitions, policy and candidate criteria.
+  Associate responses with server-owned call context and authenticated transport; a digest alone
+  proves neither source nor authority. Define canonicalization and digest-key lifecycle.
+- Persist the route record, required audit events and uniquely identified dispatch intent in a
+  tenant-scoped transaction. A worker rechecks current authority before every attempt, including
+  retries and restart recovery. An uncertain external side effect must be reconciled before
+  resending; do not infer exactly-once external execution from the outbox.
 - A selector outage, incompatible version or missing audit sink prevents an external call or an
   automated downshift. Safe fallback is explicit, observable and tested.
 - Hosting a RIF reference implementation inside the DA repository does not make the DA Engine the
