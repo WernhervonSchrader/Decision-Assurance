@@ -35,22 +35,25 @@ describes the concept but does not publish a normative routing contract.
 ## Decision
 
 Introduce a versioned, strict machine-readable `reasoning_route_decision` specified for RIF. An
-authenticated, tenant-bound request enters the orchestrator. Mandatory risk, scope and data-policy
-constraints are checked before any external call. A selector may propose one route from a
-policy-defined finite set. A separate deterministic routing policy validates the candidate set,
-selector response and constraints, then records an effective route and reason codes. Failure,
-missing data or disallowed downgrade goes to the policy-defined safe route or human review; it
-never silently selects a cheaper route. The effective route controls reasoning workflow only.
+authenticated, tenant-bound request enters the orchestrator. The trusted routing policy first
+determines a required, ordered path of validation and reasoning steps from mission risk, scope and
+data rules. A selector may then propose one *processing strategy* and supplementary checks from
+finite permitted sets. It cannot remove, reorder or mark a required step as complete. A separate
+deterministic policy validates the proposal, adds permitted supplementary checks in a governed
+order and records the effective strategy, complete path, next step and reason codes. A missing
+required capability or check blocks dispatch or creates a human routing handoff;
+uncertainty never silently removes a check or chooses a cheaper strategy.
 
 Routing, substantive judgment and execution authorization are different decisions. Neither the
 selector nor the orchestrator can issue `PASS`, `APPROVED`, `ALLOW_EXECUTION` or a substitute DA
 finding. Evidence and results enter the existing independent DA boundary; execution still requires
 the applicable DA outcome and action binding. The selector cannot approve its own output.
 
-The initial route vocabulary is `FAST_REASONING`, `FULL_REASONING`, `SPECIALIST_REASONING` and
-`HUMAN_REVIEW`. `SPECIALIST_REASONING` is capability-specific, not an ordinal rank; the required
-specialty must be explicit. `HUMAN_REVIEW` is an escalation route, not a machine approval. Policy
-may prohibit `FAST_REASONING` for defined risk or data classes before invoking a selector.
+The initial *strategy* vocabulary is `FAST_REASONING`, `FULL_REASONING`,
+`SPECIALIST_REASONING` and `HUMAN_REVIEW`. `FAST_REASONING` may reduce optional reasoning effort,
+never the required validation path. `SPECIALIST_REASONING` is capability-specific, not an ordinal
+rank; the required specialty must be explicit. `HUMAN_REVIEW` is an escalation strategy, not a
+machine approval. Policy may prohibit FAST for defined risk or data classes before invocation.
 The routing human handoff is distinct from the DA Decision File `REVIEW` state. It requires its
 own actor-bound handoff and a new recorded routing decision before resuming automated work.
 
