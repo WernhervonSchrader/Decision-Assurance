@@ -14,6 +14,8 @@ on the then-current `main` before implementation. Identify the authoritative ups
 `main` contains no RIF orchestrator and explicitly treats RIF/RRS as optional research sources.
 Decide whether DA hosts a reference implementation or integrates an independently versioned RIF
 package; name contract owner and compatibility test. Without that decision, Stage 1 is `BLOCKED`.
+The DA repository is public. Review the public/private publication boundary against the public
+RIF concept before adding any internal policy logic, prompts, benchmark corpus or provider data.
 The development profile uses synthetic or approved data. No provider credential is needed here.
 
 ## Stage 1 — provider-neutral contract and deterministic baseline
