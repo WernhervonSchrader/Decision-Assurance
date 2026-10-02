@@ -93,3 +93,58 @@ the signed token and creates an immutable identity/tenant context before central
 repository access or Research provider dispatch. Keycloak roles are inputs to the application
 permission matrix, never lifecycle approval. Keycloak uses its own PostgreSQL database and account.
 See [Local Keycloak OIDC](KEYCLOAK.md).
+
+# Proposed RIF Agent Runtime Harness boundary
+
+**Design clarification, not an implemented RIF runtime.** See [ADR-008](adr/ADR-008-reasoning-routing-boundary.md),
+[the routing contract](specifications/RIF-REASONING-ROUTING-v0.1.md) and
+[the implementation plan](specifications/RIF-REASONING-ROUTING-v0.1-IMPLEMENTATION-PLAN.md).
+
+RIF is the agent runtime harness. It governs how an agent executes, including context assembly,
+instruction assembly, model and tool routing, runtime state, execution policies and advisory
+reasoning gates such as JEV. Decision Assurance is not part of the harness. It is an
+actor-independent validation and governance boundary that the harness invokes before a proposed
+decision or action may create business effect.
+
+RIF answers **How should the agent execute?** It owns runtime orchestration, context/instruction
+assembly, model/tool routing, runtime state, permitted action corridors, execution policies,
+reasoning selection, JEV, the Runtime Contract and the DA handoff. JEV belongs inside RIF and is
+advisory or routing-relevant; optional TypeSafe Jev is a provider adapter. The agent/model generates
+a Proposed Decision or Proposed Action. DA answers **May this proposed decision or action be
+allowed to create business effect?** It independently validates evidence, rules, claims, limits,
+trust, governance, human review, auditability and the traceable decision basis.
+
+```text
+Trigger -> Orchestrator -> RIF Runtime Harness
+       -> JEV / Routing / Runtime Policy -> Agent Execution
+       -> Proposed Decision or Action -> independent Decision Assurance
+       -> PASS | REVIEW | BLOCK -> Execution / Human Review / Stop
+```
+
+Only DA produces the Governance Outcome. **`JEV CONTINUE != DA PASS`**; neither agent nor harness
+can issue or substitute DA approval. The existing [Transition Policy](TRANSITION_POLICY.md) and
+[Decision File Contract](DECISION_FILE_CONTRACT.md) still apply: DA `PASS` is not lifecycle
+`APPROVED` and cannot replace required independent human approval, nonce or action binding.
+The harness invokes DA before governance-required business effect, including effectful tools.
+`REVIEW` waits for required review; `BLOCK` or unavailable valid DA validation stops the effect.
+
+The runtime harness may determine how work is performed, but it must not determine whether a
+governed business decision is valid. **`Generator != Validator != Governance`**: the agent
+generates proposals, independent validators establish the decision basis, and DA's governance
+rules and required human authority determine the outcome and approval.
+
+| Control layer | Question | Responsibility |
+| --- | --- | --- |
+| **Runtime Containment** | What can the agent technically reach? | harness and technical environment: sandbox, tool permissions, network boundaries, identity, credentials, runtime policy, state, routing and allowed resources |
+| **Decision Validation** | May the result create business effect? | independent DA: substantive admissibility, sufficient sources, rule compliance, complete evidence chain, acceptable risk and required human review |
+
+DA is not a substitute for sandboxes or security controls. Runtime Containment is not a substitute
+for Decision Assurance. Any applicable control in either layer can stop execution; passing one
+cannot override the other. Existing explicitly defined fast paths for non-decision-relevant,
+non-governed work remain valid, subject to runtime controls. Neither RIF nor JEV may reclassify a
+governance-required action to remove the mandatory RIF/DA path; this clarification creates no new
+fast path.
+
+DA remains usable without RIF. Co-hosting a RIF reference package in this repository cannot change
+actor independence or move DA inside the harness. No existing schema, lifecycle, governance gate
+or execution authority changes with this clarification.

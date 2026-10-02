@@ -52,6 +52,17 @@ governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
 `APPROVED` requires explicit human authority even when evaluation returns
 `PASS`.
 
+## Proposed RIF integration boundary
+
+[ADR-008](docs/adr/ADR-008-reasoning-routing-boundary.md) defines **RIF = Agent Runtime Harness**:
+context/instruction assembly, model/tool routing, runtime state, execution policies and JEV.
+**JEV ∈ RIF** is advisory; **`JEV CONTINUE != DA PASS`**. **Decision Assurance ∉ RIF** is the
+Independent Validation Layer for decision- or action-relevant output before business effect.
+**`Generator != Validator != Governance`**. Runtime Containment and Decision Validation are
+separate controls; neither replaces the other. Existing governance-required actions cannot bypass
+DA, human approval or action binding. This is a proposed integration, not an implemented RIF runtime;
+DA still runs independently. See [architecture](docs/ARCHITECTURE.md#proposed-rif-agent-runtime-harness-boundary).
+
 ## Install and verify
 
 ```powershell

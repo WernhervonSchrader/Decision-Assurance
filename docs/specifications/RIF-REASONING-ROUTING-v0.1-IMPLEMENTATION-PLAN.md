@@ -5,20 +5,51 @@
 [routing contract](RIF-REASONING-ROUTING-v0.1.md)
 **Starting point:** `main` at `96b32da9e146b3b276c5fec4e636f67f6ea10889`
 
+## Architecture invariant for every stage
+
+RIF is the agent runtime harness. It governs how an agent executes, including context assembly,
+instruction assembly, model and tool routing, runtime state, execution policies and advisory
+reasoning gates such as JEV. Decision Assurance is not part of the harness. It is an
+actor-independent validation and governance boundary that the harness invokes before a proposed
+decision or action may create business effect.
+
+RIF answers **How should the agent execute?** JEV is the advisory reasoning/routing gate inside
+that harness; an optional TypeSafe Jev adapter supplies selector signals. DA answers **May this
+proposed decision or action be allowed to create business effect?** Only DA produces the
+Governance Outcome `PASS | REVIEW | BLOCK`. **`JEV CONTINUE != DA PASS`** and
+**`Generator != Validator != Governance`** apply to every stage.
+
+Runtime Containment belongs to the harness and technical environment: sandbox, tool permissions,
+network boundaries, identity, credentials, runtime policy/state/routing and allowed resources.
+Decision Validation belongs to the Independent Validation Layer: evidence, sources, rules, claims,
+limits, trust, evidence chain, risk, human review and auditability. Neither layer replaces the other.
+The harness determines how work is performed; it must not determine whether a governed business
+decision is valid. Existing explicitly defined fast paths for non-governed work remain subject to
+runtime controls and cannot waive a governance-required handoff.
+
+The required logical path is Trigger → RIF Runtime Harness → JEV / Routing / Runtime Policy →
+Agent Execution → Proposed Decision or Action → independent DA → `PASS | REVIEW | BLOCK` →
+Execution / Human Review / Stop, with all existing human authorization and action-binding gates.
+Package or process co-location cannot place DA inside the harness. The v0.1 routing contract is a
+part of the broader Runtime Contract; this plan adds no competing contract or general harness
+implementation.
+
 ## Gate 0 — architecture review
 
 An independent reviewer checks the three documents for existing RIF/DA boundaries, authority
 separation, contract versioning, deterministic preflight, explicit fallback, data handling and
-testability. Confirm that mandatory RIF validation paths can contain multiple nodes and cannot be
-replaced by a single FAST/FULL choice. Resolve the four open decisions in the specification.
+testability. Confirm RIF = Agent Runtime Harness, JEV ∈ RIF and DA ∉ RIF; distinguish Runtime
+Containment from Decision Validation and verify the unchanged mandatory DA path. Confirm that
+mandatory RIF validation paths can contain multiple nodes and cannot be replaced by a single FAST/FULL choice. Resolve the four open decisions in the specification.
 The first independent review of PR #11 reported six design gaps; this revision addresses their
 proposed contract and plan changes, but does not turn that earlier `FAIL` into an approval. Obtain
 a new independent review of the revised head and reconcile the authoritative RIF rc3 source.
 Confirm target repository paths on the then-current `main` before implementation. Identify the
 authoritative upstream RIF source:
 `main` contains no RIF orchestrator and explicitly treats RIF/RRS as optional research sources.
-Decide whether DA hosts a reference implementation or integrates an independently versioned RIF
-package; name contract owner and compatibility test. Without that decision, Stage 1 is `BLOCKED`.
+Decide whether this repository co-hosts a logically separate RIF reference implementation or
+integrates an independently versioned RIF package; name contract owner and compatibility test.
+Without that decision, Stage 1 is `BLOCKED`.
 The recommended topology is a RIF-owned normative contract and a version-pinned DA adapter;
 approval of the owner, delegated maintenance if any, and a publishable interface subset is still
 required. Keep the private full edition, prompts and confidential cases outside this public PR.
@@ -33,8 +64,10 @@ The development profile uses synthetic or approved data. No provider credential 
   `src/decision_assurance/schemas/orchestration/`,
   `src/decision_assurance/orchestration/{contracts,ports,policy,service}.py`, and
   `src/decision_assurance/orchestration/providers/deterministic.py`. If the contract is owned in
-  another repository, publish it there and add only a versioned DA adapter. Update the event
-  registry and policy registry through their actual interfaces; do not create duplicate authority.
+  another repository, publish it there and add only a versioned DA adapter. These are provisional
+  packaging paths, not DA ownership of the harness. Keep RIF runtime state, JEV, routing policy and
+  Runtime Contract separate from DA validation, governance outcomes and lifecycle authority.
+  Update the event registry and policy registry through their actual interfaces; do not create duplicate authority.
 - Interfaces: `RoutingPolicy.required_path(context) -> OrderedPath`,
   `ReasoningRouterPort.select(call_context, minimized_input, bound_candidates) -> SelectorSignal`,
   and `RoutingPolicy.evaluate(context, path, signal, progress) -> ReasoningRouteDecision`.
@@ -49,8 +82,9 @@ The development profile uses synthetic or approved data. No provider credential 
 - First write contract tests for canonical and keyed digests, policy-content binding, unknown
   fields, missing/reordered required nodes, forbidden additional nodes, invalid strategies and
   scores, specialist capability/version/executor, the complete status table, six selector outcomes,
-  tenant substitution, swapped provider responses, changed definitions and replay conflicts. Then
-  implement deterministic preflight,
+  tenant substitution, swapped provider responses, changed definitions and replay conflicts. Reject
+  selector-supplied DA outcomes/approval fields and any mapping from JEV CONTINUE or completed
+  runtime progress to DA PASS. Then implement deterministic preflight,
   baseline selector, versioned policy, trusted progress and append-only redacted route events.
   The current `EventRegistry` does not register `routing.decision`; specify its event schema,
   tenant-scoped durable storage, export and retention path. Add a distinct permission instead of
@@ -127,6 +161,9 @@ The development profile uses synthetic or approved data. No provider credential 
 ## Stage 4 — integration, E2E and release decision
 
 - Target the existing authenticated API/service boundary without granting the router a DA role.
+  Keep agent/model generation, harness runtime decisions, independent validation and governance
+  authority distinct. Invoke DA before any decision- or effect-relevant action, including effectful
+  tool calls; apply the existing Decision File Contract and Transition Policy at the action boundary.
   Reuse tenant-scoped persistence, central authorization, immutable audit and existing action
   binding. Confirm `routing.decision` events enter the registered audit path and that the
   persistence boundary rejects UPDATE/DELETE in ordinary operation before relying on append-only
@@ -134,6 +171,11 @@ The development profile uses synthetic or approved data. No provider credential 
 - Run API and workflow E2E in an isolated environment using at least two tenants and roles, DE
   and EN, local fake provider, allowed FULL route, prohibited FAST downgrade, wrong tenant,
   stale policy, provider outage, replay, prompt injection, missing audit sink and later DA denial.
+  In particular, positive JEV/CONTINUE followed by DA REVIEW, BLOCK, missing/stale validation or
+  outage must produce zero business effects, including through tools. Prove DA PASS without the
+  required independent human approval or with an action-digest mismatch also produces zero effects;
+  a valid DA result plus all existing approvals/bindings remains the positive control. A sandbox or
+  tool permission must not substitute for DA, and DA PASS must not widen runtime permissions.
   Specifically persist P1 `ROUTED`, revoke under P2, replay P1 and assert no redispatch; then
   create a linked P2 decision. Race two workers on one progress revision; inject a crashed worker
   before commit, after commit, before transport and after an uncertain transport result. Exercise
@@ -158,7 +200,8 @@ The development profile uses synthetic or approved data. No provider credential 
 | Requirement | Verification evidence required | Release condition |
 | --- | --- | --- |
 | Contract and input integrity | public/package schema parity, required-path omission/order, tamper and invalid-value tests | strict validation passes |
-| Authentication, authorization and actor independence | role negatives; selector cannot emit DA approval | no bypass |
+| Authentication, authorization and actor independence | agent/harness/JEV role negatives; CONTINUE cannot emit DA approval | no bypass |
+| Runtime Containment and Decision Validation | effectful-tool tests; DA REVIEW/BLOCK/outage; PASS without human approval; action mismatch; runtime permission denial | both layers enforced; unchanged mandatory path |
 | Tenant isolation | two-tenant API, persistence and replay negatives | no read/write/inference across tenants |
 | Multilingual routing and display | DE/EN equivalence, locale/date formatting and unsafe fallback tests | no silent downgrade |
 | Privacy, residency, retention and secrets | approved provider terms, guard zero-call tests, canary scan | verified or external provider blocked |

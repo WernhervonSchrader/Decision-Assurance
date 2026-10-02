@@ -1,6 +1,7 @@
-# ADR-008: Provider-neutral reasoning routing before Decision Assurance
+# ADR-008: RIF Agent Runtime Harness and independent Decision Assurance
 
 **Status:** Proposed for independent review — 2026-09-25
+**Architecture clarification:** 2026-10-02
 **Operating profile:** Development; documentation only
 **Related specification:** [RIF Reasoning Routing v0.1](../specifications/RIF-REASONING-ROUTING-v0.1.md)
 
@@ -34,8 +35,107 @@ describes the concept but does not publish a normative routing contract.
 
 ## Decision
 
+RIF is the agent runtime harness. It governs how an agent executes, including context assembly,
+instruction assembly, model and tool routing, runtime state, execution policies and advisory
+reasoning gates such as JEV. Decision Assurance is not part of the harness. It is an
+actor-independent validation and governance boundary that the harness invokes before a proposed
+decision or action may create business effect.
+
+### Responsibilities and authority
+
+| Component | Question | Responsibility | Authority limit |
+| --- | --- | --- | --- |
+| RIF Agent Runtime Harness | **How should the agent execute?** | runtime orchestration, context and instruction assembly, model/tool selection and routing, runtime state, permitted action corridors, execution policies, reasoning selection, JEV, Runtime Contract and handoff to DA | cannot issue substantive or governance approval |
+| JEV within RIF | Which reasoning strategy and route are suitable; is confidence sufficient to continue, escalate or stop? | advisory reasoning/routing gate within the harness | cannot issue DA outcomes or execution authorization |
+| Decision Assurance | **May this proposed decision or action be allowed to create business effect?** | independent validation of evidence, rules, claims, limits, governance requirements, trust, human review, auditability and traceable decision grounds | only the independent DA boundary produces governance outcomes `PASS`, `REVIEW`, `BLOCK` |
+
+JEV denotes the harness's advisory gate; TypeSafe Jev is an optional provider adapter for that
+gate. The logical boundary does not depend on that vendor or imply a live integration.
+**`JEV CONTINUE != DA PASS`.** A positive JEV assessment may support runtime continuation only
+after deterministic routing policy and runtime preflight. It must never skip a DA governance gate,
+remove human review, reduce evidence requirements or grant execution authorization.
+RIF's action corridors may restrict execution further; they cannot widen DA authority.
+
+### Runtime Containment and Decision Validation
+
+The runtime harness may determine how work is performed, but it must not determine whether a
+governed business decision is valid. **`Generator != Validator != Governance`**: the agent
+generates proposals, independent validators establish the decision basis, and DA's governance
+rules and required human authority determine the outcome and approval.
+
+| Control layer | Question | Responsibility |
+| --- | --- | --- |
+| **Runtime Containment** | What can the agent technically reach? | harness and technical environment: sandbox, tool permissions, network boundaries, identity, credentials, runtime policy, state, routing and allowed resources |
+| **Decision Validation** | May the result create business effect? | independent DA: substantive admissibility, sufficient sources, rule compliance, complete evidence chain, acceptable risk and required human review |
+
+DA is not a substitute for sandboxes or security controls. Runtime Containment is not a substitute
+for Decision Assurance. Any applicable control in either layer can stop execution; passing one
+cannot override the other. Existing explicitly defined fast paths for non-decision-relevant,
+non-governed work remain valid, subject to runtime controls. Neither RIF nor JEV may reclassify a
+governance-required action to remove the mandatory RIF/DA path; this clarification creates no new
+fast path.
+
+### Logical topology
+
+```text
+User / Event / System Trigger
+        |
+        v
+    Orchestrator
+        |
+        v
++-----------------------------+
+| RIF Agent Runtime Harness   |
+| - Context Assembly          |
+| - Instructions              |
+| - Model / Tool Routing      |
+| - State / Runtime State     |
+| - Policies                  |
+| - JEV Gate                  |
+| - Runtime Contract          |
++-----------------------------+
+        |
+        v
+    Agent / Model
+        |
+        v
+Proposed Decision / Action
+        |
+        v
++-----------------------------+
+| Decision Assurance          |
+| Independent Validation      |
+| - Evidence / Rules / Claims |
+| - Trust / Limits            |
+| - Governance Gates / HITL   |
+| - Audit / Traceability      |
++-----------------------------+
+        |
+        v
+  PASS / REVIEW / BLOCK
+        |
+        v
+Existing authorization, human approval
+and action-binding gates
+        |
+        v
+      Action
+```
+
+The entry orchestrator hands execution to the harness; RIF owns the runtime orchestration around
+agent/model calls. For decision- or effect-relevant output, the harness invokes DA through its
+independent authenticated boundary before business effect, including tools capable of such effects.
+The DA box is outside RIF. Repository, package or process co-location does not change this boundary.
+The last authorization step preserves the existing [Transition Policy](../TRANSITION_POLICY.md)
+and [Decision File Contract](../DECISION_FILE_CONTRACT.md): even DA `PASS` is not lifecycle
+`APPROVED` and does not replace required human authority, approval nonce or action digest.
+DA `REVIEW` waits for required independent review; DA `BLOCK` prevents the proposed effect.
+Missing, invalid or unavailable DA validation cannot be replaced by a routing signal.
+
+### Routing contract within the harness
+
 Introduce a versioned, strict machine-readable `reasoning_route_decision` specified for RIF. An
-authenticated, tenant-bound request enters the orchestrator. The trusted routing policy first
+authenticated, tenant-bound request enters the orchestrator. The trusted RIF routing policy first
 determines a required, ordered path of validation and reasoning steps from mission risk, scope and
 data rules. A selector may then propose one *processing strategy* and supplementary checks from
 finite permitted sets. It cannot remove, reorder or mark a required step as complete. A separate
@@ -49,9 +149,9 @@ supplementary steps are part of the effective path and must also be completed. C
 advancement uses compare-and-swap on the progress revision; a selector cannot write progress.
 
 Routing, substantive judgment and execution authorization are different decisions. Neither the
-selector nor the orchestrator can issue `PASS`, `APPROVED`, `ALLOW_EXECUTION` or a substitute DA
-finding. Evidence and results enter the existing independent DA boundary; execution still requires
-the applicable DA outcome and action binding. The selector cannot approve its own output.
+agent/model, RIF harness, selector nor orchestrator can issue `PASS`, `APPROVED`,
+`ALLOW_EXECUTION` or a substitute DA finding. Runtime checks and accepted RIF progress are not DA findings. Evidence and results enter
+the existing independent DA boundary; execution still requires the applicable DA outcome and action binding. The selector cannot approve its own output.
 
 The initial *strategy* vocabulary is `FAST_REASONING`, `FULL_REASONING`,
 `SPECIALIST_REASONING` and `HUMAN_REVIEW`. `FAST_REASONING` may reduce optional reasoning effort,
@@ -105,5 +205,5 @@ calibrated confidence. Route thresholds require a labeled benchmark and document
 
 Independent review must approve the contract, policy precedence, data classification, routing
 semantics, fallback and evaluation design. The [implementation plan](../specifications/RIF-REASONING-ROUTING-v0.1-IMPLEMENTATION-PLAN.md)
-defines verification and release gates; a Draft PR or passing mock tests do not authorize live
-provider use, production routing or execution.
+defines verification and release gates, including positive JEV followed by DA denial. A Draft PR or
+passing mock tests do not authorize live provider use, production routing or execution.

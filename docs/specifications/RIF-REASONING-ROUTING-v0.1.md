@@ -1,10 +1,17 @@
 # RIF Reasoning Routing Contract v0.1
 
 **Status:** Proposed design, not implemented — 2026-09-25
+**Architecture clarification:** 2026-10-02
 **Operating profile:** Development with synthetic or approved test cases
 **Decision record:** [ADR-008](../adr/ADR-008-reasoning-routing-boundary.md)
 
 ## 1. Objective and decision boundary
+
+RIF is the agent runtime harness. It governs how an agent executes, including context assembly,
+instruction assembly, model and tool routing, runtime state, execution policies and advisory
+reasoning gates such as JEV. Decision Assurance is not part of the harness. It is an
+actor-independent validation and governance boundary that the harness invokes before a proposed
+decision or action may create business effect.
 
 The proposed RIF orchestrator records the required validation path and a processing strategy in a
 machine-readable contract. A route selection does not assert factual truth, approve evidence,
@@ -23,12 +30,84 @@ The DA `main` branch has no RIF runtime or upstream `MissionState` contract. Thi
 must be reconciled against the authoritative RIF source before claiming RIF conformance or
 committing to a module path in DA. See the repository README's RIF/RRS positioning.
 
+## 1a. Harness scope and JEV semantics
+
+RIF answers **How should the agent execute?** Its Runtime Contract governs runtime orchestration,
+context assembly, instruction assembly, model selection/routing, tool selection/routing, runtime
+state, allowed action corridors, execution policies, reasoning/routing selection, JEV and the
+handoff of decision-relevant results to DA. This v0.1 reasoning-route contract is one part of that
+broader Runtime Contract; it does not yet implement or fully specify every harness capability.
+
+JEV belongs to the harness and answers which reasoning strategy or route is suitable, whether
+documented and calibrated confidence permits continuation, and when to escalate or stop. JEV is
+advisory or routing-relevant. An optional TypeSafe Jev adapter supplies untrusted selector signals;
+deterministic policy remains responsible for applying them to runtime routing.
+
+**`JEV CONTINUE != DA PASS`.** `CONTINUE` describes advisory runtime continuation, not a new
+v0.1 contract status. The existing routing statuses remain `ROUTED | ESCALATED | BLOCKED`;
+a positive JEV signal alone is insufficient even for `ROUTED`. No routing status, completed
+runtime path, confidence score or routing human handoff can be converted into DA `PASS`.
+JEV must never issue DA `PASS`, bypass governance gates, remove human review, reduce evidence
+requirements or itself grant execution authorization. RIF and the agent/model have the same
+authority restriction. Runtime policies may narrow the permitted action corridor but cannot
+relax DA requirements.
+
+## 1b. Runtime Containment and Decision Validation
+
+The runtime harness may determine how work is performed, but it must not determine whether a
+governed business decision is valid. **`Generator != Validator != Governance`**: the agent
+generates proposals, independent validators establish the decision basis, and DA's governance
+rules and required human authority determine the outcome and approval.
+
+| Control layer | Question | Responsibility |
+| --- | --- | --- |
+| **Runtime Containment** | What can the agent technically reach? | harness and technical environment: sandbox, tool permissions, network boundaries, identity, credentials, runtime policy, state, routing and allowed resources |
+| **Decision Validation** | May the result create business effect? | independent DA: substantive admissibility, sufficient sources, rule compliance, complete evidence chain, acceptable risk and required human review |
+
+DA is not a substitute for sandboxes or security controls. Runtime Containment is not a substitute
+for Decision Assurance. Any applicable control in either layer can stop execution; passing one
+cannot override the other. Existing explicitly defined fast paths for non-decision-relevant,
+non-governed work remain valid, subject to runtime controls. Neither RIF nor JEV may reclassify a
+governance-required action to remove the mandatory RIF/DA path; this clarification creates no new
+fast path.
+
+## 1c. Independent DA handoff and business effect
+
+DA answers **May this proposed decision or action be allowed to create business effect?** It
+independently checks evidence, rules, claims, limits, governance requirements, trust, human review,
+auditability and the traceable decision basis. Only this actor-independent validation and governance
+boundary produces `PASS | REVIEW | BLOCK`. DA remains usable without RIF and applies the same
+requirements to agent-, human- or service-generated proposals.
+
+Before a decision- or effect-relevant action, including an effectful tool call, the harness must
+submit the proposed action and evidence to DA's existing authenticated integration boundary.
+Use the [Decision File Contract](../DECISION_FILE_CONTRACT.md) for claims, evidence, policy and
+review requirements, verified tenant/actor provenance, requester/generator identity and canonical
+action binding. Keep the RIF route/progress record distinct from the DA case and outcome; correlate
+their immutable references in the integration audit without adding unsupported Decision File fields.
+RIF's required/effective path describes runtime checks and reasoning; `SOURCE_VALIDATION` and
+`CONSTRAINT_VALIDATION` are not substitutes for independent DA evidence or constraint validation.
+
+The action boundary verifies the DA result against the current case and exact proposed action,
+then enforces the existing [Transition Policy](../TRANSITION_POLICY.md), independent human approval,
+nonce/replay checks and action digest. DA `PASS` does not mean lifecycle `APPROVED`; all existing
+gates still apply. DA `REVIEW` pauses the proposed effect for the required independent review;
+DA `BLOCK` prohibits it. Missing, stale, mismatched, invalid or unavailable DA validation prevents
+the effect. A changed action or material input requires fresh DA validation and applicable approval.
+A safe runtime fallback may continue investigation, but cannot turn DA denial or outage into action
+permission. Return to RIF for revision or escalation without overwriting DA findings.
+
+See [ADR-008's logical topology](../adr/ADR-008-reasoning-routing-boundary.md#logical-topology)
+for Trigger → Orchestrator → RIF Harness → Agent/Model → Proposal → independent DA → authorization
+gates → Action.
+
 ## 2. Components and order
 
-1. At the DA integration boundary, authenticate the caller; derive tenant, actor, permitted
+1. At the RIF harness entry boundary, authenticate the caller; derive tenant, actor, permitted
    workflow, locale and data classification from trusted context and policy. Verify request
    schema, size, canonical digest and idempotency. An external RIF runtime needs an equivalent
-   independently verified identity contract.
+   independently verified identity contract. DA reauthenticates and authorizes independently when
+   the harness later invokes its validation boundary.
 2. Determine and bind an ordered **required path** of checks from trusted policy and mission
    context. Apply hard strategy exclusions and external-egress policy before selector invocation.
    If a safe deterministic choice follows, no provider call is needed.
@@ -44,8 +123,10 @@ committing to a module path in DA. See the repository README's RIF/RRS positioni
    identified dispatch intent. A worker independently rechecks current authority and trusted
    progress before dispatching the next outstanding effective node. `ESCALATED` creates a human
    handoff; `BLOCKED` dispatches nothing. Failure to record a required event prevents dispatch.
-6. Send reasoning results, evidence and any proposed business action through their existing
-   validation, independent judgment and DA governance boundaries.
+6. Execute the agent/model within the harness's context, instructions, model/tool route, runtime
+   state and permitted action corridor. Collect the resulting proposal and evidence; before any
+   business effect, invoke independent DA as specified in section 1c. Only a valid DA result and
+   all existing authorization, human-review and action-binding gates permit the effect.
 
 ## 3. Canonical contract shape
 
@@ -232,7 +313,7 @@ lengths, digests, bounds, unknown fields and all nullable/abstention cases.
 | Selector drift or invalid distribution | version pin, strict mapping, shape and calibration checks | contract and regression tests |
 | Outage, timeout or lost audit | bounded failure and typed escalation/block | failure-injection E2E |
 | SDK retries bypass egress guard | no internal retry; guarded per-attempt loop | revoke between attempts, zero second call |
-| Self-approval or DA bypass | route has no assurance or execution authority | negative role and action-binding tests |
+| Self-approval or DA bypass | agent, harness and JEV have no DA authority; independent validation before business effect | JEV CONTINUE plus DA REVIEW/BLOCK/outage, effectful-tool and action-binding negatives |
 
 ## 6. Design verification matrix
 
@@ -254,8 +335,9 @@ lengths, digests, bounds, unknown fields and all nullable/abstention cases.
 ## 7. Open decisions for independent review
 
 1. Identify the authoritative upstream RIF contract/owner and settle whether the reference router
-   is hosted in DA or a separate RIF package. The current DA `main` has no RIF runtime. Confirm the
-   event registry, durable routing audit and export mapping in the implementation revision;
+   is co-hosted in this repository or a separate RIF package. This packaging decision cannot move
+   DA inside the harness or give RIF governance authority. The current DA `main` has no RIF runtime.
+   Confirm the event registry, durable routing audit and export mapping in the implementation revision;
    existing Web Research egress controls are a pattern, not evidence that routing uses them.
 2. Approve the precise node taxonomy and ordering, strategy eligibility, specialty identifiers,
    canonical JSON/profile and digest-key retention periods, handoff and audit retention periods,
