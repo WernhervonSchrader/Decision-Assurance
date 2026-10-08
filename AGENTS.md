@@ -428,3 +428,14 @@ Whenever a requirement is unclear, use an explicit documented assumption rather 
 Whenever a shortcut creates future migration risk for multilingual operation, multi-tenancy, security or E2E testing, do not take it without recording the decision and consequences.
 
 Build the smallest solution that fulfils the full operational and security requirements. Do not confuse minimum scope with incomplete engineering.
+
+## 13. Review mode and owner publication
+
+Read `docs/governance/DA-INDEPENDENT-REVIEW-POLICY.md` for repository reviews and publication
+readiness. DA-IRP-001 v0.3 adopts `SOLO_OWNER` for the current single-maintainer operation and
+explicitly replaces older process-only requirements for a different author/reviewer. A second
+human, model or session is recommended where useful, not an automatic publication prerequisite.
+Technical checks, findings, exact artifact binding and the human owner's explicit release decision
+remain required. Disclose self-review; do not claim independent assurance. Substantive engineering
+controls, DA/Odoo business/runtime approvals, external requirements and separately authorized
+deployment remain unchanged. See policy section 6 for the exact scope and precedence.
