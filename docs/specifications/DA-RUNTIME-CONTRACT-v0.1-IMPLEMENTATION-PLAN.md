@@ -1,8 +1,10 @@
 # Runtime Contract v0.1 — Implementation Plan
 
-**Status:** Proposed; implementation is not authorized
+**Status:** Proposed after self-review; implementation is not authorized
 
-**Basis:** `96b32da9e146b3b276c5fec4e636f67f6ea10889`
+**Documentation-remediation basis:** `fb30152492a01776a3228aac5f3b933337cd67ae`
+
+**Future implementation base:** must be selected and independently approved at implementation time
 
 **ADR:** [ADR-007](../adr/ADR-007-runtime-contract-execution-evidence.md)
 
@@ -17,6 +19,10 @@ claim production non-bypassability, deploy or grant organizational acceptance.
 Use test-driven tasks. Preserve tenant context through API, service, repositories, jobs, events,
 caches and artifact resolution. Stage, commit, push and PR creation each require authorization.
 
+This document plans future work only. No control below is implemented or evidenced by this plan.
+Every future test, control and gate has status `NOT TESTED` until commit-bound evidence records an
+actual execution. `NOT TESTED` must never be rendered as `PASS` or omitted from a mandatory gate.
+
 ## Proposed architecture
 
 ```text
@@ -24,8 +30,10 @@ Verified OIDC Identity
   -> Tenant + Authorization Policy
   -> Runtime Contract Binder
   -> Execution Authorization Gate
-  -> Atomic Attempt Reservation
+  -> Atomic Attempt Reservation + execution.attempt_reserved
+  -> execution.attempt_started
   -> Protected Target Port
+  -> Reconciliation Record when EFFECT_UNKNOWN
   -> Evidence Observer / Guarded Artifact Resolver
   -> Independent Evidence Verifier
   -> Deterministic Completion Gate
@@ -49,9 +57,16 @@ Exact paths:
 - `tests/runtime_contract/unit/test_completion_policy.py`
 - `tests/fixtures/runtime-contract/`
 
-Cover valid contracts, unknown fields/version/algorithm, every binding mutation, missing/stale/
+Cover the field-exact canonicalization matrix, RFC 8785/domain separation/timestamp rules, closed
+value namespaces, the two closed artifact schemas, the lossless Decision File v0.2 approval mapping,
+`runtime_decision_reference_digest`, valid contracts, unknown fields/version/algorithm, every binding mutation, missing/stale/
 unavailable evidence, circular provenance, replay IDs and deterministic key ordering. Assert codes,
 not localized prose.
+
+Prove that imported v0.2 action/approval digests use the unchanged v0.2 reference functions, that no
+v0.2 full-document digest is assumed, and that Runtime-owned digests alone use the new RFC 8785 and
+domain-separation rules. Reject the removed/invented approval field names and every unknown artifact
+type, field, version or enum value.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\runtime_contract\contract tests\runtime_contract\unit -q
@@ -98,10 +113,16 @@ schema hash equals the approved base.
 - `tests/production/postgresql/test_migration_contract.py`
 
 Test tenant keys, forced RLS, missing tenant, cross-tenant references, append-only denial, chain order,
-atomic state/audit/idempotency, authorization races, duplicate completion, lease loss and rollback.
+atomic state/audit/idempotency, parallel authorization-revocation/reservation races, a distinct durable
+`execution.attempt_reserved` event before any target call, duplicate completion, lease loss and rollback.
 Parallel tests use at least two connections and prove one effective owner. Failure injection after a
 target may have accepted the request must produce `EFFECT_UNKNOWN`, must not return success and must
-prove that the orchestrator does not blindly execute the effect again.
+prove that the orchestrator does not blindly execute the effect again. Cover all reconciliation
+outcomes: idempotency inquiry proves effect, independent evidence proves effect, inquiry proves no
+effect and authorizes only a new authorization/attempt, and unresolved uncertainty remains
+`EFFECT_UNKNOWN` with completion `FAIL`. Verify reconciliation actor independence and append-only
+history. Recompute and tamper-test `reconciliation_digest`; prove its exact binding into subsequent
+verification and completion, and reject missing, substituted, wrong-tenant or wrong-attempt digests.
 
 ### 2.2 Add migrations and repository ports
 
@@ -117,6 +138,9 @@ Provisional paths; recheck numbering against `origin/main` immediately before im
 
 Every key/relation includes tenant. PostgreSQL enables and forces RLS. Runtime events are append-only
 for application roles. Idempotency includes tenant, actor, operation, key and request digest.
+Authorization revocation and attempt reservation share one compare-and-swap boundary. A committed
+revocation returns `AUTHORIZATION_REVOKED` and proves zero adapter calls; a committed reservation
+consumes authorization and cannot be retroactively revoked.
 
 ### 2.3 Add service and protected execution port
 
@@ -128,6 +152,9 @@ for application roles. Idempotency includes tenant, actor, operation, key and re
 Use dependency-inverted ports and deterministic fakes/spies. Prove zero target/evidence calls before
 required gates. Reserve before target I/O; complete only after evidence. Bounded retries must not
 repeat an uncertain target effect; reconciliation uses adapter idempotency or independent evidence.
+Persist `execution.attempt_started` after reservation and before invoking the protected port.
+The ordering spy must observe `authorization_decided -> attempt_reserved -> attempt_started ->
+protected I/O`; no overview or adapter path may omit the started event.
 
 Commit gate: SQLite/PostgreSQL integration, migration parity, cross-tenant/concurrency negatives and
 secret-canary checks pass.
@@ -166,7 +193,9 @@ fallback, localized formatting and identical normative values.
 - `tests/production/e2e/test_sales_quote_pilot.py`
 - `ui/e2e/pilot.spec.ts`
 
-Cover two-tenant success; wrong tenant; manipulated action/approval/constraints; authorization,
+Cover every cell of the single ADR/spec actor-capability matrix, unknown/mixed-case roles,
+Generator/Validator/Approver Protected-I/O denial, role aggregation, service-as-human denial,
+two-tenant success; wrong tenant; manipulated action/approval/constraints; authorization revocation,
 attempt/evidence replay; self-verification; stale/unreachable/tampered evidence; audit/evidence outage;
 DE/EN; logout/session expiry and prohibited roles. Tests seed/clean deterministic data. Failure
 traces/screenshots are scanned for credentials and PII.
@@ -198,6 +227,32 @@ Update only after behavior exists:
 Describe implemented behavior only. Unavailable external gates remain `NOT TESTED` or `BLOCKED`.
 Record exact revision, environment, commands, results, artifact digests and residual risks.
 
+### 4.1 Retention, legal hold, backup and restore evidence
+
+Before enabling artifact storage or protected execution, add deterministic and PostgreSQL tests for
+separate ledger/artifact retention, deletion tombstones, the minimum surviving provenance tuple,
+tenant-scoped hold application/release, pending delete after hold, authorization-independent hold
+access, backup ageing and an isolated fresh restore. Recovery verification must prove holds and
+tombstones are re-applied before access, deleted locators are not resurrected, RLS still isolates two
+tenants, and the ledger chain/latest retained event matches. Bind observed RPO/RTO to the exact
+environment and label them observations. Status: `NOT TESTED`.
+
+Test the exact payloads, capabilities and transitions for `execution.evidence_hold_applied`,
+`execution.evidence_hold_released`, `execution.evidence_delete_requested` and
+`execution.evidence_delete_completed`. Race hold-apply against delete-complete with two connections;
+only one valid CAS transition may win. Prove stale/missing policy, wrong tenant, unauthorized actor,
+audit failure and `PENDING_HOLD` delete-complete make no deletion. Verify immutable events contain
+only pseudonymous references and that deleting/blocking the external identity mapping leaves every
+event byte and hash unchanged.
+
+### 4.2 Decision activation gates
+
+DR-01 and DR-05 are `DEFERRED_CAPABILITY_DISABLED`; DR-07 remains
+`DEFERRED_CAPABILITY_DISABLED` until an approved Retention Policy supplies periods. DR-06 and DR-08
+are `REQUIRES_DEPLOYMENT_EVIDENCE`. Absence, expiry or mismatch blocks activation. DR-02, DR-03 and
+DR-04 are `RESOLVED` only by the exact specification rules and may not be reinterpreted. No
+implementation task may silently change a state. Status: `NOT TESTED`.
+
 ## Verification matrix
 
 ```powershell
@@ -209,20 +264,25 @@ Record exact revision, environment, commands, results, artifact digests and resi
 git diff --check
 ```
 
-| Layer | Strategy | Expected evidence | Flakiness control |
-| --- | --- | --- | --- |
-| PostgreSQL | existing PostgreSQL 16 marker/job, fresh schema | migration/RLS/concurrency/rollback | deterministic IDs, barriers, bounded timeouts |
-| Keycloak | isolated Compose realm | PKCE/JWKS/tenant/roles/kind | ephemeral secrets and readiness wait |
-| Security | Bandit, audit, Gitleaks, negative tests | no unresolved critical or canary | pinned inputs, sanitized output |
-| Browser | Playwright Chromium, two tenants, DE/EN | failure-only trace/screenshots | deterministic seed; classified setup retry only |
-| Container | existing builds/smoke/SBOM/Trivy | immutable commit-bound artifacts | pinned scanner/action inputs |
-| Release evidence | existing dependent final job | exact-head checksums/report | no relabelled or stale artifacts |
+| Layer | Strategy | Expected evidence | Flakiness control | Status |
+| --- | --- | --- | --- | --- |
+| Contract/canonicalization | strict schemas, fixtures, every-field mutation, namespace separation | fixture digests and schema report | fixed clocks/bytes | NOT TESTED |
+| PostgreSQL | existing PostgreSQL 16 marker/job, fresh schema | migration/RLS/concurrency/revoke-reserve/rollback | deterministic IDs, barriers, bounded timeouts | NOT TESTED |
+| Reconciliation | deterministic fake adapter and independent observation | all `EFFECT_UNKNOWN` outcomes and no blind retry | fixed inquiry responses | NOT TESTED |
+| Reconciliation binding | canonical record/digest fixtures and substitution negatives | attempt-to-reconciliation-to-verification-to-completion chain | fixed IDs, clocks and evidence | NOT TESTED |
+| Keycloak | isolated Compose realm | PKCE/JWKS/tenant/roles/kind/capabilities | ephemeral secrets and readiness wait | NOT TESTED |
+| Retention/recovery | fresh restore with two tenants, holds and tombstones | RLS/hash/latest-event/no-resurrection record | fixed dataset and clocks | NOT TESTED |
+| Security | Bandit, audit, Gitleaks, negative tests | no unresolved critical or canary | pinned inputs, sanitized output | NOT TESTED |
+| Browser | Playwright Chromium, two tenants, DE/EN | failure-only trace/screenshots | deterministic seed; classified setup retry only | NOT TESTED |
+| Container | existing builds/smoke/SBOM/Trivy | immutable commit-bound artifacts | pinned scanner/action inputs | NOT TESTED |
+| Release evidence | existing dependent final job | exact-head checksums/report | no relabelled or stale artifacts | NOT TESTED |
 
 ## Rollout, rollback and completion
 
 No deployment is part of Phase 1. Later rollout uses additive migrations, readers before writers,
 configuration/health validation and two-tenant DE/EN smoke tests. Protected execution stays disabled
-until artifact storage, residency, retention and independent review are approved.
+until artifact storage, residency, retention periods, legal-hold ownership, backup/restore behavior,
+adapter inventory and independent review are approved and evidenced.
 
 Before publication, revert the isolated feature if needed. After records exist, retain compatible
 readers and migrate forward; never delete the ledger, relabel versions or downgrade records into
@@ -233,3 +293,15 @@ schemas; proven binding, independence, isolation, replay/concurrency and failure
 contract, PostgreSQL, Keycloak, security and browser gates; DE/EN parity; current threat model; no
 unresolved critical/high finding; and exact-head release evidence that is not represented as
 deployment or organizational approval.
+
+Until that objective is met, every listed future gate remains `NOT TESTED`; the documentation-only
+review remediation does not change that status.
+
+## Publication review corrections, before any implementation
+
+Use constraint_set_digest consistently. Add lossless-source fixtures for valid offset timestamps,
+maximum safe positive/negative integers, and denied float/unsafe integer source values; prove the
+original v0.2 data and its approval digests remain unchanged and denied imports make zero target calls.
+Add Runtime Event 0.1.0 strict fields/version fixtures; existing v1 readers must reject that envelope,
+unknown versions/aliases must fail, and the explicit version dispatcher must preserve tenant and hash
+bindings. Review: DA-RUNTIME-CONTRACT-v0.1-PUBLICATION-REVIEW.md. All future tests remain NOT TESTED.
