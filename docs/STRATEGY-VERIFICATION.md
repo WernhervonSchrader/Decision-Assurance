@@ -119,3 +119,24 @@ Added:
 - docs/STRATEGY-INTEGRATION.md; this verification report; docs/specifications/DA-STRATEGY-ADAPTER.md; docs/specifications/DA-STRATEGY-IMPLEMENTATION-PLAN.md
 
 Unchanged by verified Git diff: engine.py, transitions.py, authorization.py, decision_file.py, audit.py, normative public/packaged decision-file.schema.json, pyproject.toml, package __init__.py/version, TRANSITION_POLICY.md and DECISION_FILE_CONTRACT.md. Preexisting .gitignore, .secrets visibility, .review-pr11 and Odoo design work were not modified. Neither contribute.md nor CONTRIBUTING.md was touched.
+
+## Commit-bound publication review — 2026-10-08
+
+Fresh review followed by remediation-closure assessment. Reviewed executable commit: `167bf17` (feature/controlled-strategy-handoff); all 58 committed paths were compared with the explicit package inventory. Original copied RIF files were separately hashed against their actual handoff sources and the Git commit: all 13 match. The older 757-pass execution above is historical evidence, not approval of this commit.
+
+Reviewer/remediator: Codex / root / this task and session. The same actor contributed implementation and fixes. INDEPENDENCE = NOT ESTABLISHED; no independent technical approval or certification is claimed. The project owner's current explicit instruction authorizes review, necessary fixes and branch/draft-PR publication; no main merge, release or deployment.
+
+Specification assessment: imported evidence and assumptions stay UNVERIFIED/CONFLICTING; no imported VERIFIED/PASS/APPROVED. Missing semantic replay remains REVIEW_REQUIRED; selected hard conditions remain unsatisfied unless verified outside this adapter. Tenant, principal, case, version and exact request/document hashes bind imports. SQLite immediate transactions and PostgreSQL locked tenant transactions atomically persist document/original/baseline/audits. Concurrent identical imports converge; changed requests/principals conflict. Original/corrected baselines remain immutable and terminal case observations do not rewrite cases. Original subject paths distinguish assumption versions. Full RIF evidence/scoring replay remains explicitly unimplemented.
+
+Code/security assessment: bounded strict schemas, parameterized storage, forced PostgreSQL RLS, non-updatable runtime strategy tables, inert locators, no provider/tool execution and unchanged default route/authorization/lifecycle contracts. Read-only CLI is not an authenticated write boundary. Privileged database tampering remains outside this reference boundary. API-only journeys do not replace browser/OIDC acceptance.
+
+| Finding | Severity | File | Remedy and actual evidence | Status |
+|---|---|---|---|---|
+| PUB-STR-001 | Major integrity | src/decision_assurance/strategy/store.py | Replay previously compared actor ID alone; now also binds trusted actor kind and client ID on explicit/embedded-baseline records. Two new cases failed before correction, all three pass after correction; original audit remains singular. | CLOSED |
+| PUB-STR-002 | Major integrity/portability | .gitattributes; schemas/strategy/RIF-SNAPSHOT.json | core.autocrlf could invalidate original byte hashes. Scoped -text attributes preserve source CRLF exactly; Git commit hashes verified for all 13 pinned files. CRLF is recognized as a line ending while normal whitespace checks remain enabled. | CLOSED |
+| PUB-STR-003 | Observation | .secrets/*.example | All 17 files exist. Git-normalized contents equal HEAD; apparent deletions were sandbox visibility and raw hash differences were CRLF. No example was staged, restored or deleted. | EXPLAINED |
+| PUB-CI-001 | High/critical inherited gate | ui/package-lock.json; Dockerfile.keycloak | PR 11 run 36980262943 fails UI dependency audit and Keycloak critical scan; browser E2E/release evidence skipped. Separate repair worktree prepared; no gate weakened. | OPEN outside adapter implementation; merge blocked |
+
+Observed on `167bf17`: fresh .cache/strategy-live-venv-7f19, full pytest with isolated PostgreSQL 16: **760 passed, 7 skipped, 0 failed**, 718.77 seconds. All 57 strategy cases, including five live PostgreSQL cases, passed. Skips are four existing live Keycloak and three provider tests; not accepted as passed. Ruff passed; mypy passed all 142 source files; bounded Gitleaks scan passed on the reviewed package. Actual commit-bound JUnit/logs are retained locally under .cache/publication-review, excluded from Git. Old .venv is not used as a repaired acceptance environment.
+
+The previously clean API image scan refers to the earlier working-tree image, not automatically this commit. New GitHub CI must run on the published SHA and supply all required gates, including UI and Keycloak scans. VERDICT: PASS WITH MINOR FINDINGS for bounded adapter source; branch publication only, existing full CI/release acceptance remains incomplete. Runtime enablement stays explicit; no production approval.
