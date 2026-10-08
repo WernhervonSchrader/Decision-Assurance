@@ -1,6 +1,6 @@
 # ADR-007: Odoo-orchestrated deterministic expense assurance boundary
 
-**Status:** Proposed for independent review — remediated 2026-08-18
+**Status:** Proposed for technical review and owner acceptance — `SOLO_OWNER` process update 2026-10-01
 
 ## Context
 
@@ -258,6 +258,15 @@ tax compliance, outcome, authorization, audit truth, booking or payment.
 
 ## Review gate
 
-This remediated ADR requires a new independent architecture and security review before Phase 1.
+This ADR requires a documented architecture/security/contract assessment under
+[DA-IRP-001 v0.3](../governance/DA-INDEPENDENT-REVIEW-POLICY.md), section 6, before Phase 1.
+The adopted mode is `SOLO_OWNER`: a separate human, model or session is recommended but not
+mandatory. The author/remediator may assess the final primary artifacts in a distinct review step
+with disclosed non-independence; the accountable owner may accept their own repository artifacts.
+A technical verdict, substantive finding closure, exact artifact binding and explicit owner
+authorization remain required. Missing personnel separation alone is not a publication or
+implementation-readiness blocker. Rule Author/Rule Approver and DA/Odoo runtime/business role
+separation remain unchanged. Publication follows the separate owner release gate in policy
+section 6.3; this amendment does not itself approve a release or Phase 1 implementation.
 Acceptance authorizes planning only. It is repository evidence, not deployment, tax-content,
 organizational or production authorization.

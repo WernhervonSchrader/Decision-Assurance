@@ -1,13 +1,17 @@
 # Decision Assurance v0.10 — Odoo Expense Assurance implementation plan
 
-**Status:** Proposed Phase 1 plan for independent review; no implementation is authorized by this
+**Status:** Proposed Phase 1 plan for technical review and owner acceptance in `SOLO_OWNER`; no implementation is authorized by this
 document.
 
 Normative planning baseline:
-`96b32da9e146b3b276c5fec4e636f67f6ea10889`. Implementation must start from the independently
-approved head, record its full SHA and re-baseline every contract, test and migration if it differs.
+`96b32da9e146b3b276c5fec4e636f67f6ea10889`. Implementation must start from the technically reviewed,
+owner-authorized head, record its full SHA and re-baseline every contract, test and migration if it differs.
 Architecture is defined by [ADR-007](../adr/ADR-007-odoo-expense-assurance-boundary.md) and the
 [v0.10 specification](DA-ODOO-EXPENSE-v0.10.md).
+Repository review and publication follow [DA-IRP-001 v0.3](../governance/DA-INDEPENDENT-REVIEW-POLICY.md)
+section 6. `SOLO_OWNER` permits disclosed self-review and same-owner acceptance. Separate
+person/model/session review is recommended, not a prerequisite. Technical findings and applicable
+checks remain binding; implementation, publication and deployment decisions remain distinct.
 
 ## 1. Delivery rules, Phase 1 decisions and exclusions
 
@@ -553,7 +557,7 @@ Update OpenAPI, event registry/export recognition, localization catalogs and mig
 
 Run formatting, lint, strict typing, unit/contract/integration/PostgreSQL/RLS/E2E, schema/OpenAPI,
 migration/rollback, dependency audit, secret scan, static analysis, build, container/SBOM/scan and
-recovery/release evidence gates. Bind outputs plus independent specification/security and separate
+recovery/release evidence gates. Bind outputs plus `SOLO_OWNER` specification/security and separate
 code-quality review to the exact full head SHA.
 
 This proves repository/integration evidence only. It does not deploy, approve tax content, close the
@@ -594,24 +598,33 @@ CI retains actionable JUnit, sanitized traces, migration output, security report
 release evidence under the existing retention policy. Controlled reruns may diagnose infrastructure
 flakiness but do not erase the first result.
 
-## 5. Commit and independent-review boundaries
+## 5. Commit, technical-review and owner-release boundaries
 
 Each listed commit includes its scoped RED/GREEN control and compatible regression evidence. A RED
 test commit may intentionally fail only its named missing control; no unrelated failing baseline is
 accepted. Before PR publication, verify expected head, changed scope, schemas, migrations, docs and
 all mandatory checks.
 
-Independent review evaluates source-authority bypasses, federation, resolver uniqueness, ownership,
+Technical review in the declared policy mode evaluates source-authority bypasses, federation, resolver uniqueness, ownership,
 RIF approval/lineage, complete evaluation context, terminal artifact versioning, Decision File v0.2
 advisory semantics, receipt non-authority, RLS and audit privileges against the exact head. Merge and
 deployment remain separate explicit authorizations.
+The same author/remediator may perform the solo final-artifact review; record
+`INDEPENDENCE = NOT ESTABLISHED` or, for unavailable provenance, `NOT ASSESSABLE`. Technical `PASS`
+does not claim independent assurance. Publication requires applicable passing checks and the
+accountable owner's exact-commit release decision under policy section 6.3. Unknown independence
+alone does not block the adopted solo mode; missing substantive evidence still does.
 
 ## 6. Completion evidence and acceptance gate
 
 Phase 1 is complete only when every v0.10 acceptance criterion has a passing test or concrete
 commit-bound evidence; every prohibited path stops before sensitive DA processing; the Golden
 Evidence Set passes; migrations/rollback and audit roles are verified; no unresolved critical/high
-defect remains; and independent specification/security plus code-quality reviews report no blocker.
+defect remains; and specification/security plus code-quality assessments in the declared policy mode
+report no substantive blocker. Owner release authorization and truthful self-review disclosure
+replace the repository-process requirement for an absolutely independent reviewer. This does not
+waive separate human actors required for pilot Rule Package approval or existing DA/Odoo runtime
+and business approvals.
 
 Completion does not claim prevention of the external Odoo stale-result race. The unresolved
 retrospective revocation policy and any future Canonical-Action execution protocol remain explicitly

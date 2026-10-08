@@ -1,10 +1,18 @@
 # Decision Assurance v0.10 — Odoo Expense Assurance
 
-**Status:** Proposed implementation specification for independent review — remediation II
+**Status:** Proposed implementation specification for technical review and owner acceptance — `SOLO_OWNER` process update 2026-10-01
 
 This specification defines the normative target behavior for Phase 1. It does not authorize
 implementation, deployment, productive Odoo configuration, tax-rule approval, booking or payment.
 The architecture decision is [ADR-007](../adr/ADR-007-odoo-expense-assurance-boundary.md).
+
+Repository review and publication follow [DA-IRP-001 v0.3](../governance/DA-INDEPENDENT-REVIEW-POLICY.md)
+section 6, in the adopted `SOLO_OWNER` mode. The same owner may author, technically review and
+accept these repository artifacts; the same AI actor/session may re-assess final primary artifacts
+with disclosed self-review. A second person/model/session is recommended but not mandatory.
+Substantive review, applicable evidence and explicit owner authorization remain required. This
+process change does not alter Rule Package authority, separate pilot Rule Author/Rule Approver,
+DA lifecycle approval, Odoo business approvals or any runtime capability.
 
 ## A. Context assessment
 

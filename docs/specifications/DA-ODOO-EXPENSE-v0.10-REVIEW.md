@@ -63,3 +63,22 @@ documentation commit.
   outside Phase 1 as specified.
 - No runtime code, tests, schemas or migrations were changed for this documentation commit.
 - No push or PR publication is authorized by this record.
+
+## 2026-10-01 process amendment — historical review preserved
+
+The project owner requested a practicable single-maintainer publication process. DA-IRP-001 v0.3,
+section 6, adopts `SOLO_OWNER` and supersedes the personnel-only requirement above to obtain a
+fresh author-independent review before Phase 1. The original review date, verdict, evidence,
+hashes and non-independence limitation remain historical facts; none is retroactively approved,
+independently certified or converted into deployment evidence.
+
+`CURRENT GATE = SUPERSEDED BY DA-IRP-001 v0.3 section 6.2` applies only to that personnel requirement.
+The revised ADR/specification/plan require assessment against their new exact commit or diff/hash
+basis. A technical review may be performed by the author/remediator in a distinct final-artifact
+step with disclosed self-review. Same-owner release and implementation decisions are possible
+without a second person/model/session; they still require applicable checks, no substantive
+blockers and the separate owner authorization for the actual action.
+
+This process amendment grants no new Phase 1 implementation, deployment or runtime approval and
+does not grant a publish/push action. The earlier runtime-security finding history and future test
+gates are preserved. The pilot's separate Rule Author/Rule Approver requirement is unchanged.
