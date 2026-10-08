@@ -5,6 +5,8 @@ ROOT = Path(__file__).parents[3]
 MIGRATIONS = ROOT / "migrations" / "postgresql"
 
 TENANT_TABLES = (
+    "strategy_records",
+    "strategy_events",
     "decisions",
     "reports",
     "audit_events",
@@ -109,6 +111,7 @@ def test_public_and_packaged_postgresql_migrations_are_byte_identical() -> None:
         "002_production_foundation_v0_5.sql",
         "003_controlled_pilot_v0_8.sql",
         "004_deployment_evidence_v0_9.sql",
+        "005_strategy_adapter.sql",
         "roles.sql",
     ]
     for name in names:

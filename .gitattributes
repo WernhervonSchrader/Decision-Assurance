@@ -1,0 +1,4 @@
+# Preserve byte-identical pinned contracts and handoff fixtures, including original CRLF.
+schemas/strategy/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+src/decision_assurance/schemas/strategy/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+tests/strategy/fixtures/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

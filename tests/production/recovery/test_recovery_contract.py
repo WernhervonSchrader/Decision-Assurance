@@ -19,8 +19,8 @@ def _verification_report() -> dict[str, object]:
         "restore_database": "decision_assurance_restore",
         "server_version_num": "160009",
         "verification_completed_at": datetime.now(timezone.utc).isoformat(),
-        "database_schema_version": "004",
-        "rls_tables_verified": 28,
+        "database_schema_version": "005",
+        "rls_tables_verified": 30,
         "session_store_verified": True,
         "drill_data_verified": True,
         "drill_counts": {
@@ -92,7 +92,7 @@ def test_backup_and_restore_are_checksum_verified_and_fail_fast() -> None:
     assert "pg_restore" in restore
     assert "--single-transaction" in restore
     assert "BACKUP_CHECKSUM_MISMATCH" in restore
-    assert 'database_schema_version = "004"' in backup
+    assert 'database_schema_version = "005"' in backup
     assert "--no-privileges" not in restore
     assert "DA_RECOVERY_EXPECT_DRILL_DATA" in verifier
     assert "RECOVERY_DRILL_POST_BACKUP_DATA_PRESENT" in verifier
@@ -126,3 +126,34 @@ def test_restore_policy_contract_rejects_any_additional_policy() -> None:
         )
     )
     assert not _rls_policies_valid(expected)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("database_schema_version", "004"),
+        ("database_schema_version", "006"),
+        ("rls_tables_verified", 28),
+    ),
+)
+def test_recovery_rejects_stale_or_unsupported_strategy_coverage(field: str, value: object) -> None:
+    report = _verification_report()
+    report[field] = value
+    with pytest.raises(ValueError, match="RECOVERY_VERIFICATION_REPORT_FAILED"):
+        load_verification_report(
+            json.dumps(report).encode(),
+            expected_commit_sha="a" * 40,
+            expected_environment="github-actions-postgresql-16",
+        )
+
+
+@pytest.mark.parametrize("table", ("strategy_records", "strategy_events"))
+def test_restored_strategy_policy_cannot_be_missing_or_weakened(table: str) -> None:
+    policies = list(_expected_rls_policies())
+    selected = [row for row in policies if row[1] == table]
+    assert len(selected) == 1
+    policy = selected[0]
+    assert not _rls_policies_valid([row for row in policies if row != policy])
+    assert not _rls_policies_valid(
+        [row for row in policies if row != policy] + [(*policy[:6], "true", "true")]
+    )

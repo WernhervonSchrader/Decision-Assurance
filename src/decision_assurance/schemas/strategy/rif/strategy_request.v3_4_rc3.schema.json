@@ -1,0 +1,968 @@
+{
+  "$defs": {
+    "Assumption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "option_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Option Ids",
+          "type": "array"
+        },
+        "relevance": {
+          "minLength": 1,
+          "title": "Relevance",
+          "type": "string"
+        },
+        "influence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Influence",
+          "type": "string"
+        },
+        "effort": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Effort",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "counterevidence_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Counterevidence Ids",
+          "type": "array"
+        },
+        "uncertainty": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        },
+        "test_plan": {
+          "$ref": "#/$defs/TestPlan"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "claim_ids",
+        "option_ids",
+        "relevance",
+        "influence",
+        "effort",
+        "source_ids",
+        "counterevidence_ids",
+        "uncertainty",
+        "test_plan"
+      ],
+      "title": "Assumption",
+      "type": "object"
+    },
+    "Attribution": {
+      "additionalProperties": false,
+      "properties": {
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "explanation",
+        "source_ids"
+      ],
+      "title": "Attribution",
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Maximum"
+        },
+        "direction": {
+          "enum": [
+            "maximize",
+            "minimize"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "unit",
+        "minimum",
+        "maximum",
+        "direction"
+      ],
+      "title": "Criterion",
+      "type": "object"
+    },
+    "HardCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "le",
+            "ge",
+            "eq"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "unit",
+        "operator",
+        "threshold"
+      ],
+      "title": "HardCondition",
+      "type": "object"
+    },
+    "InputRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "title": "Locator",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "locator",
+        "description"
+      ],
+      "title": "InputRef",
+      "type": "object"
+    },
+    "Measure": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/Period"
+        },
+        "estimated": {
+          "title": "Estimated",
+          "type": "boolean"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "estimated",
+        "source_ids"
+      ],
+      "title": "Measure",
+      "type": "object"
+    },
+    "Option": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "status_quo",
+            "pilot",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "hard_values": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "$ref": "#/$defs/Measure"
+            }
+          },
+          "title": "Hard Values",
+          "type": "object"
+        },
+        "tradeoffs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tradeoffs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "kind",
+        "hard_values",
+        "tradeoffs"
+      ],
+      "title": "Option",
+      "type": "object"
+    },
+    "OptionsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "period": {
+          "$ref": "#/$defs/Period"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        },
+        "hard_conditions": {
+          "items": {
+            "$ref": "#/$defs/HardCondition"
+          },
+          "title": "Hard Conditions",
+          "type": "array"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/Option"
+          },
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/Scenario"
+          },
+          "minItems": 1,
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "status_quo_exclusion_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status Quo Exclusion Reason"
+        },
+        "pilot_exclusion_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pilot Exclusion Reason"
+        }
+      },
+      "required": [
+        "period",
+        "criteria",
+        "hard_conditions",
+        "options",
+        "scenarios",
+        "status_quo_exclusion_reason",
+        "pilot_exclusion_reason"
+      ],
+      "title": "OptionsInput",
+      "type": "object"
+    },
+    "Period": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Period",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "weights": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Weights",
+          "type": "object"
+        },
+        "values": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "patternProperties": {
+                "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+                  "$ref": "#/$defs/Measure"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "weights",
+        "values"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "primary",
+        "secondary"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "Stance": {
+      "description": "Structured stance of a source relative to the mission claim.\n\nNOTE (honest limitation): stance is *supplied metadata*, not inferred.\nDeterministic validators cannot derive stance from free text.",
+      "enum": [
+        "supports",
+        "contradicts",
+        "neutral"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "StrategyClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "material": {
+          "default": false,
+          "title": "Material",
+          "type": "boolean"
+        },
+        "quantitative": {
+          "default": false,
+          "title": "Quantitative",
+          "type": "boolean"
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "StrategyClaim",
+      "type": "object"
+    },
+    "StrategyEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/StrategySource"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "full_pool": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StrategySource"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Full Pool"
+        },
+        "mission_domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mission Domain"
+        },
+        "time_sensitive": {
+          "default": false,
+          "title": "Time Sensitive",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "sources"
+      ],
+      "title": "StrategyEvidence",
+      "type": "object"
+    },
+    "StrategySource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published"
+        },
+        "domain_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Domain Tags",
+          "type": "array"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "secondary"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "cites": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "has_independent_evidence": {
+          "default": false,
+          "title": "Has Independent Evidence",
+          "type": "boolean"
+        },
+        "reported_values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Reported Values",
+          "type": "object"
+        },
+        "stance": {
+          "$ref": "#/$defs/Stance",
+          "default": "neutral"
+        },
+        "small_sample": {
+          "default": false,
+          "title": "Small Sample",
+          "type": "boolean"
+        },
+        "authoritative": {
+          "default": false,
+          "title": "Authoritative",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "StrategySource",
+      "type": "object"
+    },
+    "TestPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Method"
+        },
+        "observable_criterion": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observable Criterion"
+        },
+        "required_data": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Required Data",
+          "type": "array"
+        },
+        "owner_role": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner Role"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Due"
+        },
+        "review_trigger": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Trigger"
+        }
+      },
+      "required": [
+        "method",
+        "observable_criterion",
+        "required_data",
+        "owner_role",
+        "due",
+        "review_trigger"
+      ],
+      "title": "TestPlan",
+      "type": "object"
+    },
+    "ValueInput": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Baseline Id",
+          "type": "string"
+        },
+        "actuals": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "$ref": "#/$defs/Measure"
+            }
+          },
+          "title": "Actuals",
+          "type": "object"
+        },
+        "execution_source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Execution Source Ids",
+          "type": "array"
+        },
+        "causal_source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Causal Source Ids",
+          "type": "array"
+        },
+        "competing_explanations": {
+          "items": {
+            "$ref": "#/$defs/Attribution"
+          },
+          "title": "Competing Explanations",
+          "type": "array"
+        },
+        "uncertainty": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        }
+      },
+      "required": [
+        "baseline_id",
+        "actuals",
+        "execution_source_ids",
+        "causal_source_ids",
+        "competing_explanations",
+        "uncertainty"
+      ],
+      "title": "ValueInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "3.4-rc3",
+      "default": "3.4-rc3",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "input_refs": {
+      "items": {
+        "$ref": "#/$defs/InputRef"
+      },
+      "minItems": 1,
+      "title": "Input Refs",
+      "type": "array"
+    },
+    "as_of": {
+      "format": "date",
+      "title": "As Of",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/StrategyEvidence"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/StrategyClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "assumptions": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Assumption"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assumptions"
+    },
+    "options": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OptionsInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValueInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "id",
+    "input_refs",
+    "as_of",
+    "evidence",
+    "claims"
+  ],
+  "title": "StrategyRequest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rif:strategy_request:3.4-rc3"
+}

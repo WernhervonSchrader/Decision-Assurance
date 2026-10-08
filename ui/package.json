@@ -16,6 +16,10 @@
     "jsdom": "30.0.1",
     "typescript": "7.0.2",
     "vite": "8.2.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
+  },
+  "overrides": {
+    "undici": "8.10.2",
+    "source-map-js": "1.2.2"
   }
 }

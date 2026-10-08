@@ -1,0 +1,22 @@
+{
+  "contract_version": "3.4-rc3",
+  "adapter_version": "rif-3.4-rc3/da-1",
+  "source_repository_commit": "e6e90e9dcd65db433a8fb7da92a8bb13dea75745",
+  "source_worktree_has_local_changes": true,
+  "commit_identifies_copied_files": false,
+  "files": {
+    "schemas/strategy_artifact.v3_4_rc3.schema.json": "sha256:30d7315a393451e15f47b1a7d08e3e1c35d990d967c5d8320e7e9eaf74892279",
+    "schemas/strategy_baseline.v3_4_rc3.schema.json": "sha256:a9d934c18fef444228b84730ad3e91cf549eb0a5d18264623f5df52c2da34168",
+    "schemas/strategy_request.v3_4_rc3.schema.json": "sha256:7548b48c66905b0d8c016f36d728a8681844081bbdeacbc7f82c7dbb47e6944a",
+    "schemas/strategy_skill_metadata.v3_4_rc3.schema.json": "sha256:87de784f77f528ca9976d9481274e9ca61f1e32eb77ca6208cac79457072847d",
+    "examples/invalid-authority.json": "sha256:a67309b8d5a4cf0bcb0fb4f59eedae24f1c4e06a0c838eec84fa276cb137cec1",
+    "examples/invalid-forged-winner.json": "sha256:95b150d42363acc1afedc5022cc79b8695d2ebdf8eb1672e77d70ca813c875d8",
+    "examples/invalid-reference.json": "sha256:9338bc4f5d5595fd5afae32586dd025e7f83e3024739e61f3957d8d4bd83d267",
+    "examples/invalid-skill-metadata.json": "sha256:5d1c8a1762adf4db7a371398a8aab5da0565bfdb8f9e3dd28ebe275e434914f0",
+    "examples/invalid-weights.json": "sha256:5d39b304c5c8072f21076eb222fa8e124828a21134665ca171a3de224628e54b",
+    "examples/manifest.json": "sha256:b50fe0def8e815bc2dbe6f3da821872ad95250cfdef8ebe5d15f2ce5d2689555",
+    "examples/valid-artifact.json": "sha256:28e9584f86966a2df8767037ab8ed39a3c81fa9df49c78cb5606d6ab4c60272d",
+    "examples/valid-baseline.json": "sha256:14141f9fc1a98c20ba636753e03425c3f4752fca08d16425f750c77202c66f97",
+    "examples/valid-request.json": "sha256:e34ab2023f03a2eb499ad8181e7ee0959f2f1e4e73fb36b951f692521a01c193"
+  }
+}

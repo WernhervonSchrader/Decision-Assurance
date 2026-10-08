@@ -1,0 +1,381 @@
+{
+  "id": "REQ-SYNTHETIC",
+  "input_refs": [
+    {
+      "id": "INPUT-1",
+      "locator": "synthetic:pilot-case",
+      "description": "Synthetic shared input"
+    }
+  ],
+  "as_of": "2026-10-08",
+  "evidence": {
+    "id": "E-SYNTHETIC",
+    "time_sensitive": true,
+    "mission_domain": "operations",
+    "sources": [
+      {
+        "id": "S-OBS",
+        "title": "Synthetic pilot log, not a real NIST publication",
+        "authors": [
+          "Synthetic fixture"
+        ],
+        "published": "2026-10-01",
+        "domain_tags": [
+          "operations"
+        ],
+        "url": "https://nist.gov/synthetic-rif-fixture",
+        "source_type": "primary",
+        "has_independent_evidence": true,
+        "stance": "supports"
+      },
+      {
+        "id": "S-CONTRA",
+        "title": "Synthetic counterevidence: training burden remains",
+        "authors": [
+          "Synthetic fixture"
+        ],
+        "published": "2026-10-02",
+        "domain_tags": [
+          "operations"
+        ],
+        "url": "https://nist.gov/synthetic-rif-counterexample",
+        "source_type": "primary",
+        "has_independent_evidence": true,
+        "stance": "contradicts"
+      }
+    ]
+  },
+  "claims": [
+    {
+      "id": "C-PILOT",
+      "text": "The pilot may reduce manual workload.",
+      "source_ids": [
+        "S-OBS",
+        "S-CONTRA"
+      ],
+      "material": true,
+      "domain": "operations"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-ADOPTION",
+      "statement": "Pilot participants can sustain the new process.",
+      "claim_ids": [
+        "C-PILOT"
+      ],
+      "option_ids": [
+        "O-PILOT"
+      ],
+      "relevance": "Benefit depends on sustained adoption.",
+      "influence": "high",
+      "effort": "low",
+      "source_ids": [
+        "MISSING"
+      ],
+      "counterevidence_ids": [
+        "S-CONTRA"
+      ],
+      "uncertainty": [
+        "Persistence beyond the observation window is unknown."
+      ],
+      "test_plan": {
+        "method": "Observe repeated usage",
+        "observable_criterion": "Usage persists across four weekly observations",
+        "required_data": [
+          "Weekly usage log"
+        ],
+        "owner_role": null,
+        "due": null,
+        "review_trigger": "Usage declines for two consecutive observations"
+      }
+    }
+  ],
+  "options": {
+    "period": {
+      "start": "2026-07-01",
+      "end": "2026-09-30"
+    },
+    "criteria": [
+      {
+        "id": "K-BENEFIT",
+        "description": "Expected workload benefit",
+        "unit": "points",
+        "minimum": 0,
+        "maximum": 100,
+        "direction": "maximize"
+      },
+      {
+        "id": "K-EASE",
+        "description": "Ease of implementation",
+        "unit": "points",
+        "minimum": 0,
+        "maximum": 100,
+        "direction": "maximize"
+      }
+    ],
+    "hard_conditions": [
+      {
+        "id": "H-CAPACITY",
+        "description": "At most 100 hours of implementation capacity",
+        "unit": "hours",
+        "operator": "le",
+        "threshold": 100
+      }
+    ],
+    "options": [
+      {
+        "id": "O-QUO",
+        "kind": "status_quo",
+        "description": "Continue current process",
+        "hard_values": {
+          "H-CAPACITY": {
+            "value": 0,
+            "unit": "hours",
+            "period": {
+              "start": "2026-07-01",
+              "end": "2026-09-30"
+            },
+            "estimated": false,
+            "source_ids": [
+              "S-OBS"
+            ]
+          }
+        },
+        "tradeoffs": [
+          "Synthetic benefit and implementation effort estimates require review"
+        ]
+      },
+      {
+        "id": "O-PILOT",
+        "kind": "pilot",
+        "description": "Reversible pilot with stop point",
+        "hard_values": {
+          "H-CAPACITY": {
+            "value": 80,
+            "unit": "hours",
+            "period": {
+              "start": "2026-07-01",
+              "end": "2026-09-30"
+            },
+            "estimated": false,
+            "source_ids": [
+              "S-OBS"
+            ]
+          }
+        },
+        "tradeoffs": [
+          "Synthetic benefit and implementation effort estimates require review"
+        ]
+      },
+      {
+        "id": "O-SCALE",
+        "kind": "other",
+        "description": "Expand immediately",
+        "hard_values": {
+          "H-CAPACITY": {
+            "value": 150,
+            "unit": "hours",
+            "period": {
+              "start": "2026-07-01",
+              "end": "2026-09-30"
+            },
+            "estimated": false,
+            "source_ids": [
+              "S-OBS"
+            ]
+          }
+        },
+        "tradeoffs": [
+          "Synthetic benefit and implementation effort estimates require review"
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "SC-BASE",
+        "description": "Benefit emphasis",
+        "weights": {
+          "K-BENEFIT": 0.7,
+          "K-EASE": 0.3
+        },
+        "values": {
+          "O-QUO": {
+            "K-BENEFIT": {
+              "value": 20,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 90,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          },
+          "O-PILOT": {
+            "K-BENEFIT": {
+              "value": 70,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 60,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          },
+          "O-SCALE": {
+            "K-BENEFIT": {
+              "value": 100,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 100,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          }
+        }
+      },
+      {
+        "id": "SC-EASE",
+        "description": "Ease emphasis",
+        "weights": {
+          "K-BENEFIT": 0.1,
+          "K-EASE": 0.9
+        },
+        "values": {
+          "O-QUO": {
+            "K-BENEFIT": {
+              "value": 20,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 90,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          },
+          "O-PILOT": {
+            "K-BENEFIT": {
+              "value": 70,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 60,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          },
+          "O-SCALE": {
+            "K-BENEFIT": {
+              "value": 100,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            },
+            "K-EASE": {
+              "value": 100,
+              "unit": "points",
+              "period": {
+                "start": "2026-07-01",
+                "end": "2026-09-30"
+              },
+              "estimated": true,
+              "source_ids": []
+            }
+          }
+        }
+      }
+    ],
+    "status_quo_exclusion_reason": null,
+    "pilot_exclusion_reason": null
+  },
+  "value": {
+    "baseline_id": "B-ORIGINAL",
+    "actuals": {
+      "M-WORKLOAD": {
+        "value": 55,
+        "unit": "hours",
+        "period": {
+          "start": "2026-07-01",
+          "end": "2026-09-30"
+        },
+        "estimated": false,
+        "source_ids": [
+          "S-OBS"
+        ]
+      }
+    },
+    "execution_source_ids": [
+      "S-OBS"
+    ],
+    "causal_source_ids": [],
+    "competing_explanations": [
+      {
+        "explanation": "Seasonality may contribute",
+        "source_ids": []
+      }
+    ],
+    "uncertainty": [
+      "No causal identification design was performed."
+    ]
+  }
+}

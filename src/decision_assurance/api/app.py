@@ -22,6 +22,7 @@ from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
 from ..repositories.protocols import DecisionRepository
 from ..security_events import NullSecurityEventSink, SecurityEventSink
+from ..strategy.store import StrategyStore
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
 from ..web_research.service import ResearchSubmissionService
@@ -30,6 +31,7 @@ from .routes.decisions import router
 from .routes.intakes import router as intake_router
 from .routes.pilot import router as pilot_router
 from .routes.research import router as research_router
+from .routes.strategy import router as strategy_router
 
 MAX_BODY_BYTES = 1_048_576
 
@@ -51,6 +53,7 @@ def create_app(
     export_service: PilotExportService | None = None,
     lifecycle_service: PilotLifecycleService | None = None,
     queue_depth_probe: Callable[[], int] | None = None,
+    strategy_store: StrategyStore | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Decision Assurance API",
@@ -59,6 +62,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    app.state.strategy_store = strategy_store
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository
@@ -196,6 +200,8 @@ def create_app(
             {"status": "ok" if available else "unavailable"}, 200 if available else 503
         )
 
+    if strategy_store is not None:
+        app.include_router(strategy_router)
     app.include_router(router)
     app.include_router(pilot_router)
     if intake_repository is not None and policy_registry is not None:

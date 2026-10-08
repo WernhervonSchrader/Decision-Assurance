@@ -1,0 +1,633 @@
+{
+  "$defs": {
+    "Assumption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "option_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Option Ids",
+          "type": "array"
+        },
+        "relevance": {
+          "minLength": 1,
+          "title": "Relevance",
+          "type": "string"
+        },
+        "influence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Influence",
+          "type": "string"
+        },
+        "effort": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Effort",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "counterevidence_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Counterevidence Ids",
+          "type": "array"
+        },
+        "uncertainty": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        },
+        "test_plan": {
+          "$ref": "#/$defs/TestPlan"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "claim_ids",
+        "option_ids",
+        "relevance",
+        "influence",
+        "effort",
+        "source_ids",
+        "counterevidence_ids",
+        "uncertainty",
+        "test_plan"
+      ],
+      "title": "Assumption",
+      "type": "object"
+    },
+    "BaselineMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/Measure"
+        },
+        "review_deviation": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Deviation"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "expected",
+        "review_deviation"
+      ],
+      "title": "BaselineMetric",
+      "type": "object"
+    },
+    "InputRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "title": "Locator",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "locator",
+        "description"
+      ],
+      "title": "InputRef",
+      "type": "object"
+    },
+    "Measure": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/Period"
+        },
+        "estimated": {
+          "title": "Estimated",
+          "type": "boolean"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "estimated",
+        "source_ids"
+      ],
+      "title": "Measure",
+      "type": "object"
+    },
+    "Period": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Period",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "primary",
+        "secondary"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "Stance": {
+      "description": "Structured stance of a source relative to the mission claim.\n\nNOTE (honest limitation): stance is *supplied metadata*, not inferred.\nDeterministic validators cannot derive stance from free text.",
+      "enum": [
+        "supports",
+        "contradicts",
+        "neutral"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "StrategyEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/StrategySource"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "full_pool": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StrategySource"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Full Pool"
+        },
+        "mission_domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mission Domain"
+        },
+        "time_sensitive": {
+          "default": false,
+          "title": "Time Sensitive",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "sources"
+      ],
+      "title": "StrategyEvidence",
+      "type": "object"
+    },
+    "StrategySource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published"
+        },
+        "domain_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Domain Tags",
+          "type": "array"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "secondary"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "cites": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "has_independent_evidence": {
+          "default": false,
+          "title": "Has Independent Evidence",
+          "type": "boolean"
+        },
+        "reported_values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Reported Values",
+          "type": "object"
+        },
+        "stance": {
+          "$ref": "#/$defs/Stance",
+          "default": "neutral"
+        },
+        "small_sample": {
+          "default": false,
+          "title": "Small Sample",
+          "type": "boolean"
+        },
+        "authoritative": {
+          "default": false,
+          "title": "Authoritative",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "StrategySource",
+      "type": "object"
+    },
+    "TestPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Method"
+        },
+        "observable_criterion": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observable Criterion"
+        },
+        "required_data": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Required Data",
+          "type": "array"
+        },
+        "owner_role": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner Role"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Due"
+        },
+        "review_trigger": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Trigger"
+        }
+      },
+      "required": [
+        "method",
+        "observable_criterion",
+        "required_data",
+        "owner_role",
+        "due",
+        "review_trigger"
+      ],
+      "title": "TestPlan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "3.4-rc3",
+      "default": "3.4-rc3",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "original_analysis": {
+      "$ref": "#/$defs/InputRef"
+    },
+    "original_decision": {
+      "$ref": "#/$defs/InputRef"
+    },
+    "reconstructed": {
+      "title": "Reconstructed",
+      "type": "boolean"
+    },
+    "expected_effect": {
+      "minLength": 1,
+      "title": "Expected Effect",
+      "type": "string"
+    },
+    "planned_action": {
+      "minLength": 1,
+      "title": "Planned Action",
+      "type": "string"
+    },
+    "assumptions": {
+      "items": {
+        "$ref": "#/$defs/Assumption"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "relevant_costs": {
+      "items": {
+        "$ref": "#/$defs/BaselineMetric"
+      },
+      "title": "Relevant Costs",
+      "type": "array"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "#/$defs/BaselineMetric"
+      },
+      "minItems": 1,
+      "title": "Metrics",
+      "type": "array"
+    },
+    "evidence": {
+      "$ref": "#/$defs/StrategyEvidence"
+    },
+    "claim_ids": {
+      "items": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+        "type": "string"
+      },
+      "title": "Claim Ids",
+      "type": "array"
+    },
+    "option_ids": {
+      "items": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+        "type": "string"
+      },
+      "title": "Option Ids",
+      "type": "array"
+    },
+    "previous_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Previous Id"
+    },
+    "correction_reason": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Correction Reason"
+    }
+  },
+  "required": [
+    "id",
+    "created_at",
+    "original_analysis",
+    "original_decision",
+    "reconstructed",
+    "expected_effect",
+    "planned_action",
+    "assumptions",
+    "relevant_costs",
+    "metrics",
+    "evidence",
+    "claim_ids",
+    "option_ids",
+    "previous_id",
+    "correction_reason"
+  ],
+  "title": "Baseline",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rif:strategy_baseline:3.4-rc3"
+}

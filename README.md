@@ -168,3 +168,18 @@ PostgreSQL, OIDC, explicit public hosts, external secret references, persistent 
 retention configuration. It remains a pilot profile—not a production approval. See
 [Pilot](docs/PILOT.md), [Deployment](docs/DEPLOYMENT.md) and the
 [pilot acceptance checklist](docs/PILOT-ACCEPTANCE.md).
+
+## Optional controlled strategy handoff (Unreleased)
+
+The bounded [strategy adapter](docs/STRATEGY-INTEGRATION.md) accepts pinned RIF 3.4-rc3 assumption
+registers, option comparisons and immutable baseline/observation artifacts. It offers read-only
+preview and explicitly injected authenticated APIs, preserves original provenance, and maps material
+uncertainty conservatively without granting verification, approval or execution authority.
+
+```powershell
+.\.venv\Scripts\python.exe -m decision_assurance.cli strategy-preview examples/strategy/decision.json examples/strategy/envelope.json --locale de
+```
+
+No runtime RIF dependency or normative Decision File migration is required. Read the
+[mapping limits](docs/STRATEGY-INTEGRATION.md) and [actual verification results](docs/STRATEGY-VERIFICATION.md)
+before enabling it. Package release 0.5.0 and Decision File 0.2.0 remain unchanged.

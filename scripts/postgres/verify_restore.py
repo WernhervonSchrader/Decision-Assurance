@@ -58,6 +58,8 @@ TENANT_TABLES = (
     "lifecycle_audit_events",
     "deployment_acceptance_events",
     "browser_sessions",
+    "strategy_records",
+    "strategy_events",
 )
 TENANT_TABLE_REFS = tuple(
     ("decision_assurance_private" if name == "browser_sessions" else "public", name)
@@ -166,7 +168,7 @@ def verify(dsn: str) -> dict[str, object]:
         if restore_database == source_database:
             raise RuntimeError("RECOVERY_RESTORE_TARGET_NOT_ISOLATED")
         version = connection.execute("SELECT max(version) FROM schema_migrations").fetchone()
-        if version != ("004",):
+        if version != ("005",):
             raise RuntimeError("DATABASE_SCHEMA_VERSION_MISMATCH")
         migrations = discover_migrations(Path(__file__).parents[2] / "migrations" / "postgresql")
         restored_migrations = connection.execute(
@@ -284,6 +286,10 @@ def verify(dsn: str) -> dict[str, object]:
                 raise RuntimeError("RECOVERY_DRILL_POST_BACKUP_DATA_PRESENT")
     export_valid = _verify_signed_export(dsn) if verify_drill_data else False
     session_valid = _verify_restored_sessions(dsn) if verify_drill_data else False
+    if verify_drill_data and not export_valid:
+        raise RuntimeError("SIGNED_EXPORT_RESTORE_VERIFICATION_FAILED")
+    if verify_drill_data and not session_valid:
+        raise RuntimeError("SESSION_DECRYPTION_RESTORE_VERIFICATION_FAILED")
     return {
         "schema_version": "0.5.0",
         "commit_sha": commit_sha,
@@ -292,7 +298,7 @@ def verify(dsn: str) -> dict[str, object]:
         "restore_database": restore_database,
         "server_version_num": server_version_num,
         "verification_completed_at": datetime.now(timezone.utc).isoformat(),
-        "database_schema_version": "004",
+        "database_schema_version": "005",
         "rls_tables_verified": len(TENANT_TABLE_REFS),
         "session_store_verified": True,
         "drill_data_verified": verify_drill_data,

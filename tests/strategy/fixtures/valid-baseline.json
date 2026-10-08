@@ -1,0 +1,97 @@
+{
+  "id": "B-ORIGINAL",
+  "contract_version": "3.4-rc3",
+  "created_at": "2026-06-30T12:00:00Z",
+  "original_analysis": {
+    "id": "ANALYSIS-ORIGINAL",
+    "locator": "synthetic:original-analysis",
+    "description": "Original synthetic analysis"
+  },
+  "original_decision": {
+    "id": "DECISION-ORIGINAL",
+    "locator": "synthetic:original-decision",
+    "description": "Original synthetic pilot decision"
+  },
+  "reconstructed": false,
+  "expected_effect": "70 hours of manual work avoided during the quarter",
+  "planned_action": "Run reversible pilot",
+  "assumptions": [
+    {
+      "id": "A-ADOPTION",
+      "statement": "Pilot participants can sustain the new process.",
+      "claim_ids": [
+        "C-PILOT"
+      ],
+      "option_ids": [
+        "O-PILOT"
+      ],
+      "relevance": "Benefit depends on sustained adoption.",
+      "influence": "high",
+      "effort": "low",
+      "source_ids": [],
+      "counterevidence_ids": [],
+      "uncertainty": [
+        "Persistence beyond the observation window is unknown."
+      ],
+      "test_plan": {
+        "method": "Observe repeated usage",
+        "observable_criterion": "Usage persists across four weekly observations",
+        "required_data": [
+          "Weekly usage log"
+        ],
+        "owner_role": null,
+        "due": null,
+        "review_trigger": "Usage declines for two consecutive observations"
+      }
+    }
+  ],
+  "relevant_costs": [
+    {
+      "id": "M-COST",
+      "description": "Implementation effort",
+      "expected": {
+        "value": 80,
+        "unit": "hours",
+        "period": {
+          "start": "2026-07-01",
+          "end": "2026-09-30"
+        },
+        "estimated": true,
+        "source_ids": []
+      },
+      "review_deviation": 10
+    }
+  ],
+  "metrics": [
+    {
+      "id": "M-WORKLOAD",
+      "description": "Manual workload avoided",
+      "expected": {
+        "value": 70,
+        "unit": "hours",
+        "period": {
+          "start": "2026-07-01",
+          "end": "2026-09-30"
+        },
+        "estimated": true,
+        "source_ids": []
+      },
+      "review_deviation": 10
+    }
+  ],
+  "evidence": {
+    "id": "E-BASE",
+    "sources": [],
+    "full_pool": null,
+    "mission_domain": null,
+    "time_sensitive": false
+  },
+  "claim_ids": [
+    "C-PILOT"
+  ],
+  "option_ids": [
+    "O-PILOT"
+  ],
+  "previous_id": null,
+  "correction_reason": null
+}

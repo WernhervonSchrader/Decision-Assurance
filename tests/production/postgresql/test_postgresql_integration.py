@@ -55,7 +55,7 @@ def test_migrations_are_repeatable_and_reach_expected_version(postgres_dsn: str)
 
     runner.migrate()
 
-    assert runner.current_version() == "004"
+    assert runner.current_version() == "005"
 
 
 def test_failed_migration_rolls_back_without_advancing_ledger(
@@ -66,9 +66,10 @@ def test_failed_migration_rolls_back_without_advancing_ledger(
         "002_production_foundation_v0_5.sql",
         "003_controlled_pilot_v0_8.sql",
         "004_deployment_evidence_v0_9.sql",
+        "005_strategy_adapter.sql",
     ):
         shutil.copyfile(MIGRATIONS / name, tmp_path / name)
-    (tmp_path / "005_invalid.sql").write_text(
+    (tmp_path / "006_invalid.sql").write_text(
         "CREATE TABLE migration_rollback_probe (value TEXT);\nNOT VALID SQL;\n",
         encoding="utf-8",
     )
@@ -82,7 +83,7 @@ def test_failed_migration_rolls_back_without_advancing_ledger(
         probe = connection.execute(
             "SELECT to_regclass('public.migration_rollback_probe')"
         ).fetchone()
-    assert version == ("004",)
+    assert version == ("005",)
     assert probe == (None,)
 
 
