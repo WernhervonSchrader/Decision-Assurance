@@ -91,7 +91,7 @@ retained by CI on failure.
 
 `tests/keycloak/contract` validates the secret-free realm, exact roles, managed tenant claims,
 least-privilege clients, S256 PKCE, Compose isolation, health checks and non-root image. The explicitly
-opted-in `keycloak_e2e` suite runs against Keycloak 26.7.0 and its PostgreSQL 16 database, creates and
+opted-in `keycloak_e2e` suite runs against Keycloak 26.7.5 and its PostgreSQL 16 database, creates and
 deletes random users, executes a real Authorization Code/S256 flow, validates the resulting JWT via
 the live JWKS endpoint, proves tenant denial before provider access, exercises multi-role actor
 independence, runs authenticated fake OpenAI/Firecrawl Research, and restarts Keycloak to prove
