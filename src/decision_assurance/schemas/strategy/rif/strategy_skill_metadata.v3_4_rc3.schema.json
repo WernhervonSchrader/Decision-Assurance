@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "enum": [
+        "assumption-audit",
+        "strategic-options",
+        "value-realization"
+      ],
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "const": "3.4-rc3",
+      "default": "3.4-rc3",
+      "title": "Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "3.4-rc3",
+      "default": "3.4-rc3",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "authority": {
+      "const": "analysis_only",
+      "default": "analysis_only",
+      "title": "Authority",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "SkillMetadata",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rif:strategy_skill_metadata:3.4-rc3"
+}

@@ -20,15 +20,17 @@ jobs:
       - name: Install project
         run: python -m pip install -e ".[dev]"
       - name: Ruff format
-        run: ruff format --check src tests scripts/security
+        run: ruff format --check src tests scripts/security scripts/strategy
       - name: Ruff lint
-        run: ruff check src tests scripts/security
+        run: ruff check src tests scripts/security scripts/strategy
       - name: Mypy strict
         run: mypy src
       - name: Actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
       - name: Non-PostgreSQL test suite
-        run: python -m pytest -q -m "not postgresql and not keycloak_e2e and not live_provider"
+        run: python -m pytest -q -m "not postgresql and not keycloak_e2e and not live_provider" --junitxml=.cache/pytest.xml
+      - name: Optional strategy contract drift
+        run: python -m scripts.strategy.export_contract
       - name: Gold benchmark
         run: decision-assurance benchmark benchmarks/dats/v0.1.0/catalog.json
       - name: Intake benchmark
@@ -47,11 +49,13 @@ jobs:
         if: failure()
         with:
           name: verification-artifacts
+          retention-days: 14
           path: |
             docs/openapi-v0.4.json
             benchmarks/dats
             benchmarks/intake
             .pytest_cache
+            .cache/pytest.xml
 
   pilot-ui:
     runs-on: ubuntu-latest
@@ -139,7 +143,14 @@ jobs:
           SQL
           python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://da_ci_migrator:postgres@localhost:5432/da_ci_migration'))).migrate()"
       - name: PostgreSQL integration and E2E
-        run: python -m pytest -m postgresql -q
+        run: python -m pytest -m postgresql -q --junitxml=.cache/postgresql.xml
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: postgresql-test-artifacts
+          retention-days: 14
+          path: .cache/postgresql.xml
 
   restore-verification:
     runs-on: ubuntu-latest

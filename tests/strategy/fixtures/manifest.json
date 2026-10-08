@@ -1,0 +1,50 @@
+[
+  {
+    "file": "valid-request.json",
+    "contract": "strategy_request",
+    "expected_layer": "valid",
+    "reason": "valid request"
+  },
+  {
+    "file": "valid-baseline.json",
+    "contract": "strategy_baseline",
+    "expected_layer": "valid",
+    "reason": "valid baseline"
+  },
+  {
+    "file": "valid-artifact.json",
+    "contract": "strategy_artifact",
+    "expected_layer": "valid",
+    "reason": "valid analysis"
+  },
+  {
+    "file": "invalid-reference.json",
+    "contract": "strategy_request",
+    "expected_layer": "runtime",
+    "reason": "broken assumption source reference"
+  },
+  {
+    "file": "invalid-weights.json",
+    "contract": "strategy_request",
+    "expected_layer": "runtime",
+    "reason": "weights do not sum to 1"
+  },
+  {
+    "file": "invalid-authority.json",
+    "contract": "strategy_artifact",
+    "expected_layer": "schema",
+    "reason": "analysis cannot grant approval"
+  },
+  {
+    "file": "invalid-forged-winner.json",
+    "contract": "strategy_artifact",
+    "expected_layer": "runtime",
+    "reason": "winner differs from replay"
+  },
+  {
+    "file": "invalid-skill-metadata.json",
+    "contract": "strategy_skill_metadata",
+    "expected_layer": "schema",
+    "reason": "unsupported skill version"
+  }
+]

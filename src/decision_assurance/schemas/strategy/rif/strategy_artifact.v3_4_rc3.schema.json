@@ -1,0 +1,1648 @@
+{
+  "$defs": {
+    "Assumption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "option_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Option Ids",
+          "type": "array"
+        },
+        "relevance": {
+          "minLength": 1,
+          "title": "Relevance",
+          "type": "string"
+        },
+        "influence": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Influence",
+          "type": "string"
+        },
+        "effort": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Effort",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "counterevidence_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Counterevidence Ids",
+          "type": "array"
+        },
+        "uncertainty": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        },
+        "test_plan": {
+          "$ref": "#/$defs/TestPlan"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "claim_ids",
+        "option_ids",
+        "relevance",
+        "influence",
+        "effort",
+        "source_ids",
+        "counterevidence_ids",
+        "uncertainty",
+        "test_plan"
+      ],
+      "title": "Assumption",
+      "type": "object"
+    },
+    "AssumptionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "untested",
+            "evidence_available_unverified",
+            "contested"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "priority_band": {
+          "enum": [
+            "first",
+            "next",
+            "later",
+            "needs_triage"
+          ],
+          "title": "Priority Band",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "priority_band"
+      ],
+      "title": "AssumptionResult",
+      "type": "object"
+    },
+    "Attribution": {
+      "additionalProperties": false,
+      "properties": {
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "explanation",
+        "source_ids"
+      ],
+      "title": "Attribution",
+      "type": "object"
+    },
+    "Baseline": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "3.4-rc3",
+          "default": "3.4-rc3",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "original_analysis": {
+          "$ref": "#/$defs/InputRef"
+        },
+        "original_decision": {
+          "$ref": "#/$defs/InputRef"
+        },
+        "reconstructed": {
+          "title": "Reconstructed",
+          "type": "boolean"
+        },
+        "expected_effect": {
+          "minLength": 1,
+          "title": "Expected Effect",
+          "type": "string"
+        },
+        "planned_action": {
+          "minLength": 1,
+          "title": "Planned Action",
+          "type": "string"
+        },
+        "assumptions": {
+          "items": {
+            "$ref": "#/$defs/Assumption"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "relevant_costs": {
+          "items": {
+            "$ref": "#/$defs/BaselineMetric"
+          },
+          "title": "Relevant Costs",
+          "type": "array"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/BaselineMetric"
+          },
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        },
+        "evidence": {
+          "$ref": "#/$defs/StrategyEvidence"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "option_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Option Ids",
+          "type": "array"
+        },
+        "previous_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previous Id"
+        },
+        "correction_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Correction Reason"
+        }
+      },
+      "required": [
+        "id",
+        "created_at",
+        "original_analysis",
+        "original_decision",
+        "reconstructed",
+        "expected_effect",
+        "planned_action",
+        "assumptions",
+        "relevant_costs",
+        "metrics",
+        "evidence",
+        "claim_ids",
+        "option_ids",
+        "previous_id",
+        "correction_reason"
+      ],
+      "title": "Baseline",
+      "type": "object"
+    },
+    "BaselineMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/Measure"
+        },
+        "review_deviation": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Deviation"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "expected",
+        "review_deviation"
+      ],
+      "title": "BaselineMetric",
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "compared",
+            "missing_actual",
+            "missing_expected",
+            "unverified_actual"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "delta": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delta"
+        },
+        "review_hint": {
+          "title": "Review Hint",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "delta",
+        "review_hint"
+      ],
+      "title": "Comparison",
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Maximum"
+        },
+        "direction": {
+          "enum": [
+            "maximize",
+            "minimize"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "unit",
+        "minimum",
+        "maximum",
+        "direction"
+      ],
+      "title": "Criterion",
+      "type": "object"
+    },
+    "HardCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "le",
+            "ge",
+            "eq"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "unit",
+        "operator",
+        "threshold"
+      ],
+      "title": "HardCondition",
+      "type": "object"
+    },
+    "InputRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "title": "Locator",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "locator",
+        "description"
+      ],
+      "title": "InputRef",
+      "type": "object"
+    },
+    "Measure": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/Period"
+        },
+        "estimated": {
+          "title": "Estimated",
+          "type": "boolean"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "estimated",
+        "source_ids"
+      ],
+      "title": "Measure",
+      "type": "object"
+    },
+    "Option": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "status_quo",
+            "pilot",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "hard_values": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "$ref": "#/$defs/Measure"
+            }
+          },
+          "title": "Hard Values",
+          "type": "object"
+        },
+        "tradeoffs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tradeoffs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "kind",
+        "hard_values",
+        "tradeoffs"
+      ],
+      "title": "Option",
+      "type": "object"
+    },
+    "OptionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "eligibility": {
+          "enum": [
+            "eligible",
+            "ineligible",
+            "unknown"
+          ],
+          "title": "Eligibility",
+          "type": "string"
+        },
+        "conditions": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "enum": [
+                "satisfied",
+                "violated",
+                "unknown"
+              ],
+              "type": "string"
+            }
+          },
+          "title": "Conditions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "eligibility",
+        "conditions"
+      ],
+      "title": "OptionResult",
+      "type": "object"
+    },
+    "OptionsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "period": {
+          "$ref": "#/$defs/Period"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        },
+        "hard_conditions": {
+          "items": {
+            "$ref": "#/$defs/HardCondition"
+          },
+          "title": "Hard Conditions",
+          "type": "array"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/Option"
+          },
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/Scenario"
+          },
+          "minItems": 1,
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "status_quo_exclusion_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status Quo Exclusion Reason"
+        },
+        "pilot_exclusion_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pilot Exclusion Reason"
+        }
+      },
+      "required": [
+        "period",
+        "criteria",
+        "hard_conditions",
+        "options",
+        "scenarios",
+        "status_quo_exclusion_reason",
+        "pilot_exclusion_reason"
+      ],
+      "title": "OptionsInput",
+      "type": "object"
+    },
+    "Period": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Period",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "weights": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "title": "Weights",
+          "type": "object"
+        },
+        "values": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "patternProperties": {
+                "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+                  "$ref": "#/$defs/Measure"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "weights",
+        "values"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
+    "ScenarioResult": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ranked",
+            "tie",
+            "insufficient_data",
+            "no_eligible_option"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "scores": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "type": "string"
+            }
+          },
+          "title": "Scores",
+          "type": "object"
+        },
+        "ranking": {
+          "items": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Ranking",
+          "type": "array"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Winner"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "scores",
+        "ranking",
+        "winner"
+      ],
+      "title": "ScenarioResult",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "SkillMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "assumption-audit",
+            "strategic-options",
+            "value-realization"
+          ],
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "const": "3.4-rc3",
+          "default": "3.4-rc3",
+          "title": "Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "3.4-rc3",
+          "default": "3.4-rc3",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "authority": {
+          "const": "analysis_only",
+          "default": "analysis_only",
+          "title": "Authority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SkillMetadata",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "primary",
+        "secondary"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "Stance": {
+      "description": "Structured stance of a source relative to the mission claim.\n\nNOTE (honest limitation): stance is *supplied metadata*, not inferred.\nDeterministic validators cannot derive stance from free text.",
+      "enum": [
+        "supports",
+        "contradicts",
+        "neutral"
+      ],
+      "title": "Stance",
+      "type": "string"
+    },
+    "StrategyAuditEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "node": {
+          "title": "Node",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "node",
+        "action",
+        "status"
+      ],
+      "title": "StrategyAuditEvent",
+      "type": "object"
+    },
+    "StrategyClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "material": {
+          "default": false,
+          "title": "Material",
+          "type": "boolean"
+        },
+        "quantitative": {
+          "default": false,
+          "title": "Quantitative",
+          "type": "boolean"
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "StrategyClaim",
+      "type": "object"
+    },
+    "StrategyEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/StrategySource"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "full_pool": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/StrategySource"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Full Pool"
+        },
+        "mission_domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mission Domain"
+        },
+        "time_sensitive": {
+          "default": false,
+          "title": "Time Sensitive",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "sources"
+      ],
+      "title": "StrategyEvidence",
+      "type": "object"
+    },
+    "StrategyEvidenceState": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_pack": {
+          "$ref": "#/$defs/StrategyEvidence"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/StrategyClaim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "validated_source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validated Source Ids",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/StrategyFinding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "disclosures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disclosures",
+          "type": "array"
+        },
+        "status": {
+          "default": "PENDING",
+          "title": "Status",
+          "type": "string"
+        },
+        "audit_trail": {
+          "items": {
+            "$ref": "#/$defs/StrategyAuditEvent"
+          },
+          "title": "Audit Trail",
+          "type": "array"
+        },
+        "current_date": {
+          "format": "date",
+          "title": "Current Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_pack"
+      ],
+      "title": "StrategyEvidenceState",
+      "type": "object"
+    },
+    "StrategyFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "failure_class": {
+          "title": "Failure Class",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Id"
+        }
+      },
+      "required": [
+        "failure_class",
+        "severity",
+        "message",
+        "blocking"
+      ],
+      "title": "StrategyFinding",
+      "type": "object"
+    },
+    "StrategyRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "3.4-rc3",
+          "default": "3.4-rc3",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "input_refs": {
+          "items": {
+            "$ref": "#/$defs/InputRef"
+          },
+          "minItems": 1,
+          "title": "Input Refs",
+          "type": "array"
+        },
+        "as_of": {
+          "format": "date",
+          "title": "As Of",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/StrategyEvidence"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/StrategyClaim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "assumptions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Assumption"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assumptions"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptionsInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "input_refs",
+        "as_of",
+        "evidence",
+        "claims"
+      ],
+      "title": "StrategyRequest",
+      "type": "object"
+    },
+    "StrategyResults": {
+      "additionalProperties": false,
+      "properties": {
+        "assumptions": {
+          "items": {
+            "$ref": "#/$defs/AssumptionResult"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/OptionResult"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "scenarios": {
+          "items": {
+            "$ref": "#/$defs/ScenarioResult"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        },
+        "rank_changes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Rank Changes",
+          "type": "array"
+        },
+        "comparisons": {
+          "items": {
+            "$ref": "#/$defs/Comparison"
+          },
+          "title": "Comparisons",
+          "type": "array"
+        },
+        "execution": {
+          "enum": [
+            "not_assessed",
+            "no_evidence",
+            "evidence_supplied"
+          ],
+          "title": "Execution",
+          "type": "string"
+        },
+        "attribution": {
+          "enum": [
+            "not_assessed",
+            "unresolved",
+            "evidence_supplied_unverified"
+          ],
+          "title": "Attribution",
+          "type": "string"
+        },
+        "open_findings": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Open Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "assumptions",
+        "options",
+        "scenarios",
+        "rank_changes",
+        "comparisons",
+        "execution",
+        "attribution",
+        "open_findings"
+      ],
+      "title": "StrategyResults",
+      "type": "object"
+    },
+    "StrategySource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published"
+        },
+        "domain_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Domain Tags",
+          "type": "array"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "secondary"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "cites": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Cites",
+          "type": "array"
+        },
+        "has_independent_evidence": {
+          "default": false,
+          "title": "Has Independent Evidence",
+          "type": "boolean"
+        },
+        "reported_values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Reported Values",
+          "type": "object"
+        },
+        "stance": {
+          "$ref": "#/$defs/Stance",
+          "default": "neutral"
+        },
+        "small_sample": {
+          "default": false,
+          "title": "Small Sample",
+          "type": "boolean"
+        },
+        "authoritative": {
+          "default": false,
+          "title": "Authoritative",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "StrategySource",
+      "type": "object"
+    },
+    "TestPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Method"
+        },
+        "observable_criterion": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observable Criterion"
+        },
+        "required_data": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Required Data",
+          "type": "array"
+        },
+        "owner_role": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner Role"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Due"
+        },
+        "review_trigger": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Trigger"
+        }
+      },
+      "required": [
+        "method",
+        "observable_criterion",
+        "required_data",
+        "owner_role",
+        "due",
+        "review_trigger"
+      ],
+      "title": "TestPlan",
+      "type": "object"
+    },
+    "ValueInput": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+          "title": "Baseline Id",
+          "type": "string"
+        },
+        "actuals": {
+          "patternProperties": {
+            "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$": {
+              "$ref": "#/$defs/Measure"
+            }
+          },
+          "title": "Actuals",
+          "type": "object"
+        },
+        "execution_source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Execution Source Ids",
+          "type": "array"
+        },
+        "causal_source_ids": {
+          "items": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Causal Source Ids",
+          "type": "array"
+        },
+        "competing_explanations": {
+          "items": {
+            "$ref": "#/$defs/Attribution"
+          },
+          "title": "Competing Explanations",
+          "type": "array"
+        },
+        "uncertainty": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Uncertainty",
+          "type": "array"
+        }
+      },
+      "required": [
+        "baseline_id",
+        "actuals",
+        "execution_source_ids",
+        "causal_source_ids",
+        "competing_explanations",
+        "uncertainty"
+      ],
+      "title": "ValueInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "3.4-rc3",
+      "default": "3.4-rc3",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "authority": {
+      "const": "analysis_only",
+      "default": "analysis_only",
+      "title": "Authority",
+      "type": "string"
+    },
+    "skills": {
+      "items": {
+        "$ref": "#/$defs/SkillMetadata"
+      },
+      "title": "Skills",
+      "type": "array"
+    },
+    "request": {
+      "$ref": "#/$defs/StrategyRequest"
+    },
+    "baseline": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Baseline"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_state": {
+      "$ref": "#/$defs/StrategyEvidenceState"
+    },
+    "analysis_audit": {
+      "items": {
+        "$ref": "#/$defs/StrategyAuditEvent"
+      },
+      "title": "Analysis Audit",
+      "type": "array"
+    },
+    "results": {
+      "$ref": "#/$defs/StrategyResults"
+    }
+  },
+  "required": [
+    "id",
+    "created_at",
+    "skills",
+    "request",
+    "baseline",
+    "evidence_state",
+    "analysis_audit",
+    "results"
+  ],
+  "title": "StrategyArtifact",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:rif:strategy_artifact:3.4-rc3"
+}

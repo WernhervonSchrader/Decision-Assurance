@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added an opt-in, versioned RIF 3.4-rc3 strategy handoff with separate strict contracts, original
+  provenance, conservative DRAFT-only mapping and no governance/approval/verification upgrades.
+- Added tenant-scoped atomic SQLite/PostgreSQL storage, immutable baseline corrections, separate
+  later observations, read-only CLI preview and explicitly injected authenticated API routes.
+- Added v2 test-method/source-identity preservation, six acceptance scenarios, two-tenant DE/EN
+  API E2E, synthetic examples and a bounded, uninstalled integration-skill source template.
+
 - Replaced the discovery connector with OpenAI Responses API Web Search, including cited and
   consulted sources, guarded domain filters and source-grounded summaries.
 - Kept Firecrawl as an optional selected-URL fetch step and added an explicit

@@ -9,6 +9,7 @@ from pathlib import Path
 from .benchmark import run_benchmark
 from .decision_file import evaluate_decision_file, load_decision_file
 from .engine import DecisionAssuranceEngine
+from .i18n import localize
 from .identity import ActorKind, Identity, Role
 from .intake.codec import policy_from_dict, to_dict, verification_from_dict
 from .intake.compiler import DecisionFileCompiler
@@ -16,6 +17,8 @@ from .intake.confirmation import confirm_fact
 from .intake.contracts import IntakeStatus
 from .intake.extractor import DeterministicQuoteExtractor
 from .intake.verification import InMemoryPolicyRegistry, IntakeVerifier
+from .strategy.contracts import ImportEnvelope
+from .strategy.mapping import preview_document
 from .tenancy import TenantContext
 from .transitions import TransitionPolicy
 
@@ -26,6 +29,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name in ("validate", "evaluate", "report"):
         command = commands.add_parser(name)
         command.add_argument("input", type=Path)
+    strategy = commands.add_parser("strategy-preview")
+    strategy.add_argument("input", type=Path)
+    strategy.add_argument("envelope", type=Path)
+    strategy.add_argument("--locale", choices=["de", "en"], default="en")
     transition = commands.add_parser("transition")
     transition.add_argument("input", type=Path)
     transition.add_argument("target")
@@ -61,6 +68,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluate_intake.add_argument("input", type=Path)
     args = parser.parse_args(argv)
 
+    if args.command == "strategy-preview":
+        try:
+            raw = args.envelope.read_bytes()
+            if len(raw) > 1_048_576:
+                raise ValueError("STRATEGY_INPUT_TOO_LARGE")
+            envelope = ImportEnvelope.model_validate_json(raw)
+            identity = Identity(
+                "local:preview", TenantContext(envelope.tenant_id), Role.READONLY, ActorKind.SERVICE
+            )
+            strategy_preview = preview_document(identity, envelope, load_decision_file(args.input))
+            print(json.dumps(strategy_preview, indent=2, ensure_ascii=False, allow_nan=False))
+            return 0
+        except (ValueError, OSError, PermissionError):
+            print(
+                json.dumps(
+                    {
+                        "code": "INVALID_REQUEST",
+                        "message": localize("INVALID_REQUEST", args.locale),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 1
     if args.command == "intake":
         return _run_intake(args)
     if args.command == "validate":
