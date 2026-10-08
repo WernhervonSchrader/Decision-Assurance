@@ -89,8 +89,8 @@ def load_verification_report(
         or not isinstance(expected_environment, str)
         or not 1 <= len(expected_environment) <= 128
         or verification.get("environment") != expected_environment
-        or verification.get("database_schema_version") != "004"
-        or verification.get("rls_tables_verified") != 28
+        or verification.get("database_schema_version") != "005"
+        or verification.get("rls_tables_verified") != 30
         or not isinstance(verification.get("server_version_num"), str)
         or not _POSTGRESQL_16_VERSION.fullmatch(verification["server_version_num"])
         or not isinstance(verification.get("source_database"), str)
