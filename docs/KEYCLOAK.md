@@ -4,7 +4,7 @@ Controlled-pilot configuration enables TOTP and WebAuthn registration. DA separa
 `acr`, `amr` and `auth_time` for critical roles; enabling an IdP action alone is not evidence. See
 `MFA.md`.
 
-Decision Assurance includes a reproducible Keycloak 26.7.0 environment for development and
+Decision Assurance includes a reproducible Keycloak 26.7.5 environment for development and
 isolated E2E verification. It is not a production deployment or evidence of production readiness.
 Keycloak establishes identity; Decision Assurance remains the authority for permissions, tenant
 isolation, lifecycle transitions and actor independence.

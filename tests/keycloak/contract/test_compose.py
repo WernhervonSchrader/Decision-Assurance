@@ -58,7 +58,7 @@ def test_keycloak_image_is_optimized_non_root_and_never_uses_start_dev() -> None
     bootstrap_entrypoint = Path("integrations/keycloak/bootstrap-entrypoint.sh").read_text(
         encoding="utf-8"
     )
-    assert "quay.io/keycloak/keycloak:26.7.0" in dockerfile
+    assert "quay.io/keycloak/keycloak:26.7.5" in dockerfile
     assert "kc.sh build" in dockerfile
     assert "USER 1000" in dockerfile
     assert "start-dev" not in dockerfile
