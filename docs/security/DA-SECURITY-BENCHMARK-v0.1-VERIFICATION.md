@@ -41,7 +41,7 @@ sanitized example reports under `benchmarks/security/reports/`. No raw datasets 
 Benchmark security failures are discovered target behavior, not test-harness failures. They
 deliberately prevent treating the outcome as a security proof or production-ready release.
 
-Implementation commits: `f20f996` (source/contracts/design), `faa7164` (real governance and simulation), `7f3921e` (profiles/reports/regression). Final documentation/CI commit follows; example measurements identify the exact implementation commit.
+Implementation commits: `f20f996` (source/contracts/design), `faa7164` (real governance and simulation), `7f3921e` (profiles/reports/regression). `c38c442` resolves the supplied eleven-principle mapping and removes its obsolete report limitation; no measured target behavior changed. Example measurements identify this exact source commit.
 
 ## Separate reviews
 
@@ -72,8 +72,28 @@ The four discovered target weaknesses require independent remediation decisions 
 In particular, B3 is a real authenticated lifecycle admission bypass. Sandbox freshness cannot
 substitute for the not-yet-implemented production executor. The owner-supplied transcript resolves the mapping input; no independent authorship/publication verification is claimed.
 
-Final full local non-service run outside the restricted sandbox: **785 passed, zero failures, 35 deselected**. The earlier 784/1 result was caused solely by sandbox visibility of tracked placeholder examples. Final standard evidence is bound to implementation commit `7f3921e`, with 112 freshly invoked B/C components and zero reused checkpoints. All 64 original levels and all ten derived categories occur in the selection. Original Microsoft observations in this sample: 999 evaluable objective sets, 6 all-objective successes, 134 generated tool proposals; these are never fresh DA model measurements. Actionlint and exact original-content reconstruction passed.
+Final full local non-service run outside the restricted sandbox: **785 passed, zero failures, 35 deselected**. The earlier 784/1 result was caused solely by sandbox visibility of tracked placeholder examples. Final standard evidence is bound to source commit `c38c442`, with 112 freshly invoked B/C components and zero reused checkpoints. All 64 original levels and all ten derived categories occur in the selection. Original Microsoft observations in this sample: 999 evaluable objective sets, 6 all-objective successes, 134 generated tool proposals; these are never fresh DA model measurements. Actionlint and exact original-content reconstruction passed.
 
 ## CI secret-scan false-positive verification
 
 The initial PR secret-scan flagged eight generic-api-key findings in the fixture-introduction commit `7f3921e`. An independent Gitleaks 8.24.3 JSON report proved that every Secret value exactly equals an original public Microsoft RowKey UUID, at the eight reviewed source-fixture lines. Only these eight immutable commit/path/rule/line fingerprints are documented in `.gitleaksignore`; neither the file nor the generic-api-key rule is excluded. The full PR commit-range scan then returned zero findings. A fresh random, nonfunctional high-entropy credential canary in the identical fixture path was independently detected (scanner exit 1), proving new credentials remain scanned. Canary/report values remain in ignored local cache and are not published. Initial failures and the correction remain visible in CI history.
+
+## Source clarification and final rerun
+
+The owner supplied the numbered transcript on 2026-10-16; all eleven items are now mapped with
+actual evidence, explicit productive/sandbox scopes and remaining gaps. No publication URL or
+independent authorship verification is claimed. Inspection additionally records missing direct
+store filename guards, productive IBAN/known-good checks, general quarantine and immediate
+execution stop; none is falsely counted as an executed exploit or a passed control.
+
+Fresh source-commit `c38c442` verification: benchmark suite **48 passed**, Ruff lint/format passed;
+smoke **27 / 11 PASS / 4 SECURITY_FAILURE / 12 INCONCLUSIVE**, standard **1,315 / 80 / 32 / 1,203**.
+No checkpoints reused; all 112 B/C components executed again. Counts, metrics, original observations
+and selected-case hash exactly match the prior measured report. The obsolete source-pending flag
+is removed; no target behavior changes. Complete reports are in ignored
+`.cache/security-smoke-source-final/` and `.cache/security-standard-source-final/`; the committed
+summary includes the complete standard report SHA256.
+
+All eight existing CI jobs passed on predecessor `25912fd`: verify, PostgreSQL, restore,
+Keycloak/OIDC, pilot browser/UI, secret scan, container security and release evidence.
+Exact-head follow-up CI status is recorded in draft PR #16 after the final documentation commit.

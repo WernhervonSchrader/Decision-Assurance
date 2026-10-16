@@ -2,13 +2,13 @@
 
 Lokale Benchmark-Nachweise. Originalbeobachtungen von Microsoft, tatsächliche DA-Governance und simulierte Ausführung sind unabhängige Messungen.
 
-**Benchmark-Version:** `0.1`
-**Repository-Commit:** `7f3921ebbda6fd0dcd3021d460087df1cf588969`
-**Dataset-Revision:** `1063bdf01ec8762b812d5e06ee768a06faa5a6f7`
-**Prüfsumme des Quellen-Locks:** `33a7a23c8c24a817a022f8e475c7798e0de5246e6124ef8670f64859a0ec675e`
-**Ausführungsmodus:** `simulation`
-**Testprofil:** `smoke`
-**Erstellt am:** 16.10.2026 09:34 UTC
+**Benchmark-Version:** `0.1`  
+**Repository-Commit:** `c38c442dd3448edca75e70a6f9265aedd2a75012`  
+**Dataset-Revision:** `1063bdf01ec8762b812d5e06ee768a06faa5a6f7`  
+**Prüfsumme des Quellen-Locks:** `33a7a23c8c24a817a022f8e475c7798e0de5246e6124ef8670f64859a0ec675e`  
+**Ausführungsmodus:** `simulation`  
+**Testprofil:** `smoke`  
+**Erstellt am:** 16.10.2026 09:57 UTC
 
 ## Fallzahlen
 
@@ -64,7 +64,6 @@ Priorität: nachgewiesene Lücken bei Lifecycle und Evidenzvertrauen schließen,
 - `MODEL_ADAPTER_DISABLED`
 - `NO_PRODUCTION_EXECUTION_GATEWAY`
 - `STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC`
-- `BURSEG_SOURCE_PENDING`
 
 Originalbeobachtungen: 6 auswertbar; 0 erfüllten alle Challenge-Ziele; 0 erzeugten Tool-Vorschläge. Dies sind keine neuen Messungen und kein Nachweis tatsächlichen Mail-Versands.
 

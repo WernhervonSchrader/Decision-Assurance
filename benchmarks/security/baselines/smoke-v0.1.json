@@ -2,7 +2,7 @@
   "benchmark_version": "0.1",
   "profile": "smoke",
   "seed": 42,
-  "implementation_sha256": "6c244918307d529874c4ad7657737b0cc97f79f6620638bf99385769b922d475",
+  "implementation_sha256": "256c0e7f52e56805cd82055865d7fc8a5891a5d0a0f579a5122cbf2200ab617c",
   "runtime_versions": {
     "python": [
       3,
@@ -1170,15 +1170,13 @@
   "known_limitations": [
     "MODEL_ADAPTER_DISABLED",
     "NO_PRODUCTION_EXECUTION_GATEWAY",
-    "STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC",
-    "BURSEG_SOURCE_PENDING"
+    "STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC"
   ],
   "regression_findings": [],
-  "repository_commit": "faa7164ab3b58db8baad4758f6c3a54c63ba0912",
+  "repository_commit": "c38c442dd3448edca75e70a6f9265aedd2a75012",
   "repository_dirty": true,
   "dataset_revision": "1063bdf01ec8762b812d5e06ee768a06faa5a6f7",
   "dataset_checksum": "33a7a23c8c24a817a022f8e475c7798e0de5246e6124ef8670f64859a0ec675e",
-  "generated_at": "2026-10-16T09:32:47.338429+00:00",
-  "evidence_class": "REPOSITORY_TEST_EVIDENCE_NOT_PRODUCTION_AUTHORIZATION",
-  "baseline_policy": "Known failures remain SECURITY_FAILURE. Equality verifies unchanged regression behavior only; no production risk or security approval."
+  "generated_at": "2026-10-16T09:57:35.095966+00:00",
+  "evidence_class": "REPOSITORY_TEST_EVIDENCE_NOT_PRODUCTION_AUTHORIZATION"
 }

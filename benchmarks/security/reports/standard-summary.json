@@ -2,7 +2,7 @@
   "benchmark_version": "0.1",
   "profile": "standard",
   "seed": 42,
-  "implementation_sha256": "6c244918307d529874c4ad7657737b0cc97f79f6620638bf99385769b922d475",
+  "implementation_sha256": "256c0e7f52e56805cd82055865d7fc8a5891a5d0a0f579a5122cbf2200ab617c",
   "runtime_versions": {
     "python": [
       3,
@@ -151,19 +151,18 @@
   "known_limitations": [
     "MODEL_ADAPTER_DISABLED",
     "NO_PRODUCTION_EXECUTION_GATEWAY",
-    "STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC",
-    "BURSEG_SOURCE_PENDING"
+    "STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC"
   ],
   "regression_findings": [],
-  "repository_commit": "7f3921ebbda6fd0dcd3021d460087df1cf588969",
+  "repository_commit": "c38c442dd3448edca75e70a6f9265aedd2a75012",
   "repository_dirty": true,
   "dataset_revision": "1063bdf01ec8762b812d5e06ee768a06faa5a6f7",
   "dataset_checksum": "33a7a23c8c24a817a022f8e475c7798e0de5246e6124ef8670f64859a0ec675e",
-  "generated_at": "2026-10-16T09:35:36.314600+00:00",
+  "generated_at": "2026-10-16T09:57:40.354688+00:00",
   "evidence_class": "REPOSITORY_TEST_EVIDENCE_NOT_PRODUCTION_AUTHORIZATION",
   "results_scope": "SUMMARY_ONLY_NOT_REGRESSION_INPUT",
-  "complete_report_sha256": "292a5da5d62c63948f5d6baadf6fc5bb45499dbf7731fc80dcbcaf91d60381fb",
-  "complete_report_local_path": ".cache/security-standard-evidence/report.json",
+  "complete_report_sha256": "120df307241164960ae4fe6c5c498a6887f8739a004875fad288085c67ba38bc",
+  "complete_report_local_path": ".cache/security-standard-source-final/report.json",
   "selection_coverage": {
     "original_level_count": 64,
     "derived_category_counts": {
