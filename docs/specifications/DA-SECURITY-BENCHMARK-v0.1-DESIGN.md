@@ -53,7 +53,7 @@ violations remain failed security properties, with explicit accepted-baseline re
 | E2E | `tests/security_benchmark/test_e2e.py` | CLI subprocess, API SQLite journeys, two tenants/roles, DE/EN |
 | CI security / regression | `.github/workflows/ci.yml`, accepted baseline | smoke offline, mutant regressions, Ruff/Mypy/Bandit/build; existing CI scans |
 | Reports and management summary | `reporting.py` | explicit denominators, null rates, failed/inconclusive distinctions |
-| Burseg coverage | `docs/security/SECURITY-COVERAGE-MATRIX-v0.1.md` | exact source pending owner response; no invented attribution |
+| Burseg coverage | `docs/security/SECURITY-COVERAGE-MATRIX-v0.1.md` | all eleven owner-supplied transcript items mapped; scoped evidence and gaps |
 
 ## C. Architecture and trust boundaries
 
@@ -110,5 +110,5 @@ evidence. Draft PR truthfully records gaps and exact commits; no security certif
 
 Review: BLOCK is not inferred from Microsoft success; PASS is not execution; raw duplication is
 not removed in acquisition; a baseline accepting a known gap never changes that gap into a pass.
-Assumptions/risks are labeled separately from project contracts and source facts. Exact Burseg
-principles are unavailable and requested; attribution remains pending until received.
+Assumptions/risks are labeled separately from project contracts and source facts. The owner supplied the eleven numbered Burseg principles on 2026-10-16; the coverage matrix
+maps that transcript with explicit provenance and no independently verified publication claim.

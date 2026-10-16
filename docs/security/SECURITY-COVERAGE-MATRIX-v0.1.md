@@ -5,26 +5,31 @@ TESTED requires a successful meaningful automated test against the actual named 
 PARTIALLY TESTED means a real subset was checked but the full property is not established.
 SPECIFIED ONLY and MISSING are never counted as passed implementation.
 
-## Exact Burseg mapping — pending source
+## Eleven supplied principles: exact numbering, scoped coverage
 
-The assignment refers to eleven principles from a previously discussed Christoph Burseg post.
-Neither the post nor the eleven principles were supplied or found in this checkout. The owner
-was asked for the URL/list. Web search did not establish an unambiguous matching source.
-Attributing invented principles would be misleading. The exact mapping is therefore incomplete.
+Source provenance: the owner supplied the numbered transcript in this task on 2026-10-16,
+attributed to Christoph Burseg. No URL was supplied; authorship/publication has not been
+independently verified. The short descriptions below paraphrase that supplied ordering.
+This is an engineering coverage comparison, not a certification or an endorsement of every
+suggested mechanism. A model confirmation cannot replace independent authorization.
 
-| Referenced principle | Source text | Mapping status |
+| # / supplied principle | Actual implementation and executed evidence | Status and remaining gap |
 |---|---|---|
-| Burseg 1 | Not supplied | MISSING |
-| Burseg 2 | Not supplied | MISSING |
-| Burseg 3 | Not supplied | MISSING |
-| Burseg 4 | Not supplied | MISSING |
-| Burseg 5 | Not supplied | MISSING |
-| Burseg 6 | Not supplied | MISSING |
-| Burseg 7 | Not supplied | MISSING |
-| Burseg 8 | Not supplied | MISSING |
-| Burseg 9 | Not supplied | MISSING |
-| Burseg 10 | Not supplied | MISSING |
-| Burseg 11 | Not supplied | MISSING |
+| 1. Constrain filenames, termination, length and control characters; report violations | Decision File ID schema restricts characters and length. `security_benchmark/contracts.py` and `test_adapters.py` reject unsafe relative payload paths. | PARTIALLY TESTED: these scoped guards pass; direct `case_store.py` methods concatenate caller IDs without their own validation. Universal filename/control-character/length enforcement and violation reporting are not established. That direct-store gap is inspection evidence, not an executed exploit. |
+| 2. Treat payment details as proposals; validate and compare with trusted history | C3 in `test_execution.py` rejects a changed bank value in the isolated execution sandbox. | MISSING for productive payment control: no implemented IBAN checksum or known-good/history registry was found. Sandbox string comparison does not prove this principle. |
+| 3. Cap retries; quarantine suspicious input | `dataset.py` bounds download attempts; research policy/orchestrator bounds attempts and budget. `test_orchestration_controls.py` tests retry limits and retry-after; `production/jobs/test_worker.py` distinguishes retryable and poisoned failures. | PARTIALLY TESTED: bounded retry behavior passes; a general suspicious-content quarantine and its operational release procedure are missing. A terminal poison failure is not evidence of quarantine. |
+| 4. Use deterministic engines for critical decisions | Real deterministic engine/TransitionPolicy, 61 existing engine/contract/transition checks and B0/B4/B5 controls. | PARTIALLY TESTED: B1/B2 expose incomplete policy/provenance, B3 real lifecycle admission bypass. There is no universal tested invoice/tool-call/social-engineering decision engine. |
+| 5. Accept model outputs only through narrow strict schemas | Strict Decision File and benchmark contracts, research contracts, API negative-schema tests; `research/contract/test_research_schemas.py` rejects unknown identity/provider fields. | PARTIALLY TESTED: actual contracts pass; the optional fresh agent adapter is disabled. Strict JSON compliance of every live model response has not been tested. |
+| 6. Keep external text out of shell; constrain URL hosts | Benchmark has no payload-to-shell dispatcher. `reporting.py` permits only two fixed read-only Git metadata commands. Locked downloader host/redirect checks and offline socket-denial E2E pass. | TESTED for the named benchmark boundary only. This does not certify every external integration or all repository shell use. |
+| 7. Preview writes, then confirm before execution | Canonical action binding and genuine human API approval are tested. C1-C7 simulate authorization and atomic freshness recheck before effects. Runtime execution contract remains a separate specification. | SPECIFIED ONLY for a productive dry-run-to-confirmation-to-effect gateway: no production mail/purchase executor is shipped. LLM confirmation alone would not satisfy authorization. |
+| 8. Grant only the exact task privileges | Actual authenticated API B4 rejects generator evaluate/approve; B0 human approval succeeds; two-tenant authorization/isolation tests pass. | PARTIALLY TESTED: B3 shows generator creation accepts a forged already-APPROVED document. Role separation is incomplete despite individual protected routes. |
+| 9. Log every security event | Actual engine audit links, API persistence and security-event sink checks; `production/identity/test_security_events.py` checks secret-safe event contracts. | PARTIALLY TESTED: named paths emit tested events; universal completeness is unproven. B3 admission conflicts with intended approval semantics; B6 permits SQLite writer tampering. In-memory and sandbox logs are labelled separately. |
+| 10. Documents must not cause tool calls; control logic stays outside | Offline runner treats LLMail text as data and denies network. Existing `mcp_adapter/integration/test_mcp_service.py::test_prompt_injection_never_hands_off_or_produces_an_outcome` and research E2E test actual handoff controls. | PARTIALLY TESTED: named boundaries pass; fresh agent resilience remains unmeasured, B3 governance gap remains, and a productive effect gateway is absent. Imported text validation alone is not injection defense. |
+| 11. Immediate emergency stop for agents/tools, triggerable by agent | Tenant-scoped `research_cancel`, worker cancellation checks and research cooperative cancellation. `test_cancel_is_idempotent_and_appends_research_audit`, `test_running_cancel_stops_before_next_provider_or_persistence`, and `test_cancelled_delivery_never_invokes_processor` pass. | PARTIALLY TESTED: cooperative cancellation is real; no immediate global kill switch or guaranteed interruption of in-flight external calls is implemented/tested. |
+
+All eleven source items are mapped; a complete mapping does not mean complete implementation.
+Statuses apply to the stated property and boundary. C-series success never raises productive
+control coverage to TESTED. Follow-up issues should address the listed gaps in addition to B1/B2/B3/B6.
 
 ## Verified DA control inventory — project categories, not attributed to Burseg
 

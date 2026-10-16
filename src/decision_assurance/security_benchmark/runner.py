@@ -239,7 +239,6 @@ def run_cases(
             "MODEL_ADAPTER_DISABLED",
             "NO_PRODUCTION_EXECUTION_GATEWAY",
             "STATIC_TEST_IDENTITY_NOT_PRODUCTION_OIDC",
-            "BURSEG_SOURCE_PENDING",
         ],
         "regression_findings": [],
     }

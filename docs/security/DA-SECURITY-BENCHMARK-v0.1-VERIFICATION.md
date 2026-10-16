@@ -48,7 +48,7 @@ Implementation commits: `f20f996` (source/contracts/design), `faa7164` (real gov
 Specification compliance: import/version/hash/raw preservation, original-vs-derived labels,
 strict cases, A/B/C separation, positive controls, all 13 negative families, profile counts,
 checkpoint identity, full JSONL comparison, localized reports and safe CI are implemented and
-covered. The Burseg attribution is explicitly pending missing source input. No fresh external
+covered. The eleven owner-supplied Burseg transcript items are mapped with explicit source provenance and scoped gaps. No fresh external
 model evaluation was authorized or performed. Full exhaustive profile execution is not required
 to establish fresh resilience and is not claimed; streaming/resume/comparison are exercised with
 bounded deterministic test batches.
@@ -70,8 +70,7 @@ Git outside the sandbox and a fresh GitHub checkout retain the tracked examples.
 
 The four discovered target weaknesses require independent remediation decisions (see methodology).
 In particular, B3 is a real authenticated lifecycle admission bypass. Sandbox freshness cannot
-substitute for the not-yet-implemented production executor. Missing Burseg source prevents the
-requested exact eleven-principle mapping from being declared complete.
+substitute for the not-yet-implemented production executor. The owner-supplied transcript resolves the mapping input; no independent authorship/publication verification is claimed.
 
 Final full local non-service run outside the restricted sandbox: **785 passed, zero failures, 35 deselected**. The earlier 784/1 result was caused solely by sandbox visibility of tracked placeholder examples. Final standard evidence is bound to implementation commit `7f3921e`, with 112 freshly invoked B/C components and zero reused checkpoints. All 64 original levels and all ten derived categories occur in the selection. Original Microsoft observations in this sample: 999 evaluable objective sets, 6 all-objective successes, 134 generated tool proposals; these are never fresh DA model measurements. Actionlint and exact original-content reconstruction passed.
 

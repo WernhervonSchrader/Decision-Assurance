@@ -188,7 +188,7 @@ test against the named actual implementation; simulated controls cannot earn TES
    with atomic object-state revalidation, replay/revocation handling and durable effect reconciliation.
 6. **Research gap:** separately approve a privacy/cost-bounded live model evaluation; do not claim
    source imports measured current agent resilience.
-7. **Documentation input:** supply the exact Burseg source/eleven principles for accurate attribution.
+7. **Additional control gaps:** implement explicit filename guards at direct store boundaries, production IBAN/known-good checks, suspicious-content quarantine and an immediate execution stop where applicable. The eleven owner-supplied principles are now fully mapped in the coverage matrix; these controls remain incomplete.
 
 Answer to the central question: the tests **do not establish** end-to-end prevention for deployed
 DA. They demonstrate one unauthorized APPROVED admission path and two inner-engine trust gaps;

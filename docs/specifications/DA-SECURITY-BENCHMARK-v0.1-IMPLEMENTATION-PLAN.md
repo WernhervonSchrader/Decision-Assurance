@@ -68,3 +68,13 @@ attachments or screenshots/traces from adversarial data. Existing browser trace 
 Separate final reviews: specification compliance including all acceptance criteria; code quality
 including path safety, memory bounds, errors, provenance and honest denominators. Inspect staged
 diffs, commit only authorized files, push feature branch and create draft PR with exact evidence.
+
+## Source clarification received 2026-10-16
+
+The owner supplied the eleven numbered principles as a transcript. Map that ordering in
+`docs/security/SECURITY-COVERAGE-MATRIX-v0.1.md`, retaining explicit production/simulation
+boundaries and remaining gaps. Remove the now-obsolete `BURSEG_SOURCE_PENDING` report limitation
+in `src/decision_assurance/security_benchmark/runner.py`; do not change any target behavior.
+Run `tests/security_benchmark`, fresh smoke and standard profiles, regenerate sanitized examples
+and the known-gap baseline, and compare unchanged outcomes. Commit source/mapping first and
+bind subsequent fresh evidence to that commit. No new runtime control is implied by this update.
