@@ -2,3 +2,16 @@
 2dfa0e4c4cf79b7d9541aa0efb8c45391de44622:docs/specifications/DA-PRODUCTION-FOUNDATION-v0.5-IMPLEMENTATION-PLAN.md:generic-api-key:179
 # False positive: fixed internal JDBC service URL contains no credential.
 2d4caf224f130143e34e816a19b63708f2f7d23a:compose.keycloak.yaml:generic-api-key:35
+
+# Verified false positives: public Microsoft LLMail RowKey UUID identifiers, not API keys.
+# Exactly the eight reviewed original record IDs in the immutable fixture-introduction commit.
+# Gitleaks 8.24.3 JSON findings were compared to original public dataset IDs; all eight match.
+# Commit/path/line/rule fingerprints do not exempt future credentials or the fixture file.
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:1
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:2
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:3
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:4
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:5
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:6
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:7
+7f3921ebbda6fd0dcd3021d460087df1cf588969:benchmarks/security/fixtures/smoke-payloads.jsonl:generic-api-key:8
