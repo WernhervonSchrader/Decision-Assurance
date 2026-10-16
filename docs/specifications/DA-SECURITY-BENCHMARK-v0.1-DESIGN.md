@@ -13,8 +13,8 @@ execution adapter or atomic business-object execution contract. No runtime-contr
 was found. Existing files and Golden expectations remain unchanged.
 
 Baseline: `pytest -q`: 736 passed, 33 skipped, 3 failed. Two failures lack
-`DA_TEST_POSTGRES_DSN`; one follows pre-existing deleted `.secrets/keycloak-*.example` files.
-The owner's unrelated deletions and Odoo documents are excluded from commits. PostgreSQL,
+`DA_TEST_POSTGRES_DSN`; one cannot see `.secrets/keycloak-*.example` files inside the restricted sandbox.
+The apparent secret-example deletions were later confirmed to be sandbox visibility restrictions, not user deletions. The owner's unrelated Odoo documents are excluded from commits. PostgreSQL,
 Keycloak and browser suites require isolated services. No Superpowers capability is available;
 the mandated discovery/design/plan/TDD/review/verification workflow is followed manually.
 
