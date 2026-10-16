@@ -17,8 +17,6 @@ LOCK_PATH = ROOT / "benchmarks/security/datasets/llmail/source-lock.json"
 DOWNLOAD_HOSTS = frozenset(
     {
         "huggingface.co",
-        "cas-bridge.xethub.hf.co",
-        "cdn-lfs.hf.co",
         "cdn-lfs-us-1.hf.co",
         "cdn-lfs-eu-1.hf.co",
         "us.aws.cdn.hf.co",
@@ -197,7 +195,8 @@ def build_index(raw_paths: list[Path], index: Path, *, batch_size: int = 1000) -
                 cursor INTEGER DEFAULT 0, count INTEGER DEFAULT 0, complete INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS records(content_sha256 TEXT PRIMARY KEY, source_record_id TEXT,
                 scenario TEXT, categories TEXT, stratum TEXT, path TEXT, offset INTEGER,
-                length INTEGER, raw_sha256 TEXT, original_result TEXT);
+                length INTEGER, raw_sha256 TEXT, original_result TEXT,
+                annotation_key_sha TEXT, attack_ground_truth INTEGER, source_attack_label TEXT);
         """)
         supplied = {str(p.resolve()) for p in raw_paths}
         existing = {r[0] for r in db.execute("SELECT path FROM files")}
@@ -226,7 +225,7 @@ def build_index(raw_paths: list[Path], index: Path, *, batch_size: int = 1000) -
                     except ValueError:
                         original = None
                 db.execute(
-                    "INSERT OR IGNORE INTO records VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT OR IGNORE INTO records(content_sha256,source_record_id,scenario,categories,stratum,path,offset,length,raw_sha256,original_result) VALUES(?,?,?,?,?,?,?,?,?,?)",
                     (
                         content_sha,
                         record["RowKey"],
@@ -255,7 +254,9 @@ def build_index(raw_paths: list[Path], index: Path, *, batch_size: int = 1000) -
         }
 
 
-def select_records(index: Path, count: int, seed: int) -> list[dict[str, Any]]:
+def select_records(
+    index: Path, count: int, seed: int, *, require_attacks: bool = False
+) -> list[dict[str, Any]]:
     if count < 1:
         raise ValueError("SAMPLE_COUNT_INVALID")
     with sqlite3.connect(index) as db:
@@ -272,8 +273,9 @@ def select_records(index: Path, count: int, seed: int) -> list[dict[str, Any]]:
         rows = db.execute(
             """SELECT * FROM (SELECT *, ROW_NUMBER() OVER
             (PARTITION BY stratum ORDER BY seed_rank(content_sha256), content_sha256) AS rank
-            FROM records) ORDER BY rank,stratum,content_sha256 LIMIT ?""",
-            (count,),
+            FROM records WHERE ?=0 OR attack_ground_truth=1)
+            ORDER BY rank,stratum,content_sha256 LIMIT ?""",
+            (int(require_attacks), count),
         ).fetchall()
         if len(rows) != count:
             raise ValueError("INSUFFICIENT_UNIQUE_RECORDS")
@@ -301,7 +303,7 @@ def scan_payloads(path: Path) -> dict[str, Any]:
 
     patterns = {
         "credential_shaped": r"(?i)(?:sk-(?:proj-)?[A-Za-z0-9_-]{20,}|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|(?:password|api[_-]?key)\s*[:=]\s*[^\s]{8,})",
-        "email_address": r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
+        "email_address": r"(?<![\w.+-])[\w.+-]{1,64}@[\w.-]{1,253}\.[A-Za-z]{2,24}",
         "active_content": r"(?i)(?:<script|javascript:|powershell|/bin/(?:ba)?sh|eval\()",
     }
     counts = dict.fromkeys(patterns, 0)

@@ -60,6 +60,9 @@ def observation(case: dict[str, Any]) -> dict[str, Any]:
         "governance_escape": None,
         "authorization_result": None,
         "policy_gap": None,
+        "finding_scope": None,
+        "finding_severity": None,
+        "audit_scope": None,
         "lifecycle_state": None,
         "executed": None,
         "execution_scope": "none",
@@ -191,7 +194,8 @@ def run_governance(case: dict[str, Any], workspace: Path) -> dict[str, Any]:
         audit_complete=_chain_valid(events)
         and {"decision.received", "evidence.validated", "governance.decided"}.issubset(types),
         audit_sha256=digest(events),
-        evidence_integrity=family != "B2",
+        evidence_integrity=False if family in {"B2", "B5"} else None,
+        audit_scope="engine_contract_only",
     )
     if family in {"B1", "B2", "B5"}:
         # Engine PASS does not release an action: these two expose missing checks,
@@ -204,6 +208,10 @@ def run_governance(case: dict[str, Any], workspace: Path) -> dict[str, Any]:
             result["reason_codes"] = ["ENGINE_ACTION_AUTHORIZATION_NOT_ASSESSED"]
         if family == "B2":
             result["reason_codes"] = ["ENGINE_EVIDENCE_ORIGIN_NOT_VERIFIED"]
+        if result["status"] == "SECURITY_FAILURE":
+            result.update(
+                finding_scope="inner_engine_policy_gap_no_execution", finding_severity="HIGH"
+            )
         return result
 
     db_path = workspace / (case["test_id"] + ".sqlite")
@@ -244,6 +252,11 @@ def run_governance(case: dict[str, Any], workspace: Path) -> dict[str, Any]:
                 ["decision.created"] if response.status_code == 201 else []
             )
             result["audit_sha256"] = None
+            result["audit_scope"] = "authenticated_api_lifecycle"
+            if result["status"] == "SECURITY_FAILURE":
+                result.update(
+                    finding_scope="authenticated_api_lifecycle_bypass", finding_severity="CRITICAL"
+                )
             result["reason_codes"] = [
                 "FORGED_APPROVAL_ACCEPTED"
                 if result["status"] == "SECURITY_FAILURE"
@@ -287,6 +300,10 @@ def run_governance(case: dict[str, Any], workspace: Path) -> dict[str, Any]:
                 if rejected == 2
                 else "PERSISTED_AUDIT_TAMPER_POSSIBLE"
             ]
+            if result["status"] == "SECURITY_FAILURE":
+                result.update(
+                    finding_scope="sqlite_reference_database_writer", finding_severity="MEDIUM"
+                )
         elif family == "B0":
             evaluated = client.post(path + "/evaluate", headers=headers("val", "evaluate"))
             if evaluated.status_code != 200:
@@ -311,6 +328,9 @@ def run_governance(case: dict[str, Any], workspace: Path) -> dict[str, Any]:
             raise RuntimeError("BENCHMARK_AUDIT_READ_FAILED")
         persisted = audit.json()["items"]
         result["audit_complete"] = bool(persisted) and _chain_valid(persisted)
+        result["audit_scope"] = (
+            "api_events_and_in_memory_security_sink" if family == "B4" else "sqlite_reference_store"
+        )
         if family == "B4":
             denied_events = [
                 e
@@ -359,7 +379,8 @@ def run_execution(case: dict[str, Any]) -> dict[str, Any]:
         audit_complete=actual["audit_complete"],
         audit_event_types=actual["event_types"],
         audit_sha256=digest(sandbox.events),
-        evidence_integrity=True,
+        evidence_integrity=actual["evidence_integrity"],
+        audit_scope="simulation_only",
         freshness_valid=actual["freshness_valid"],
         reason_codes=[
             "SIMULATED_EXECUTION_ALLOWED" if actual["executed"] else "SIMULATED_EXECUTION_BLOCKED"

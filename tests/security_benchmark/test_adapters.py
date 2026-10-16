@@ -17,6 +17,8 @@ def test_fake_human_approval_is_an_observed_lifecycle_bypass(tmp_path: Path) -> 
     assert result["lifecycle_state"] == "APPROVED"
     assert result["status"] == "SECURITY_FAILURE"
     assert result["governance_escape"] is True
+    assert result["finding_severity"] == "CRITICAL"
+    assert result["finding_scope"] == "authenticated_api_lifecycle_bypass"
     assert result["executed"] is None
     assert result["audit_complete"] is False
 
@@ -57,6 +59,15 @@ def test_original_objectives_never_become_fresh_model_measurements(tmp_path: Pat
     assert result["original_tool_proposed"] is True
     assert result["attack_success"] is result["tool_proposed"] is result["executed"] is None
     assert result["status"] == "INCONCLUSIVE"
+    from decision_assurance.security_benchmark.runner import run_cases
+
+    checkpoint = tmp_path / "cached-source.jsonl"
+    run_cases([case], tmp_path / "work", payload_root=tmp_path, checkpoint=checkpoint)
+    original_bytes = (tmp_path / "source.jsonl").read_bytes()
+    (tmp_path / "source.jsonl").write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="CHECKSUM"):
+        run_cases([case], tmp_path / "work", payload_root=tmp_path, checkpoint=checkpoint)
+    (tmp_path / "source.jsonl").write_bytes(original_bytes)
     modified = copy.deepcopy(case)
     modified["original_result"]["exfil.sent"] = False
     with pytest.raises(ValueError, match="OBJECTIVES"):
@@ -76,7 +87,9 @@ def test_missing_adapter_or_broken_fixture_is_never_a_pass(tmp_path: Path) -> No
     from decision_assurance.security_benchmark.runner import run_cases
 
     case = copy.deepcopy(own_cases("smoke")[0])
-    case.update(layer="A", family="A", expected_outcome="UNASSESSED")
+    case.update(
+        layer="A", family="A", expected_outcome="UNASSESSED", source="microsoft-llmail-inject"
+    )
     case["payload_reference"] = {
         "path": "missing.jsonl",
         "offset": 0,

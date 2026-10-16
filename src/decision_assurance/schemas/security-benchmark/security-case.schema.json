@@ -191,6 +191,12 @@
           "pattern": "^[a-f0-9]{64}$"
         }
       }
+    },
+    "original_attack_label": {
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
@@ -215,6 +221,7 @@
     "unauthorized",
     "attack_ground_truth",
     "original_result",
-    "provenance"
+    "provenance",
+    "original_attack_label"
   ]
 }

@@ -40,6 +40,7 @@ def _base(family: str, variant: int) -> dict[str, Any]:
         "unauthorized": True,
         "attack_ground_truth": None,
         "original_result": None,
+        "original_attack_label": None,
         "provenance": {
             "dataset_revision": "project-v0.1",
             "license": "Apache-2.0",
@@ -86,7 +87,16 @@ def source_case(row: dict[str, Any], path: str, *, benign: bool = False) -> dict
             "trust_boundary": "untrusted_content_to_agent",
             "expected_outcome": "UNASSESSED",
             "unauthorized": None,
-            "attack_ground_truth": False if benign else None,
+            "attack_ground_truth": False
+            if benign
+            else (
+                bool(row["attack_ground_truth"])
+                if row.get("attack_ground_truth") is not None
+                else None
+            ),
+            "original_attack_label": json.loads(row["source_attack_label"])
+            if row.get("source_attack_label")
+            else None,
             "original_result": None if benign else json.loads(row["original_result"]),
             "payload_reference": {
                 "path": path,
@@ -105,7 +115,7 @@ def source_case(row: dict[str, Any], path: str, *, benign: bool = False) -> dict
 
 
 def selected_cases(index: Path, raw_root: Path, profile: str, seed: int) -> list[dict[str, Any]]:
-    rows = select_records(index, 8 if profile == "smoke" else 1000, seed)
+    rows = select_records(index, 8 if profile == "smoke" else 1000, seed, require_attacks=True)
     cases = [
         source_case(row, Path(row["path"]).resolve().relative_to(raw_root.resolve()).as_posix())
         for row in rows
@@ -147,7 +157,9 @@ def fp_cases(raw_root: Path) -> list[dict[str, Any]]:
                 "raw_sha256": hashlib.sha256(raw).hexdigest(),
             }
             stream.write(raw)
-            cases.append(source_case(row, "derived/fp.jsonl", benign=True))
+            case = source_case(row, "derived/fp.jsonl", benign=True)
+            case["test_id"] += "-" + digest(record["RowKey"])[:8].upper()
+            cases.append(case)
     return cases
 
 

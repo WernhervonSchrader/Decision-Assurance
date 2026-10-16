@@ -38,6 +38,16 @@ def validate_case(case: dict[str, Any]) -> None:
         raise ValueError("CASE_INVALID")
     if case["layer"] == "A" and case["expected_outcome"] != "UNASSESSED":
         raise ValueError("CASE_INVALID_SOURCE_LABEL_POLICY_MAPPING")
+    if case["layer"] == "A" and (
+        case["family"] != "A"
+        or case["payload_reference"] is None
+        or case["source"] == "project-adversarial"
+    ):
+        raise ValueError("CASE_INVALID_SOURCE_BOUNDARY")
+    if case["layer"] != "A" and (
+        not case["family"].startswith(case["layer"]) or case["source"] != "project-adversarial"
+    ):
+        raise ValueError("CASE_INVALID_SYNTHETIC_BOUNDARY")
     if case["layer"] != "A" and case["payload_reference"] is not None:
         raise ValueError("CASE_INVALID_PAYLOAD_BOUNDARY")
 

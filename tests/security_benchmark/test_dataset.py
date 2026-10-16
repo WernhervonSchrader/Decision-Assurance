@@ -8,9 +8,22 @@ import pytest
 from decision_assurance.security_benchmark.dataset import (
     acquire_file,
     build_index,
+    scan_payloads,
     select_records,
     verify_file,
 )
+
+
+def test_content_triage_handles_long_untrusted_tokens_without_emitting_them(tmp_path: Path) -> None:
+    path = tmp_path / "long.jsonl"
+    path.write_text(
+        json.dumps({"RowKey": "long", "subject": "", "body": "A" * 128000, "scenario": "level1a"})
+        + "\n"
+    )
+    result = scan_payloads(path)
+    assert result["records"] == 1
+    assert result["flags"] == {"credential_shaped": 0, "email_address": 0, "active_content": 0}
+    assert result["publication_approved"] is False
 
 
 def raw_fixture(path: Path, count: int = 80) -> Path:

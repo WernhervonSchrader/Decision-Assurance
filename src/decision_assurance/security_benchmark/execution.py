@@ -97,11 +97,17 @@ class ExecutionSandbox:
                 and key not in self._denied
                 and grant["grant_id"] not in self._used
             )
+            evidence_integrity = (
+                trusted == grant
+                and trusted is not None
+                and trusted["state_digest"] == digest(self.original)
+            )
             allowed = bool(authorized and freshness)
             if not self.audit_available:
                 return {
                     "executed": False,
                     "audit_complete": False,
+                    "evidence_integrity": evidence_integrity,
                     "freshness_valid": bool(freshness),
                     "error_code": "AUDIT_UNAVAILABLE",
                     "event_types": [],
@@ -129,6 +135,7 @@ class ExecutionSandbox:
             return {
                 "executed": allowed,
                 "audit_complete": True,
+                "evidence_integrity": evidence_integrity,
                 "freshness_valid": bool(freshness),
                 "error_code": None,
                 "event_types": [x["reason_code"] for x in self.events],
