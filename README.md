@@ -154,6 +154,13 @@ version and reuse each task, normalized `PASS` / `FAIL` / `REQUIRES_HUMAN_REVIEW
 signals and provenance without depending on internal test paths. The registered OWASP source is
 external context; DATS mappings and expected results remain project-owned interpretations.
 
+The separate [Security Benchmark v0.1](benchmarks/security/README.md) imports pinned Microsoft
+LLMail-Inject data and exercises real governance plus isolated execution simulations. Its offline
+27-case smoke and reproducible 1,315-case standard profile preserve discovered failures and unknown
+model measurements. The benchmark has exposed an authenticated fabricated-approval admission
+path; passing the regression baseline does not establish production security. See
+[methodology and findings](docs/security/DA-SECURITY-BENCHMARK-v0.1.md).
+
 ## License and positioning
 
 Reference code is licensed under Apache-2.0. Normative specification licensing

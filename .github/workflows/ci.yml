@@ -35,6 +35,12 @@ jobs:
         run: decision-assurance benchmark benchmarks/dats/v0.1.0/catalog.json
       - name: Intake benchmark
         run: python -m pytest tests/intake/benchmark -q
+      - name: Offline security benchmark and accepted-gap regression gate
+        run: >-
+          python -m decision_assurance.security_benchmark run
+          --profile smoke --output .cache/security-benchmark-ci
+          --baseline benchmarks/security/baselines/smoke-v0.1.json
+          --locale en
       - name: Bandit static analysis
         run: bandit -q -r src -s B105
       - name: Dependency vulnerability audit
@@ -56,6 +62,17 @@ jobs:
             benchmarks/intake
             .pytest_cache
             .cache/pytest.xml
+            .cache/security-benchmark-ci/report.json
+            .cache/security-benchmark-ci/report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-benchmark-evidence
+          retention-days: 14
+          path: |
+            .cache/security-benchmark-ci/report.json
+            .cache/security-benchmark-ci/report.md
+          if-no-files-found: error
 
   pilot-ui:
     runs-on: ubuntu-latest
