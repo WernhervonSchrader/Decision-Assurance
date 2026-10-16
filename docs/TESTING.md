@@ -1,5 +1,19 @@
 # Testing Strategy — Public Draft v0.5
 
+## Security Benchmark v0.1
+
+`tests/security_benchmark/` verifies pinned imports, byte-range recovery, raw immutability,
+strict contracts, original annotation joins/conflicts, scenario/category sampling, real engine
+and authenticated API boundaries, two tenants/roles and DE/EN, simulated atomic execution,
+audit failure/concurrency, checkpoints, metric exclusions and complete stream regression.
+The optional live agent remains disabled; source validation is never counted as measured resilience.
+The 27-case smoke includes 12 source cases and 15 authored cases; standard has 1,000 original
+attack-labelled submissions, 203 FP emails and 112 authored cases. Known security failures stay
+failed in the accepted-gap baseline. CI runs only offline smoke and retains sanitized reports for
+14 days. No new browser UI, migrations, external provider calls or real effects are introduced.
+See [commands](../benchmarks/security/README.md), [coverage](security/SECURITY-COVERAGE-MATRIX-v0.1.md)
+and [verification](security/DA-SECURITY-BENCHMARK-v0.1-VERIFICATION.md).
+
 v0.9 adds signed/legacy export mutation tests, offline CLI verification, event migration, MFA
 downgrade/staleness, two-store PostgreSQL sessions, recovery evidence, TLS/bundle gates and synthetic
 alert firing. Public DNS, CA, KMS and provider checks remain opt-in deployment evidence.

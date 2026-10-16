@@ -1,0 +1,132 @@
+{
+  "schema_version": "0.1",
+  "dataset_revision": "1063bdf01ec8762b812d5e06ee768a06faa5a6f7",
+  "derived_wrapper_policy": "Only source IDs, original subject/body/scenario/objectives; participant identifiers and timestamps omitted. Original attack content unchanged; full originals remain in ignored raw cache.",
+  "publication_review": "Reviewed minimal data-only subset, synthetic challenge target and simulated benign emails; no raw complete datasets published.",
+  "records": [
+    {
+      "test_id": "DA-SEC-A-B0C29EBD0B440F66457A3D6B",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase2.jsonl",
+      "source_file_sha256": "a9207e1d893ccb74ca6f9cc5eecea433bc49c23a26bed88088afd385c7ab18b6",
+      "offset": 240661704,
+      "length": 623,
+      "source_record_sha256": "1bee9b7bcbcee7b67341f8457cbd5c2e28cbc5a7ab794936fa2beb9a21fc02c0",
+      "content_sha256": "b0c29ebd0b440f66457a3d6b46b070925b5652f1d7423fe4154e4ae8260bc55d",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-31D1B6DAF17BBB4D646B2BF7",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase2.jsonl",
+      "source_file_sha256": "a9207e1d893ccb74ca6f9cc5eecea433bc49c23a26bed88088afd385c7ab18b6",
+      "offset": 19361256,
+      "length": 645,
+      "source_record_sha256": "064226112d3c655fb101e1ff234cf81214c3b095bf09df7c39468ce886f66822",
+      "content_sha256": "31d1b6daf17bbb4d646b2bf7ebe456abe65bb6632480bfab47f69d1486680ae0",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-DE8A443DBA9AB8E65157F7A2",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase1.jsonl",
+      "source_file_sha256": "a9c62eca699dd270fdfbbfbfcc1253f5e5017f6d5a34ff7cb0f2cbb80b7f7c0a",
+      "offset": 194843678,
+      "length": 647,
+      "source_record_sha256": "a4f8ff6afd7887b676960b9881d2ba74c7ab13ffe6b6633628bba132fff0ee09",
+      "content_sha256": "de8a443dba9ab8e65157f7a2e35d3519a9a8a9a720efedc1a4bb4cf58171621c",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-05E7885D5E78627A97597626",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase1.jsonl",
+      "source_file_sha256": "a9c62eca699dd270fdfbbfbfcc1253f5e5017f6d5a34ff7cb0f2cbb80b7f7c0a",
+      "offset": 373151687,
+      "length": 656,
+      "source_record_sha256": "08ad3ede68553b635184946258cb634ff261773bbd1fa384f1045350d4b4ce31",
+      "content_sha256": "05e7885d5e78627a97597626d31f48d71048233a52d0a6dbceb89e17965478dc",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-4F3DE7980B44935B261DAFF1",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase2.jsonl",
+      "source_file_sha256": "a9207e1d893ccb74ca6f9cc5eecea433bc49c23a26bed88088afd385c7ab18b6",
+      "offset": 17754199,
+      "length": 661,
+      "source_record_sha256": "ce2df0cb1b0a7abafb93814926e3bb3e06c079a165930c5bd0c29bb0f299c903",
+      "content_sha256": "4f3de7980b44935b261daff13b34eb0b04ddea7eeca697643f3a30df52c48348",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-8312E00AE31DF30A2886B594",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase1.jsonl",
+      "source_file_sha256": "a9c62eca699dd270fdfbbfbfcc1253f5e5017f6d5a34ff7cb0f2cbb80b7f7c0a",
+      "offset": 999317752,
+      "length": 679,
+      "source_record_sha256": "c77bf578d9045814df6acb6d4f2e36a3de8edc2e666b50201d66415ba989c1e6",
+      "content_sha256": "8312e00ae31df30a2886b59436655fcafecea9a825e486a8f96ba57c643ef400",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-978CDD252BF58118B64EE6C5",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase1.jsonl",
+      "source_file_sha256": "a9c62eca699dd270fdfbbfbfcc1253f5e5017f6d5a34ff7cb0f2cbb80b7f7c0a",
+      "offset": 1567287502,
+      "length": 685,
+      "source_record_sha256": "6036be2b0b945b7518eefb026d09e9e373cbec4b80c7398cca454eb494328a10",
+      "content_sha256": "978cdd252bf58118b64ee6c5bc2617996175c78cf5fb49370a3a7e14fb9987ed",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-A400B5B3B3B7145E471F9B69",
+      "kind": "attack_submission",
+      "source_path": "data/raw_submissions_phase2.jsonl",
+      "source_file_sha256": "a9207e1d893ccb74ca6f9cc5eecea433bc49c23a26bed88088afd385c7ab18b6",
+      "offset": 76490190,
+      "length": 686,
+      "source_record_sha256": "6166f9e0839b1972f81a8f2d14619a53a338467ed91e96218e21bed3972fdade",
+      "content_sha256": "a400b5b3b3b7145e471f9b692e6769b86b72705ea93c785aa77f4f25ab9f7736",
+      "review": "DATA_ONLY_NO_CREDENTIALS_NO_EXTERNAL_ENDPOINTS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-BAED7377BBAA630317748B3B",
+      "kind": "benign_email",
+      "source_path": "data/emails_for_fp_tests.json",
+      "source_file_sha256": "4ddd950b5dbaa8548f5597c886d8e09a051ba07f80a9291fdcca9c2397d22abe",
+      "source_array_index": 155,
+      "content_sha256": "baed7377bbaa630317748b3bd050d2245a98a1d922a7e0320175ebe2369799e7",
+      "review": "UPSTREAM_SIMULATED_EMAIL_NO_CREDENTIALS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-DB3C91592B9A33982F78455D",
+      "kind": "benign_email",
+      "source_path": "data/emails_for_fp_tests.json",
+      "source_file_sha256": "4ddd950b5dbaa8548f5597c886d8e09a051ba07f80a9291fdcca9c2397d22abe",
+      "source_array_index": 126,
+      "content_sha256": "db3c91592b9a33982f78455d494fded492485714e67db015a3404ded838ee7ae",
+      "review": "UPSTREAM_SIMULATED_EMAIL_NO_CREDENTIALS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-EAEA70D46CF115696EAF8F99",
+      "kind": "benign_email",
+      "source_path": "data/emails_for_fp_tests.json",
+      "source_file_sha256": "4ddd950b5dbaa8548f5597c886d8e09a051ba07f80a9291fdcca9c2397d22abe",
+      "source_array_index": 109,
+      "content_sha256": "eaea70d46cf115696eaf8f99def8ba6cf3c7a14a1605e3bd76240b980a0368d9",
+      "review": "UPSTREAM_SIMULATED_EMAIL_NO_CREDENTIALS_NO_EXECUTABLE_CONTENT"
+    },
+    {
+      "test_id": "DA-SEC-A-2440B8E926636D147F68A8ED",
+      "kind": "benign_email",
+      "source_path": "data/emails_for_fp_tests.json",
+      "source_file_sha256": "4ddd950b5dbaa8548f5597c886d8e09a051ba07f80a9291fdcca9c2397d22abe",
+      "source_array_index": 19,
+      "content_sha256": "2440b8e926636d147f68a8ed548165648d35864e914865bd3efbd0eba6646cc4",
+      "review": "UPSTREAM_SIMULATED_EMAIL_NO_CREDENTIALS_NO_EXECUTABLE_CONTENT"
+    }
+  ]
+}

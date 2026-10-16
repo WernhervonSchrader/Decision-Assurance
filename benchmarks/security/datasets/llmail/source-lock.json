@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.1",
+  "dataset": "microsoft/llmail-inject-challenge",
+  "revision": "1063bdf01ec8762b812d5e06ee768a06faa5a6f7",
+  "license": "MIT",
+  "license_evidence": "https://huggingface.co/datasets/microsoft/llmail-inject-challenge/blob/1063bdf01ec8762b812d5e06ee768a06faa5a6f7/README.md",
+  "analysis_revision": "3c6e0069e7609d7ef100694c9c29e12aa488452e",
+  "documented_counts": {
+    "phase1": 370724,
+    "phase2": 90916,
+    "false_positive": 203,
+    "labelled_unique_phase1": 160741,
+    "labelled_unique_phase2": 37303
+  },
+  "files": [
+    {
+      "path": "data/emails_for_fp_tests.json",
+      "kind": "false_positive",
+      "sha256": "4ddd950b5dbaa8548f5597c886d8e09a051ba07f80a9291fdcca9c2397d22abe",
+      "size": 55486
+    },
+    {
+      "path": "data/labelled_unique_submissions_phase1.json",
+      "kind": "annotations",
+      "sha256": "691dfa1595d2bd0e731069f233bd5448f7af1c0ebd9732bc6f12dd6cee446586",
+      "size": 448194111
+    },
+    {
+      "path": "data/labelled_unique_submissions_phase2.json",
+      "kind": "annotations",
+      "sha256": "f89af984e345430c3b357903890e30867bf4676f4ef10c138cc7bad218e890b8",
+      "size": 68586935
+    },
+    {
+      "path": "data/levels_descriptions.json",
+      "kind": "metadata",
+      "sha256": "d1391d6fa8bb074b1603bb20699df6c1ada3c6add64db495e1a39faebc0cd400",
+      "size": 884
+    },
+    {
+      "path": "data/objectives_descriptions.json",
+      "kind": "metadata",
+      "sha256": "daed5cacc5126790073e1a8dfc650b8024c903c415f1e11a189a8171c0c0f183",
+      "size": 379
+    },
+    {
+      "path": "data/raw_submissions_phase1.jsonl",
+      "kind": "raw",
+      "sha256": "a9c62eca699dd270fdfbbfbfcc1253f5e5017f6d5a34ff7cb0f2cbb80b7f7c0a",
+      "size": 1666413489
+    },
+    {
+      "path": "data/raw_submissions_phase2.jsonl",
+      "kind": "raw",
+      "sha256": "a9207e1d893ccb74ca6f9cc5eecea433bc49c23a26bed88088afd385c7ab18b6",
+      "size": 263506099
+    },
+    {
+      "path": "data/scenarios.json",
+      "kind": "metadata",
+      "sha256": "3d7c55fd04826dd29fa11b9f9912ae270fffb16a6c52a7eb2bff00457d378e4f",
+      "size": 38812
+    },
+    {
+      "path": "data/system_prompt.json",
+      "kind": "metadata",
+      "sha256": "f5d0eb0b02f548476e32f39f190de7ebf1614c0816049c4d7b0047869c28131b",
+      "size": 3065
+    },
+    {
+      "path": "README.md",
+      "kind": "metadata",
+      "sha256": "d85767e349ab1abbaf43db9390c4e906e34954e5df3a1335c8f1516efa64e812",
+      "size": 23628
+    }
+  ]
+}
