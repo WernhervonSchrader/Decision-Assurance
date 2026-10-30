@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from ...audit import payload_hash
 from ...authorization import Permission
 from ...decision_file import bind_approval, evaluate_decision_file, validate_semantics
+from ...engine import DecisionAssuranceEngine
 from ...identity import ActorKind, Identity, Role
 from ...repositories.protocols import DecisionRepository, IdempotencyWrite
 from ...repositories.sqlite import IdempotencyConflict
@@ -164,7 +165,14 @@ def evaluate(
     if document is None:
         raise ApiError(404, "NOT_FOUND")
     before = len(document["audit_events"])
-    updated, result = evaluate_decision_file(document)
+    updated, result = evaluate_decision_file(
+        document,
+        engine=DecisionAssuranceEngine(
+            evidence_registry=request.app.state.evidence_registry,
+            tenant_id=identity.tenant.tenant_id,
+            generator_id=document["created_by"]["id"],
+        ),
+    )
     new_events = updated["audit_events"][before:]
     for event in new_events:
         event.update(

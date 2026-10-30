@@ -20,7 +20,16 @@ def test_scenario_contract(path: Path) -> None:
 @pytest.mark.parametrize("path", CASES, ids=lambda path: path.stem)
 def test_expected_outcome(path: Path) -> None:
     case = json.loads(path.read_text(encoding="utf-8"))
-    assert evaluate(case) == case["expected"]
+    # Historical inputs are immutable; stricter expectations are a proposed new revision.
+    revised = json.loads(
+        (ROOT.parent / "benchmarks/dats/v0.2.0/cases" / f"{case['id']}.json").read_text()
+    )
+    expected = revised["expected_result"]
+    assert evaluate(case) == {
+        "outcome": expected["engine_outcome"],
+        "reason_codes": expected["reason_codes"],
+        "human_review": expected["human_review"],
+    }
 
 
 def test_exactly_ten_initial_scenarios() -> None:

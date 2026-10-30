@@ -20,6 +20,7 @@ from ..observability.health import HealthService
 from ..observability.metrics import AssuranceOutcomeCollector
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
+from ..provenance.evidence import EvidenceRegistry
 from ..repositories.protocols import DecisionRepository
 from ..security_events import NullSecurityEventSink, SecurityEventSink
 from ..web_research.orchestrator import ResearchOrchestrator
@@ -51,6 +52,7 @@ def create_app(
     export_service: PilotExportService | None = None,
     lifecycle_service: PilotLifecycleService | None = None,
     queue_depth_probe: Callable[[], int] | None = None,
+    evidence_registry: EvidenceRegistry | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Decision Assurance API",
@@ -59,6 +61,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    app.state.evidence_registry = evidence_registry
     app.state.repository = repository
     app.state.authenticator = authenticator
     app.state.intake_repository = intake_repository

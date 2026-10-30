@@ -149,3 +149,30 @@ Rollback: revert this isolated commit/branch; this reopens B2 and requires expli
 risk acceptance. Safer containment is to retain default REVIEW until verifier integration.
 Done for review: targeted negatives and positive pass, no lifecycle mutation/side effects,
 new trust boundary documented, exact commands/results recorded. Production Done is HOLD.
+
+### Implementation-review refinement after measured compatibility impact
+
+The first full candidate run had 23 failures: 21 were legacy provenance/PASS expectations;
+two also occurred on unchanged main (the local SOCKS proxy lacked socksio). A temporary
+venv-only socksio install fixes that test-environment issue; no dependency bounds changed.
+The local installer was refreshed to the CI-required pip minimum after its initial audit
+found installer vulnerabilities; the final dependency audit is reported separately.
+
+The minimal code change remains in the existing engine/evaluator/API and provenance package.
+To avoid either suppressing regressions or overwriting accepted fixtures, add a proposed
+DATS v0.2.0 catalog (DRAFT) with explicit new expectations and failure signals. Preserve
+v0.1.0 and tests/scenarios byte-for-byte; test their ten historical divergences explicitly.
+CI runs v0.2.0 without claiming acceptance. Legacy positive approval tests explicitly
+provision synthetic server verifier records; negative/API-default/CLI cases now expect
+REVIEW. The PostgreSQL pilot positive setup is likewise adjusted but is NOT claimed run
+without its service. Engine policy/report/audit version becomes 0.2.0; wire schemas unchanged.
+Require nonempty source_ref and a canonical SHA256 content hash even for a matching record.
+Bind full policy declarations as well as policy_version, and hash verification references
+into the existing evidence.validated ledger event. Its hashed payload is not a durable
+verifier-write audit: that remains an adapter/operator requirement.
+
+Specification compliance review: every requested negative category plus positive record,
+authenticated two-tenant/role DE/EN API tests and unchanged DRAFT behavior are covered.
+Code-quality review: no new dependency, public write route, schema/persistence migration,
+custom crypto, source-text execution, external call or generator-populated registry.
+Both passes are by the implementing actor. Independent reviewer acceptance remains required.
