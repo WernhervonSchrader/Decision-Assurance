@@ -21,6 +21,7 @@ class AuditLedger:
     now: Callable[[], datetime]
     actor_ref: str = "decision-assurance-engine"
     correlation_id: str | None = None
+    engine_version: str = "0.2.0"
     _events: list[dict[str, Any]] = field(default_factory=list)
 
     def append(self, event_type: str, payload: Any) -> dict[str, Any]:
@@ -34,7 +35,7 @@ class AuditLedger:
             "actor_ref": self.actor_ref,
             "payload_hash": payload_hash(payload),
             "previous_event_hash": previous_hash,
-            "version_refs": ["das:0.1.0", "engine:0.1.0"],
+            "version_refs": ["das:0.1.0", f"engine:{self.engine_version}"],
         }
         if self.correlation_id:
             event["correlation_id"] = self.correlation_id

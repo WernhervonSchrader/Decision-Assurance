@@ -30,7 +30,7 @@ jobs:
       - name: Non-PostgreSQL test suite
         run: python -m pytest -q -m "not postgresql and not keycloak_e2e and not live_provider"
       - name: Gold benchmark
-        run: decision-assurance benchmark benchmarks/dats/v0.1.0/catalog.json
+        run: decision-assurance benchmark benchmarks/dats/v0.2.0/catalog.json
       - name: Intake benchmark
         run: python -m pytest tests/intake/benchmark -q
       - name: Bandit static analysis

@@ -17,6 +17,17 @@ The MVP is useful to an enterprise team because the complete case remains a
 portable, reviewable JSON record instead of hidden model-session state. Core
 evaluation requires no LLM and never turns an internal failure into `PASS`.
 
+## B2 source-verification correction (proposed)
+
+`VERIFIED` in a submitted Decision File is an assertion. PASS for a nonempty evidence
+set now requires matching records from a server-injected, tenant-scoped independent
+verifier registry. Missing registry, forged source/proof, stale records, scope changes
+and provider failures require REVIEW. Default API/CLI runtime has no such registry,
+so evidence-dependent cases remain in REVIEW until integration is configured.
+The included in-memory adapter and synthetic positive tests do not establish a
+production source-authentication service. See the [gate and design](docs/security/B2-ARCHITECTURE-EVIDENCE-GATE.md).
+Evaluation does not change lifecycle or authorize execution. B3 is a separate open defect.
+
 ## What runs today
 
 - normative [Decision File Contract](docs/DECISION_FILE_CONTRACT.md) and examples
@@ -58,7 +69,7 @@ governance outcome (`PASS`, `REVIEW`, `BLOCK`) are deliberately separate.
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\decision-assurance.exe benchmark benchmarks\dats\v0.1.0\catalog.json
+.\.venv\Scripts\decision-assurance.exe benchmark benchmarks\dats\v0.2.0\catalog.json
 ```
 
 Linux and macOS use `.venv/bin/python` and `.venv/bin/decision-assurance`.
@@ -108,7 +119,7 @@ decision-assurance validate examples\decision-cases\low-risk-pass.json
 decision-assurance evaluate examples\decision-cases\hard-constraint-block.json
 decision-assurance report examples\decision-cases\missing-evidence-review.json
 decision-assurance transition case.json VALIDATION --actor-id validator-1 --actor-role VALIDATOR
-decision-assurance benchmark benchmarks\dats\v0.1.0\catalog.json
+decision-assurance benchmark benchmarks\dats\v0.2.0\catalog.json
 ```
 
 Controlled Intake keeps user text untrusted and emits no assurance outcome:
@@ -149,7 +160,11 @@ The included benchmark is the project-owned **open benchmark suite**. It is not
 an independent assessment. The engine does not simulate legal, medical or other
 professional approval.
 
-The canonical release is `benchmarks/dats/v0.1.0/catalog.json`. Consumers can pin the dataset
+The historical accepted release is `benchmarks/dats/v0.1.0/catalog.json` (unchanged).
+The B2 correction uses the proposed **DRAFT** revision
+`benchmarks/dats/v0.2.0/catalog.json`: source assertions and positive client flags alone
+now require REVIEW. Independent positive verification is exercised separately in
+`tests/test_evidence_provenance.py` and authenticated API E2E tests. Consumers can pin the dataset
 version and reuse each task, normalized `PASS` / `FAIL` / `REQUIRES_HUMAN_REVIEW` result, failure
 signals and provenance without depending on internal test paths. The registered OWASP source is
 external context; DATS mappings and expected results remain project-owned interpretations.

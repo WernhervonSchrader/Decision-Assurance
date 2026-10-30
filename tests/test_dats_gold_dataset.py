@@ -65,11 +65,11 @@ def test_legacy_scenarios_remain_identical_to_canonical_tasks_and_results() -> N
 def test_changed_normative_result_is_reported_as_regression(tmp_path: Path) -> None:
     copied = tmp_path / "dats"
     shutil.copytree(DATS, copied)
-    case_path = copied / "v0.1.0" / "cases" / "DATS-001.json"
+    case_path = copied / "v0.2.0" / "cases" / "DATS-001.json"
     case = json.loads(case_path.read_text(encoding="utf-8"))
     case["expected_result"]["gate_decision"] = "FAIL"
     case_path.write_text(json.dumps(case), encoding="utf-8")
-    report = run_benchmark(copied / "v0.1.0" / "catalog.json")
+    report = run_benchmark(copied / "v0.2.0" / "catalog.json")
     assert report["passed"] == 9
     assert report["failed"] == 1
     assert report["results"][0]["id"] == "DATS-001"

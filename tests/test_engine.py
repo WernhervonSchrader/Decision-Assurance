@@ -24,6 +24,8 @@ def test_block_takes_precedence_over_review() -> None:
     )
     assert result.outcome is Outcome.BLOCK
     assert result.reason_codes == (
+        "EVIDENCE_PROVENANCE_UNVERIFIED",
+        "EVIDENCE_UNVERIFIABLE",
         "EVIDENCE_OUTDATED",
         "HARD_CONSTRAINT_VIOLATION",
     )
@@ -36,7 +38,7 @@ def test_pass_report_has_required_versions_and_audit_reference() -> None:
     assert result.report["versions"] == {
         "das": "0.1.0",
         "policy": "unspecified",
-        "engine": "0.1.0",
+        "engine": "0.2.0",
     }
     assert result.report["audit_ref"] == "D-2:audit"
 
@@ -80,5 +82,9 @@ def test_duplicate_reason_codes_are_reported_once() -> None:
             ],
         }
     )
-    assert result.reason_codes == ("EVIDENCE_OUTDATED",)
-    assert len(result.findings) == 2
+    assert result.reason_codes == (
+        "EVIDENCE_PROVENANCE_UNVERIFIED",
+        "EVIDENCE_UNVERIFIABLE",
+        "EVIDENCE_OUTDATED",
+    )
+    assert len(result.findings) == 6

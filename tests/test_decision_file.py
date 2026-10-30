@@ -35,7 +35,7 @@ def test_invalid_fixtures_are_rejected_with_context(path: Path) -> None:
 @pytest.mark.parametrize(
     ("name", "outcome"),
     [
-        ("low-risk-pass.json", "PASS"),
+        ("low-risk-pass.json", "REVIEW"),
         ("missing-evidence-review.json", "REVIEW"),
         ("hard-constraint-block.json", "BLOCK"),
     ],
