@@ -7,6 +7,10 @@ from ..tenancy import TenantContext
 IdempotencyWrite = tuple[str, str, str, str, int, dict[str, Any]]
 
 
+class DecisionWriteConflict(ValueError):
+    """The authorized read snapshot is no longer current; nothing was committed."""
+
+
 class DecisionRepository(Protocol):
     def ready(self) -> bool: ...
     def create_decision(
@@ -27,6 +31,8 @@ class DecisionRepository(Protocol):
         report: dict[str, Any] | None,
         events: list[dict[str, Any]],
         idempotency: IdempotencyWrite | None = None,
+        *,
+        expected_document: dict[str, Any],
     ) -> None: ...
     def get_report(self, tenant: TenantContext, decision_id: str) -> dict[str, Any] | None: ...
     def list_audit(

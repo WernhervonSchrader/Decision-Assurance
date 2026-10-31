@@ -123,8 +123,8 @@ def test_wrong_role_and_agent_approval_fail_closed(client: TestClient, decision:
         headers=headers("a-agent-approver", "tr-3"),
         json={"target": "APPROVED"},
     )
-    assert response.status_code == 409
-    assert "HUMAN_APPROVER_REQUIRED" in response.json()["details"]["reason_codes"]
+    assert response.status_code == 403
+    assert response.json()["details"]["reason_code"] == "HUMAN_APPROVER_REQUIRED"
 
 
 def test_idempotency_key_is_required_for_writes(client: TestClient, decision: dict) -> None:

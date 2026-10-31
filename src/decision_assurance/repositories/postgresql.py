@@ -5,9 +5,10 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from ..decision_file import validate_initial_authority
 from ..persistence.postgresql import PostgresConnectionProvider
 from ..tenancy import TenantContext
-from .protocols import IdempotencyWrite
+from .protocols import DecisionWriteConflict, IdempotencyWrite
 from .sqlite import IdempotencyConflict
 
 
@@ -30,6 +31,7 @@ class PostgresDecisionRepository:
         events: list[dict[str, Any]] | None = None,
         idempotency: IdempotencyWrite | None = None,
     ) -> None:
+        validate_initial_authority(document)
         with self._connections.tenant_connection(tenant) as connection:
             connection.execute(
                 """
@@ -89,6 +91,8 @@ class PostgresDecisionRepository:
         report: dict[str, Any] | None,
         events: list[dict[str, Any]],
         idempotency: IdempotencyWrite | None = None,
+        *,
+        expected_document: dict[str, Any],
     ) -> None:
         decision_id = str(document["decision_id"])
         with self._connections.tenant_connection(tenant) as connection:
@@ -100,12 +104,12 @@ class PostgresDecisionRepository:
                 """
                 UPDATE decisions
                 SET document_json = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE tenant_id = %s AND decision_id = %s
+                WHERE tenant_id = %s AND decision_id = %s AND document_json = %s
                 """,
-                (Jsonb(document), tenant.tenant_id, decision_id),
+                (Jsonb(document), tenant.tenant_id, decision_id, Jsonb(expected_document)),
             )
             if cursor.rowcount != 1:
-                raise KeyError("DECISION_NOT_FOUND")
+                raise DecisionWriteConflict("DECISION_DOCUMENT_CHANGED")
             if report is not None:
                 connection.execute(
                     """

@@ -204,10 +204,13 @@ def test_authenticated_approver_binds_action_and_idempotent_replay(tmp_path: Pat
     assert len(approval["nonce"]) >= 22
     assert approved["audit_events"][-1]["payload_hash"] == payload_hash(
         {
+            "tenant_id": "tenant-a",
+            "after_document_hash": payload_hash(
+                {**approved, "audit_events": approved["audit_events"][:-1]}
+            ),
             "from": "REVIEW",
             "to": "APPROVED",
             "actor": approval["approver"],
-            "approval_digests": [approval["approval_digest"]],
         }
     )
     validate_semantics(approved)
