@@ -411,7 +411,8 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         headers=_headers(tokens["pilot-tenant-a:agent-approver"], "a-agent-approve"),
         json={"target": "APPROVED"},
     )
-    assert denied_agent.status_code == 409
+    assert denied_agent.status_code == 403
+    assert denied_agent.json()["details"]["reason_code"] == "HUMAN_APPROVER_REQUIRED"
     approved_terminal = api.post(
         f"/v1/decisions/{decision_id}/transitions",
         headers=_headers(tokens["pilot-tenant-a:approver"], "a-human-approve"),

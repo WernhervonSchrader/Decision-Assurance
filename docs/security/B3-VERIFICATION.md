@@ -43,3 +43,14 @@ Both passes were performed by the implementing actor; independent human review r
 - The snapshot is bound when the server handles the authenticated transition and atomically commits it. A client-reviewed-version precondition and proof of what the human inspected are not introduced by this minimal correction.
 - A database writer can still tamper with SQLite audit/history; hashes are not write protection. Trusted direct repository writers and issuer compromise remain outside the generator/API threat boundary.
 - No automatic merge, release, production configuration change or external execution is authorized. Release decision remains BLOCKED with zero human approvals.
+
+
+## Published CI follow-up
+
+Published plan commit `3e0fd2def828572f3292e38cbb23096d2a04ab9e` corresponds to local `aaa2981`; implementation `78b472518d165cb05e5b0b3891703fa3f3d83166` has the exact locally verified tree `e9270a6a3880f066d1461a3f007af5e9fae232a4`. Publication used the authenticated GitHub connector after git push found no shell credential; no credentials were added.
+
+Initial PR workflow: https://github.com/WernhervonSchrader/Decision-Assurance/actions/runs/41190737512 (PR merge ref for the implementation above). PostgreSQL integration actually ran: **31 passed, 1 failed**; the only failure was the existing full sales-quote journey's old 409 assertion for an agent approver. The new authenticated boundary correctly returns 403. This follow-up updates that assertion and exact reason; it does not weaken authorization. All nine added PostgreSQL repository cases passed in that run. Final-head PostgreSQL CI remains to be checked.
+
+The same run has two unrelated release blockers in unchanged files: `pilot-ui` typecheck, three unit tests and build passed, but npm audit failed with **three high and two moderate** dependency findings (source-map-js, undici, vite, vitest/@vitest/mocker); browser E2E was consequently skipped. `ui/package.json` and `ui/package-lock.json` are byte-identical to main. `restore-verification` failed with PostgreSQL 16 rejecting `SET transaction_timeout = 0` from the restore input; recovery/workflow files are unchanged. This records observed failures, not a production exploit or a tested remediation. Neither gate is disabled or waived; dependency upgrades and recovery-toolchain correction are outside this B3 code fix. Secret scanning passed. Other job results are not generalized into a green-CI claim.
+
+The follow-up changes only the existing service-test expectation and verification/release documentation. Production implementation snapshot is unchanged; no repeated full local suite is required for this assertion/documentation update. Independent review and release remain BLOCKED.
