@@ -1,0 +1,19 @@
+{
+  "decision_id": "B3-DRAFT-2026-10-31",
+  "status": "BLOCKED",
+  "approvals": [],
+  "release_authorized": false,
+  "merge_authorized": false,
+  "base_commit": "96b32da9e146b3b276c5fec4e636f67f6ea10889",
+  "architecture_gate": "PASS_FOR_IMPLEMENTATION_REVIEW",
+  "reason_codes": [
+    "INDEPENDENT_HUMAN_REVIEW_REQUIRED",
+    "SERVICE_CI_NOT_VERIFIED",
+    "LEGACY_RECORD_REVIEW_REQUIRED",
+    "PRODUCTION_IDENTITY_AND_AUDIT_NOT_VERIFIED",
+    "B2_SEPARATE_OPEN_DEFECT",
+    "FRONTEND_DEPENDENCY_AUDIT_FAILED",
+    "RESTORE_CI_FAILED"
+  ],
+  "execution_observed": false
+}

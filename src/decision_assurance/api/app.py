@@ -20,7 +20,7 @@ from ..observability.health import HealthService
 from ..observability.metrics import AssuranceOutcomeCollector
 from ..production.contracts import BuildMetadata
 from ..production.ports import MetricsPort, StructuredLoggerPort
-from ..repositories.protocols import DecisionRepository
+from ..repositories.protocols import DecisionRepository, DecisionWriteConflict
 from ..security_events import NullSecurityEventSink, SecurityEventSink
 from ..web_research.orchestrator import ResearchOrchestrator
 from ..web_research.ports import ResearchRepositoryPort
@@ -130,6 +130,15 @@ def create_app(
     @app.exception_handler(ApiError)
     async def api_error_handler(request: Request, error: ApiError) -> JSONResponse:
         return _error_response(request, error.status_code, error.code, error.details)
+
+    @app.exception_handler(DecisionWriteConflict)
+    async def decision_conflict_handler(
+        request: Request, error: DecisionWriteConflict
+    ) -> JSONResponse:
+        del error
+        return _error_response(
+            request, 409, "CONFLICT", {"reason_code": "DECISION_DOCUMENT_CHANGED"}
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(

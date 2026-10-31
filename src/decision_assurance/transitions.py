@@ -96,7 +96,7 @@ class TransitionPolicy:
         if target is CaseStatus.APPROVED:
             if actor.get("kind") != "HUMAN":
                 reasons.append("HUMAN_APPROVER_REQUIRED")
-            if actor.get("id") == document["created_by"]["id"]:
+            if actor.get("id") in {document["created_by"]["id"], document["requested_by"]["id"]}:
                 reasons.append("SEPARATION_OF_DUTIES_VIOLATION")
             validator_ids = {
                 event["actor"]["id"]

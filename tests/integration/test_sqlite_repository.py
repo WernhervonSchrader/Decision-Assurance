@@ -46,10 +46,11 @@ def test_update_and_audit_are_atomic_and_tenant_scoped(
     tenant = TenantContext("tenant-a")
     document = example()
     repository.create_decision(tenant, document)
+    expected = repository.get_decision(tenant, document["decision_id"])
     document["status"] = "VALIDATION"
     event = {"event_id": "event-1", "event_type": "status.transitioned"}
     report = {"report_id": "report-1", "outcome": "PASS"}
-    repository.save_result(tenant, document, report, [event])
+    repository.save_result(tenant, document, report, [event], expected_document=expected)
     assert repository.get_decision(tenant, document["decision_id"])["status"] == "VALIDATION"
     assert repository.get_report(tenant, document["decision_id"]) == report
     assert repository.list_audit(tenant, document["decision_id"], limit=10, offset=0) == [event]
