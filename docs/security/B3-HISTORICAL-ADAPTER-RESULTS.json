@@ -1,0 +1,70 @@
+{
+  "adapter_commit": "06bce76e5029ea6aa6cc2ea2f8805bb314a18283",
+  "scope": "B3 only, original adapter against modified production modules, local offline test",
+  "results": [
+    {
+      "test_id": "DA-SEC-B3-0000",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0001",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0002",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0003",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0004",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0005",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0006",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    },
+    {
+      "test_id": "DA-SEC-B3-0007",
+      "status": "PASS",
+      "authorization_result": "DENY",
+      "governance_escape": false,
+      "lifecycle_state": null,
+      "executed": null
+    }
+  ]
+}

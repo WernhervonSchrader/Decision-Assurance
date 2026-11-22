@@ -29,7 +29,7 @@ def bind_canonical_action(action: dict[str, Any]) -> dict[str, Any]:
 
 
 def approval_digest(document: dict[str, Any], approval: dict[str, Any]) -> str:
-    """Bind an approval to the case, requester, approver, action, nonce, and decision."""
+    """Bind approval fields deterministically; this hash does not authenticate an approver."""
     payload = {
         "decision_id": document["decision_id"],
         "requested_by": document["requested_by"],
@@ -216,3 +216,21 @@ def _actors(document: dict[str, Any]) -> dict[str, str]:
     if approvals:
         actors["approver"] = approvals[-1]["approver"]["id"]
     return actors
+
+
+def validate_initial_authority(document: dict[str, Any], *, untrusted: bool = False) -> None:
+    """Creation cannot import lifecycle authority; trusted compilers may supply provenance audit.
+
+    A digest is an integrity check, never evidence that an authenticated human acted.
+    This guard is separate from semantic validation of historical/exported documents.
+    """
+    if (
+        document.get("status") != "DRAFT"
+        or document.get("approvals")
+        or document.get("decision_outcome") is not None
+        or document.get("validation_results")
+        or document.get("outcome_reasons")
+        or any(item.get("satisfied") for item in document.get("review_requirements", []))
+        or (untrusted and document.get("audit_events"))
+    ):
+        raise DecisionFileSemanticError("INITIAL_LIFECYCLE_AUTHORITY_FORBIDDEN")

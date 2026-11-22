@@ -107,3 +107,12 @@ def test_human_cannot_use_another_approvers_bound_approval() -> None:
     with pytest.raises(TransitionRejected) as error:
         policy.transition(document, "APPROVED", other)
     assert "MANDATORY_HUMAN_APPROVAL_MISSING" in error.value.reason_codes
+
+
+def test_requester_cannot_approve_even_without_review_requirements() -> None:
+    document, _ = evaluate_decision_file(fixture())
+    document["status"] = "REVIEW"
+    document["review_requirements"] = []
+    actor = {"id": document["requested_by"]["id"], "role": "APPROVER", "kind": "HUMAN"}
+    with pytest.raises(TransitionRejected, match="SEPARATION_OF_DUTIES_VIOLATION"):
+        TransitionPolicy().transition(document, "APPROVED", actor)

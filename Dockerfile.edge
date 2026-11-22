@@ -1,4 +1,8 @@
 FROM caddy:2.11.4-alpine
+
+# Require the fixed Alpine package for CVE-2026-111497.
+RUN apk add --no-cache 'brotli-libs>=1.2.1-r0'
+
 COPY deploy/edge/Caddyfile /etc/caddy/Caddyfile
 USER 1000:1000
 EXPOSE 8080 8443

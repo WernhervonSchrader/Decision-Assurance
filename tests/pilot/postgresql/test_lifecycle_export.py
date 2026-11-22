@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from decision_assurance.persistence.postgresql import (
 )
 from decision_assurance.production.contracts import SecretValue
 from decision_assurance.repositories.postgresql import PostgresDecisionRepository
+from decision_assurance.repositories.protocols import DecisionWriteConflict
 from decision_assurance.tenancy import TenantContext
 
 pytestmark = pytest.mark.postgresql
@@ -83,13 +85,24 @@ def _document(decision_id: str) -> dict[str, object]:
     }
 
 
+def _seed_historical(
+    decisions: PostgresDecisionRepository, tenant: TenantContext, document: dict
+) -> None:
+    # Trusted fixture for export/deletion only, not an API authorization test.
+    initial = deepcopy(document)
+    initial["status"] = "DRAFT"
+    initial["approvals"] = []
+    decisions.create_decision(tenant, initial)
+    decisions.save_result(tenant, document, None, [], expected_document=initial)
+
+
 def test_postgresql_export_then_legal_hold_and_physical_delete(postgres_dsn: str) -> None:
     connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     decisions = PostgresDecisionRepository(connections)
     tenant_a = TenantContext(TENANTS[0])
     tenant_b = TenantContext(TENANTS[1])
-    decisions.create_decision(tenant_a, _document("quote-1"))
-    decisions.create_decision(tenant_b, _document("quote-1"))
+    _seed_historical(decisions, tenant_a, _document("quote-1"))
+    _seed_historical(decisions, tenant_b, _document("quote-1"))
     actor = Identity("admin-a", tenant_a, Role.TENANT_ADMIN, ActorKind.HUMAN)
     lifecycle = PilotLifecycleService(
         PostgresLifecycleRepository(connections),
@@ -172,7 +185,7 @@ def test_parallel_approval_and_delete_never_resurrects_case(postgres_dsn: str) -
     connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     decisions = PostgresDecisionRepository(connections)
     tenant = TenantContext(TENANTS[0])
-    decisions.create_decision(tenant, _document("quote-race"))
+    _seed_historical(decisions, tenant, _document("quote-race"))
     actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
     lifecycle = PilotLifecycleService(
         PostgresLifecycleRepository(connections),
@@ -186,8 +199,10 @@ def test_parallel_approval_and_delete_never_resurrects_case(postgres_dsn: str) -
 
     def approve() -> str:
         try:
-            decisions.save_result(tenant, approved_document, None, [])
-        except KeyError:
+            decisions.save_result(
+                tenant, approved_document, None, [], expected_document=approved_document
+            )
+        except DecisionWriteConflict:
             return "NOT_FOUND"
         return "SAVED"
 
@@ -206,7 +221,7 @@ def test_parallel_request_and_execution_are_idempotent(postgres_dsn: str) -> Non
     connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     decisions = PostgresDecisionRepository(connections)
     tenant = TenantContext(TENANTS[0])
-    decisions.create_decision(tenant, _document("quote-lifecycle-race"))
+    _seed_historical(decisions, tenant, _document("quote-lifecycle-race"))
     actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
     lifecycle = PilotLifecycleService(
         PostgresLifecycleRepository(connections),
@@ -254,7 +269,7 @@ def test_completion_audit_failure_rolls_back_delete(postgres_dsn: str) -> None:
     connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     decisions = PostgresDecisionRepository(connections)
     tenant = TenantContext(TENANTS[0])
-    decisions.create_decision(tenant, _document("quote-audit-failure"))
+    _seed_historical(decisions, tenant, _document("quote-audit-failure"))
     actor = Identity("admin-a", tenant, Role.TENANT_ADMIN, ActorKind.HUMAN)
     lifecycle = PilotLifecycleService(
         PostgresLifecycleRepository(connections),
@@ -298,8 +313,8 @@ def test_deletion_does_not_remove_similarly_named_case_idempotency(postgres_dsn:
     connections = PostgresConnectionProvider(PostgresSettings(SecretValue(postgres_dsn)))
     decisions = PostgresDecisionRepository(connections)
     tenant = TenantContext(TENANTS[0])
-    decisions.create_decision(tenant, _document("quote-1"))
-    decisions.create_decision(tenant, _document("quote-10"))
+    _seed_historical(decisions, tenant, _document("quote-1"))
+    _seed_historical(decisions, tenant, _document("quote-10"))
     with psycopg.connect(postgres_dsn) as connection:
         connection.execute(
             """
