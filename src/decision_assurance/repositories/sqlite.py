@@ -5,8 +5,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from ..decision_file import validate_initial_authority
 from ..tenancy import TenantContext
-from .protocols import IdempotencyWrite
+from .protocols import DecisionWriteConflict, IdempotencyWrite
 
 
 class IdempotencyConflict(ValueError):
@@ -47,6 +48,7 @@ class SqliteDecisionRepository:
         idempotency: IdempotencyWrite | None = None,
     ) -> None:
         serialized = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        validate_initial_authority(document)
         with self._connect() as connection:
             connection.execute(
                 "INSERT INTO decisions (tenant_id, decision_id, document_json) VALUES (?, ?, ?)",
@@ -87,6 +89,8 @@ class SqliteDecisionRepository:
         report: dict[str, Any] | None,
         events: list[dict[str, Any]],
         idempotency: IdempotencyWrite | None = None,
+        *,
+        expected_document: dict[str, Any],
     ) -> None:
         decision_id = document["decision_id"]
         document_json = json.dumps(
@@ -94,11 +98,18 @@ class SqliteDecisionRepository:
         )
         with self._connect() as connection:
             cursor = connection.execute(
-                "UPDATE decisions SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND decision_id = ?",
-                (document_json, tenant.tenant_id, decision_id),
+                "UPDATE decisions SET document_json = ?, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND decision_id = ? AND document_json = ?",
+                (
+                    document_json,
+                    tenant.tenant_id,
+                    decision_id,
+                    json.dumps(
+                        expected_document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                    ),
+                ),
             )
             if cursor.rowcount != 1:
-                raise KeyError("DECISION_NOT_FOUND")
+                raise DecisionWriteConflict("DECISION_DOCUMENT_CHANGED")
             if report is not None:
                 report_json = json.dumps(
                     report, sort_keys=True, separators=(",", ":"), ensure_ascii=False

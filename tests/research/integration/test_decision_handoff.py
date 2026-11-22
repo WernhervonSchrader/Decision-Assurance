@@ -124,6 +124,12 @@ def test_cross_tenant_non_draft_and_unknown_claim_fail_closed(tmp_path) -> None:
         handoff.attach(tenant, document["decision_id"], payload_hash(document), invalid)
 
     document["status"] = "VALIDATION"
-    decisions.save_result(tenant, document, None, [])
+    decisions.save_result(
+        tenant,
+        document,
+        None,
+        [],
+        expected_document=decisions.get_decision(tenant, document["decision_id"]),
+    )
     with pytest.raises(DecisionEvidenceHandoffRejected, match="DECISION_NOT_DRAFT"):
         handoff.attach(tenant, document["decision_id"], payload_hash(document), evidence())

@@ -11,7 +11,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
 from ...audit import payload_hash
 from ...authorization import Permission
-from ...decision_file import bind_approval, evaluate_decision_file, validate_semantics
+from ...decision_file import (
+    bind_approval,
+    evaluate_decision_file,
+    validate_initial_authority,
+    validate_semantics,
+)
 from ...engine import DecisionAssuranceEngine
 from ...identity import ActorKind, Identity, Role
 from ...repositories.protocols import DecisionRepository, IdempotencyWrite
@@ -94,13 +99,10 @@ async def create_decision(
         body = cast(dict[str, Any], await request.json())
     except (json.JSONDecodeError, UnicodeDecodeError) as error:
         raise ApiError(422, "INVALID_REQUEST") from error
-    digest, replay = _operation(request, identity, key, "decision:create", body)
-    if replay:
-        response.status_code = replay[0]
-        return replay[1]
     try:
         ContractValidator().validate("decision-file", body)
         validate_semantics(body)
+        validate_initial_authority(body, untrusted=True)
     except (ContractValidationError, ValueError) as error:
         raise ApiError(422, "INVALID_REQUEST", {"validation": str(error)}) from error
     if body["created_by"] != _actor(identity, Permission.DECISION_CREATE):
@@ -108,6 +110,10 @@ async def create_decision(
     action = body["canonical_action"]
     if action is not None and action["tenant_id"] != identity.tenant.tenant_id:
         raise ApiError(403, "FORBIDDEN", {"reason_code": "CROSS_TENANT_ACTION"})
+    digest, replay = _operation(request, identity, key, "decision:create", body)
+    if replay:
+        response.status_code = replay[0]
+        return replay[1]
     document = copy.deepcopy(body)
     event = {
         "event_id": f"{document['decision_id']}:created:1",
@@ -157,13 +163,15 @@ def evaluate(
 ) -> dict[str, Any]:
     require(request, identity, Permission.DECISION_EVALUATE)
     key = require_idempotency_key(idempotency_key)
+    document = _repository(request).get_decision(identity.tenant, decision_id)
+    if document is None:
+        raise ApiError(404, "NOT_FOUND")
+    if document["status"] in {"APPROVED", "BLOCKED"}:
+        raise ApiError(409, "CONFLICT", {"reason_code": "TERMINAL_DECISION_IMMUTABLE"})
     digest, replay = _operation(request, identity, key, f"decision:evaluate:{decision_id}", {})
     if replay:
         response.status_code = replay[0]
         return replay[1]
-    document = _repository(request).get_decision(identity.tenant, decision_id)
-    if document is None:
-        raise ApiError(404, "NOT_FOUND")
     before = len(document["audit_events"])
     updated, result = evaluate_decision_file(
         document,
@@ -190,6 +198,7 @@ def evaluate(
         body,
         new_events,
         _idempotency_write(identity, key, operation, digest, 200, body),
+        expected_document=document,
     )
     return body
 
@@ -223,6 +232,11 @@ def transition(
     permission = Permission.DECISION_APPROVE if is_approval_action else Permission.DECISION_VALIDATE
     if transition_request.target == "BLOCKED":
         require(request, identity, permission)
+    if transition_request.target == "APPROVED" and (
+        identity.kind is not ActorKind.HUMAN or Role.APPROVER not in identity.roles
+    ):
+        raise ApiError(403, "FORBIDDEN", {"reason_code": "HUMAN_APPROVER_REQUIRED"})
+    expected_document = copy.deepcopy(document)
     operation = f"decision:transition:{decision_id}:{transition_request.target}"
     digest, replay = _operation(request, identity, key, operation, transition_request.model_dump())
     if replay:
@@ -241,27 +255,19 @@ def transition(
         for requirement in document["review_requirements"]:
             if not requirement["mandatory"] or requirement["required_role"] != "APPROVER":
                 continue
-            matching_approval = any(
-                approval["requirement_ref"] == requirement["id"]
-                and approval["decision"] == "APPROVE"
-                and approval["approver"] == approver
-                and approval["action_digest"] == action_digest
-                for approval in document["approvals"]
-            )
-            if not matching_approval:
-                document["approvals"].append(
-                    bind_approval(
-                        document,
-                        {
-                            "requirement_ref": requirement["id"],
-                            "approver": approver,
-                            "decision": "APPROVE",
-                            "decided_at": decided_at,
-                            "action_digest": action_digest,
-                            "nonce": secrets.token_urlsafe(32),
-                        },
-                    )
+            document["approvals"].append(
+                bind_approval(
+                    document,
+                    {
+                        "requirement_ref": requirement["id"],
+                        "approver": approver,
+                        "decision": "APPROVE",
+                        "decided_at": decided_at,
+                        "action_digest": action_digest,
+                        "nonce": secrets.token_urlsafe(32),
+                    },
                 )
+            )
             requirement["satisfied"] = True
     try:
         updated = TransitionPolicy().transition(
@@ -269,6 +275,8 @@ def transition(
         )
     except TransitionRejected as error:
         raise ApiError(409, "CONFLICT", {"reason_codes": error.reason_codes}) from error
+    except ValueError as error:
+        raise ApiError(409, "CONFLICT", {"reason_codes": ["INVALID_APPROVAL_BINDING"]}) from error
     event = updated["audit_events"][-1]
     event.update(
         {
@@ -277,12 +285,26 @@ def transition(
             "source_channel": "api",
         }
     )
+    event["reason_codes"].append("DECISION_SNAPSHOT_BOUND_V1")
+    # Hashes bind content; authentication + policy + atomic commit provide authority.
+    event["payload_hash"] = payload_hash(
+        {
+            "tenant_id": identity.tenant.tenant_id,
+            "after_document_hash": payload_hash(
+                {**updated, "audit_events": updated["audit_events"][:-1]}
+            ),
+            "from": expected_document["status"],
+            "to": transition_request.target,
+            "actor": event["actor"],
+        }
+    )
     _repository(request).save_result(
         identity.tenant,
         updated,
         None,
         [event],
         _idempotency_write(identity, key, operation, digest, 200, updated),
+        expected_document=expected_document,
     )
     if is_approval_action and request.app.state.metrics is not None:
         request.app.state.metrics.increment(

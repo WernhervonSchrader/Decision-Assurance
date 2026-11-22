@@ -172,19 +172,32 @@ jobs:
           psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -f migrations/postgresql/roles.sql
           python -c "from decision_assurance.persistence.postgresql import PostgresMigrationRunner, PostgresSettings; from decision_assurance.production.contracts import SecretValue; PostgresMigrationRunner(PostgresSettings(SecretValue('postgresql://postgres:postgres@localhost:5432/decision_assurance'))).migrate()"
       - name: Backup and restore into a fresh database
+        shell: bash
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
+          # Use the clients shipped with the database server. Newer runner clients
+          # can generate restore statements unsupported by this PostgreSQL major.
+          docker exec "$POSTGRES_CONTAINER_ID" pg_dump --version
+          docker exec "$POSTGRES_CONTAINER_ID" pg_restore --version
           python -m scripts.postgres.seed_recovery_drill \
             --dsn postgresql://postgres:postgres@localhost:5432/decision_assurance \
             --session-state /tmp/recovery-session-state.json
           BACKUP_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner --file=/tmp/decision-assurance.dump
+          docker exec --env PGPASSWORD "$POSTGRES_CONTAINER_ID" \
+            pg_dump -h localhost -U postgres -d decision_assurance --format=custom --no-owner \
+            > /tmp/decision-assurance.dump
           BACKUP_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -c \
+          docker exec --env PGPASSWORD "$POSTGRES_CONTAINER_ID" \
+            psql -h localhost -U postgres -d decision_assurance -v ON_ERROR_STOP=1 -c \
             "INSERT INTO decisions (tenant_id, decision_id, document_json) VALUES ('recovery-tenant-a', 'recovery-post-backup', '{\"status\":\"DRAFT\"}')"
           FAILURE_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          createdb -h localhost -U postgres decision_assurance_restore
+          docker exec --env PGPASSWORD "$POSTGRES_CONTAINER_ID" \
+            createdb -h localhost -U postgres decision_assurance_restore
           RESTORE_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --exit-on-error /tmp/decision-assurance.dump
+          docker exec -i --env PGPASSWORD "$POSTGRES_CONTAINER_ID" \
+            pg_restore -h localhost -U postgres -d decision_assurance_restore --no-owner --exit-on-error \
+            < /tmp/decision-assurance.dump
           RESTORE_COMPLETED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           DA_RECOVERY_EXPECT_DRILL_DATA=true \
             DA_RECOVERY_SESSION_STATE=/tmp/recovery-session-state.json \
