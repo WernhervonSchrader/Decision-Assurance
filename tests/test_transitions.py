@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from decision_assurance.decision_file import bind_approval, evaluate_decision_file
+from decision_assurance.engine import DecisionAssuranceEngine
 from decision_assurance.transitions import TransitionPolicy, TransitionRejected
+from tests.provenance_support import verified_fixture_registry
 
 ROOT = Path(__file__).parents[1]
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
@@ -21,7 +23,16 @@ def fixture() -> dict:
 
 def test_full_draft_to_approved_process_is_audited() -> None:
     policy = TransitionPolicy(clock=lambda: NOW)
-    document, _ = evaluate_decision_file(fixture())
+    source = fixture()
+    registry = verified_fixture_registry(source, "tenant-a")
+    document, _ = evaluate_decision_file(
+        source,
+        engine=DecisionAssuranceEngine(
+            tenant_id="tenant-a",
+            generator_id=source["created_by"]["id"],
+            evidence_registry=registry,
+        ),
+    )
     document = policy.transition(document, "VALIDATION", VALIDATOR)
     document = policy.transition(document, "REVIEW", VALIDATOR)
     document["review_requirements"][0]["satisfied"] = True

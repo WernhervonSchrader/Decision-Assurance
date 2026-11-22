@@ -5,6 +5,7 @@ FALLBACK_LOCALE = "en"
 
 TRANSLATIONS = {
     "en": {
+        "EVIDENCE_PROVENANCE_UNVERIFIED": "Independent source verification is missing or invalid.",
         "UNAUTHENTICATED": "Authentication required.",
         "FORBIDDEN": "You are not authorized to perform this action.",
         "NOT_FOUND": "Not found.",
@@ -32,6 +33,7 @@ TRANSLATIONS = {
         "RESEARCH_CANCELLED": "The research run was cancelled.",
     },
     "de": {
+        "EVIDENCE_PROVENANCE_UNVERIFIED": "Die unabhängige Quellenprüfung fehlt oder ist ungültig.",
         "UNAUTHENTICATED": "Authentifizierung erforderlich.",
         "FORBIDDEN": "Sie sind für diese Aktion nicht berechtigt.",
         "NOT_FOUND": "Nicht gefunden.",

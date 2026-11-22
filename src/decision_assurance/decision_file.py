@@ -148,14 +148,8 @@ def evaluate_decision_file(
     validate_semantics(document)
     request = {
         "decision_id": document["decision_id"],
-        "evidence": [
-            {
-                "id": item["id"],
-                "status": item["status"],
-                "fabricated": item["status"] == "FABRICATED",
-            }
-            for item in document["evidence"]
-        ],
+        "evidence": copy.deepcopy(document["evidence"]),
+        "claims": copy.deepcopy(document["claims"]),
         "mandatory_evidence_missing": any(
             claim["mandatory_evidence"]
             and not any(

@@ -56,6 +56,7 @@ from decision_assurance.web_research.providers.fakes import (
 )
 from decision_assurance.web_research.service import ResearchSubmissionService
 from decision_assurance.web_research.url_policy import PublicUrlPolicy
+from tests.provenance_support import verified_fixture_registry
 
 ROOT = Path(__file__).parents[3]
 MIGRATIONS = ROOT / "migrations" / "postgresql"
@@ -318,6 +319,13 @@ def test_controlled_sales_quote_pilot_end_to_end(postgres_dsn: str) -> None:
         "b",
     )
     assert approved["decision_id"] == review["decision_id"]
+    # Synthetic independent source-verification authority for tenant A only.
+    # Tenant B's added external research remains unverified. Do not alter persisted input.
+    app.state.evidence_registry = verified_fixture_registry(
+        approved,
+        "pilot-tenant-a",
+        replace_placeholder_hashes=False,
+    )
 
     decision_id = review["decision_id"]
     claim_id = review["claims"][0]["id"]

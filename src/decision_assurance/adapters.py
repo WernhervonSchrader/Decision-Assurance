@@ -10,6 +10,7 @@ def normalize(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "decision_id": payload.get("id", "unidentified-decision"),
             "claim": data.get("claim", ""),
+            "claims": data.get("claims", []),
             "evidence": data.get("evidence", []),
             "constraints": data.get("constraints", []),
             "policies": data.get("policies", []),

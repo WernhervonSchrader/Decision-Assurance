@@ -109,3 +109,15 @@ gates from `ui/` with `npm ci`, `npm run lint`, `npm test`, `npm run build` and 
 installing Chromium. Browser E2E uses deterministic fake BFF responses and two isolated tenants;
 Python BFF security tests cover PKCE/session/CSRF/headers, while the existing opt-in Keycloak suite
 provides the real OIDC protocol integration. This layered CI evidence is not deployment evidence.
+
+
+## B2 source provenance
+
+Run `python -m pytest tests/test_evidence_provenance.py tests/e2e/test_b2_evidence_provenance.py -q`.
+These are local synthetic verification-record and authenticated SQLite/API boundary tests,
+not external source-provider, browser, OIDC, PostgreSQL or production verifier evidence.
+The positive legacy approval journeys now explicitly install synthetic server-side verifier
+records; default API/CLI intake cases require REVIEW. The accepted DATS v0.1.0 and all
+legacy scenario JSONs remain unchanged. Proposed v0.2.0 changes only expectations for
+absent independent verification; a dedicated test requires all ten historical divergences
+to remain visible. No production benchmark exception or self-approval is introduced.

@@ -23,6 +23,7 @@ from decision_assurance.identity import ActorKind, Identity, Role, StaticTokenAu
 from decision_assurance.repositories.sqlite import SqliteDecisionRepository
 from decision_assurance.tenancy import TenantContext
 from decision_assurance.validation import ContractValidator
+from tests.provenance_support import verified_fixture_registry
 
 ROOT = Path(__file__).parents[2]
 TENANT = TenantContext("tenant-a")
@@ -31,6 +32,8 @@ TENANT = TenantContext("tenant-a")
 def document() -> dict[str, Any]:
     result = json.loads((ROOT / "examples/decision-cases/low-risk-pass.json").read_text())
     result["created_by"] = {"id": "generator", "role": "GENERATOR", "kind": "HUMAN"}
+    for evidence in result["evidence"]:
+        evidence["content_hash"] = "sha256:" + "a" * 64
     return result
 
 
@@ -54,16 +57,26 @@ def boundary(tmp_path: Path) -> tuple[TestClient, SqliteDecisionRepository]:
     }
     repository = SqliteDecisionRepository(tmp_path / "b3.db")
     repository.initialize()
-    return TestClient(create_app(repository, StaticTokenAuthenticator(identities))), repository
+    client = TestClient(
+        create_app(
+            repository,
+            StaticTokenAuthenticator(identities),
+            evidence_registry=verified_fixture_registry(
+                document(), TENANT.tenant_id, replace_placeholder_hashes=False
+            ),
+        )
+    )
+    return client, repository
 
 
-def to_review(client: TestClient) -> dict[str, Any]:
+def to_review(client: TestClient, expected_outcome: str = "PASS") -> dict[str, Any]:
     body = document()
     created = client.post("/v1/decisions", json=body, headers=headers("gen"))
     assert created.status_code == 201
     path = f"/v1/decisions/{body['decision_id']}"
     assert (
-        client.post(path + "/evaluate", headers=headers("val", "eval")).json()["outcome"] == "PASS"
+        client.post(path + "/evaluate", headers=headers("val", "eval")).json()["outcome"]
+        == expected_outcome
     )
     for target in ("VALIDATION", "REVIEW"):
         response = client.post(
@@ -71,6 +84,28 @@ def to_review(client: TestClient) -> dict[str, Any]:
         )
         assert response.status_code == 200
     return response.json()
+
+
+def test_unverified_evidence_prevents_human_approval(
+    boundary: tuple[TestClient, SqliteDecisionRepository],
+) -> None:
+    client, repository = boundary
+    client.app.state.evidence_registry = None  # type: ignore[attr-defined]
+    review = to_review(client, expected_outcome="REVIEW")
+    assert "EVIDENCE_PROVENANCE_UNVERIFIED" in review["outcome_reasons"]
+
+    decision_id = review["decision_id"]
+    response = client.post(
+        f"/v1/decisions/{decision_id}/transitions",
+        json={"target": "APPROVED"},
+        headers=headers("app", "approve"),
+    )
+    assert response.status_code == 409
+    assert "PASS_OUTCOME_REQUIRED" in response.json()["details"]["reason_codes"]
+    stored = repository.get_decision(TENANT, decision_id)
+    assert stored is not None
+    assert stored["status"] == "REVIEW"
+    assert stored["approvals"] == []
 
 
 @pytest.mark.parametrize("locale", ["de", "en"])

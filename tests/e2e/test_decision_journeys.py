@@ -9,6 +9,7 @@ from decision_assurance.decision_file import bind_canonical_action, validate_sem
 from decision_assurance.identity import ActorKind, Identity, Role, StaticTokenAuthenticator
 from decision_assurance.repositories.sqlite import SqliteDecisionRepository
 from decision_assurance.tenancy import TenantContext
+from tests.provenance_support import verified_fixture_registry
 
 ROOT = Path(__file__).parents[2]
 
@@ -46,6 +47,7 @@ def test_two_tenant_approved_and_blocked_journeys(tmp_path: Path) -> None:
     )
     approved["created_by"] = {"id": "generator-a", "role": "GENERATOR", "kind": "AGENT"}
     approved["review_requirements"] = []
+    client.app.state.evidence_registry = verified_fixture_registry(approved, "tenant-a")
     decision_id = approved["decision_id"]
     assert (
         client.post("/v1/decisions", headers=auth("a-gen", "a-create"), json=approved).status_code
@@ -166,6 +168,7 @@ def test_authenticated_approver_binds_action_and_idempotent_replay(tmp_path: Pat
             "execution_context_hash": "sha256:" + "a" * 64,
         }
     )
+    client.app.state.evidence_registry = verified_fixture_registry(document, "tenant-a")
     decision_id = document["decision_id"]
 
     assert (

@@ -17,6 +17,7 @@ from ...decision_file import (
     validate_initial_authority,
     validate_semantics,
 )
+from ...engine import DecisionAssuranceEngine
 from ...identity import ActorKind, Identity, Role
 from ...repositories.protocols import DecisionRepository, IdempotencyWrite
 from ...repositories.sqlite import IdempotencyConflict
@@ -172,7 +173,14 @@ def evaluate(
         response.status_code = replay[0]
         return replay[1]
     before = len(document["audit_events"])
-    updated, result = evaluate_decision_file(document)
+    updated, result = evaluate_decision_file(
+        document,
+        engine=DecisionAssuranceEngine(
+            evidence_registry=request.app.state.evidence_registry,
+            tenant_id=identity.tenant.tenant_id,
+            generator_id=document["created_by"]["id"],
+        ),
+    )
     new_events = updated["audit_events"][before:]
     for event in new_events:
         event.update(

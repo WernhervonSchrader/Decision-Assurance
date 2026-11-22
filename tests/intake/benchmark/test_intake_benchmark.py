@@ -92,8 +92,16 @@ def test_intake_benchmark_raw_and_trusted_variants() -> None:
                 intake_status=IntakeStatus.READY,
             )
             _, result = evaluate_decision_file(decision)
-            assert result.outcome.value == expected["trusted_outcome"], case.name
+            # Intake extraction/policy verification does not authenticate external origin.
+            outcome = (
+                "REVIEW" if expected["trusted_outcome"] == "PASS" else expected["trusted_outcome"]
+            )
+            assert result.outcome.value == outcome, case.name
+            assert "EVIDENCE_PROVENANCE_UNVERIFIED" in result.reason_codes
             actual_events = {event["event_type"] for event in result.audit_events}
-            assert set(expected["audit_events"]) == actual_events, case.name
+            expected_events = set(expected["audit_events"])
+            if outcome == "REVIEW":
+                expected_events.update({"finding.created", "review.requested"})
+            assert expected_events == actual_events, case.name
         else:
             assert expected["audit_events"] == [], case.name

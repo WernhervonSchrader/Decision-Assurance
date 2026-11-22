@@ -82,3 +82,27 @@ approvals. It sets `requested_by` to the existing `created_by` identity and
 `canonical_action` to `null`; it never invents action authority. A v0.1.0 file
 containing approvals requires independent re-approval under v0.2.0 because no
 nonce or cryptographic binding existed in the older record.
+
+
+## B2 independent source verification (proposed contract extension)
+
+Evidence `status` is a submitted declaration, not authentication. Evaluation retains
+source_ref, content_hash, claim_refs, observed_at and the complete claims rather than
+reducing evidence to id/status. Schema validity alone never establishes provenance.
+The server must supply trusted tenant and generator scope plus an EvidenceRegistry.
+Only an independent, unexpired, unrevoked record matching the exact evidence/claims,
+decision, policy, tenant and generator permits that provenance check to pass.
+No request field can populate this registry; a client signature/hash is not authority.
+
+Missing authority produces EVIDENCE_PROVENANCE_UNVERIFIED / REVIEW (existing BLOCK
+findings take precedence). A record cannot upgrade an explicitly negative or missing
+status to VERIFIED. A new evaluation leaves lifecycle unchanged. Persisted earlier
+reports and same-key idempotency replays are historical outputs, not revalidation of
+current source authority; use a fresh evaluation key for current verification.
+Existing reports/approvals are not migrated or invalidated by this patch. Production
+revalidation and execution remain separate release requirements.
+
+Registry provisioning must authenticate the actual source and authorize the independent
+validator, including effective-principal separation, tenant write isolation, revocation,
+write auditing, retention and storage residency. The development adapter cannot prove
+those operational requirements. See docs/security/B2-ARCHITECTURE-EVIDENCE-GATE.md.

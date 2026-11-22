@@ -7,6 +7,7 @@ from typing import Any
 from .adapters import normalize
 from .audit import AuditLedger
 from .models import AssessmentResult, Finding, Outcome, Severity
+from .provenance.evidence import EvidenceRegistry, evidence_binding
 
 Clock = Callable[[], datetime]
 
@@ -18,18 +19,40 @@ def _utc_now() -> datetime:
 class DecisionAssuranceEngine:
     """Deterministic, fail-closed Decision Assurance governance engine."""
 
-    def __init__(self, *, clock: Clock = _utc_now, engine_version: str = "0.1.0"):
+    def __init__(
+        self,
+        *,
+        clock: Clock = _utc_now,
+        engine_version: str = "0.2.0",
+        evidence_registry: EvidenceRegistry | None = None,
+        tenant_id: str | None = None,
+        generator_id: str | None = None,
+    ):
         self.clock = clock
         self.engine_version = engine_version
+        # These are server composition inputs, never read from assess(payload).
+        self.evidence_registry = evidence_registry
+        self.tenant_id = tenant_id
+        self.generator_id = generator_id
 
     def assess(self, payload: dict[str, Any]) -> AssessmentResult:
         data = normalize(payload)
         decision_id = str(data["decision_id"])
-        ledger = AuditLedger(decision_id=decision_id, now=self.clock)
+        ledger = AuditLedger(
+            decision_id=decision_id, now=self.clock, engine_version=self.engine_version
+        )
         ledger.append("decision.received", data)
 
-        findings = self._validate(data)
-        ledger.append("evidence.validated", {"evidence": data["evidence"], "valid": not findings})
+        source_verifications: list[dict[str, str]] = []
+        findings = self._validate(data, source_verifications)
+        ledger.append(
+            "evidence.validated",
+            {
+                "evidence": data["evidence"],
+                "valid": not findings,
+                "source_verifications": source_verifications,
+            },
+        )
         for finding in findings:
             ledger.append("finding.created", finding.as_dict())
 
@@ -83,6 +106,55 @@ class DecisionAssuranceEngine:
             audit_events=ledger.events,
         )
 
+    def _source_verified(
+        self,
+        data: dict[str, Any],
+        evidence: dict[str, Any],
+        source_verifications: list[dict[str, str]],
+    ) -> bool:
+        if not self.evidence_registry or not self.tenant_id or not self.generator_id:
+            return False
+        ref = evidence.get("evidence_id", evidence.get("id"))
+        source = evidence.get("source_ref")
+        content_hash = evidence.get("content_hash")
+        if (
+            not isinstance(ref, str)
+            or not ref
+            or not isinstance(source, str)
+            or not source.strip()
+            or not isinstance(content_hash, str)
+            or len(content_hash) != 71
+            or not content_hash.startswith("sha256:")
+            or any(c not in "0123456789abcdef" for c in content_hash[7:])
+        ):
+            return False
+        try:
+            record = self.evidence_registry.get_verified(
+                self.tenant_id, str(data["decision_id"]), ref
+            )
+            valid = record is not None and record.matches(
+                tenant_id=self.tenant_id,
+                generator_id=self.generator_id,
+                decision_id=str(data["decision_id"]),
+                evidence_id=ref,
+                binding_hash=evidence_binding(data, evidence),
+                now=self.clock(),
+            )
+            if valid and record is not None:
+                source_verifications.append(
+                    {
+                        "verification_id": record.verification_id,
+                        "tenant_id": self.tenant_id,
+                        "evidence_id": ref,
+                        "validator_id": record.validator_id,
+                        "binding_hash": record.binding_hash,
+                    }
+                )
+            return valid
+        except Exception:
+            # Unavailable/malformed authority must never fall back to submitted trust.
+            return False
+
     @staticmethod
     def _govern(findings: tuple[Finding, ...]) -> Outcome:
         if any(finding.severity is Severity.BLOCK for finding in findings):
@@ -91,21 +163,26 @@ class DecisionAssuranceEngine:
             return Outcome.REVIEW
         return Outcome.PASS
 
-    @staticmethod
-    def _validate(data: dict[str, Any]) -> tuple[Finding, ...]:
+    def _validate(
+        self,
+        data: dict[str, Any],
+        source_verifications: list[dict[str, str]],
+    ) -> tuple[Finding, ...]:
         found: list[tuple[str, Severity, str | None]] = []
         for evidence in data["evidence"]:
             ref = evidence.get("evidence_id", evidence.get("id"))
             status = evidence.get("status")
-            if not evidence.get("verifiable", status != "UNVERIFIED"):
+            if not self._source_verified(data, evidence, source_verifications):
+                found.append(("EVIDENCE_PROVENANCE_UNVERIFIED", Severity.REVIEW, ref))
+            if status != "VERIFIED" or not evidence.get("verifiable", True):
                 found.append(("EVIDENCE_UNVERIFIABLE", Severity.REVIEW, ref))
-            if evidence.get("fabricated", False):
+            if status == "FABRICATED" or evidence.get("fabricated", False):
                 found.append(("CITATION_FABRICATED", Severity.BLOCK, ref))
-            if evidence.get("outdated", status == "OUTDATED"):
+            if status == "OUTDATED" or evidence.get("outdated", False):
                 found.append(("EVIDENCE_OUTDATED", Severity.REVIEW, ref))
             if not evidence.get("supports_claim", True):
                 found.append(("SOURCE_CLAIM_MISMATCH", Severity.REVIEW, ref))
-            if evidence.get("contradicts_claim", status == "CONFLICTING"):
+            if status == "CONFLICTING" or evidence.get("contradicts_claim", False):
                 found.append(("EVIDENCE_CONFLICT", Severity.REVIEW, ref))
             if status == "UNAVAILABLE":
                 found.append(("MANDATORY_EVIDENCE_MISSING", Severity.REVIEW, ref))

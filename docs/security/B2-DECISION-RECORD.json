@@ -1,0 +1,128 @@
+{
+  "schema_version": "0.2.0",
+  "decision_id": "B2-CORRECTION-RELEASE-REVIEW",
+  "title": "B2 correction release gate",
+  "description": "Local implementation verified; independent review and production verifier evidence remain outstanding.",
+  "use_case": "security-change-release-review",
+  "status": "BLOCKED",
+  "assurance_level": "BASIC",
+  "created_at": "2026-10-30T14:40:14.940915+00:00",
+  "updated_at": "2026-10-30T14:40:14.942645+00:00",
+  "created_by": {
+    "id": "codex-implementer",
+    "role": "GENERATOR",
+    "kind": "AGENT"
+  },
+  "requested_by": {
+    "id": "repository-owner",
+    "role": "OWNER",
+    "kind": "HUMAN"
+  },
+  "current_owner": {
+    "id": "repository-owner",
+    "role": "OWNER",
+    "kind": "HUMAN"
+  },
+  "canonical_action": null,
+  "claims": [
+    {
+      "id": "CLAIM-1",
+      "statement": "The proposed B2 code change has local regression evidence; production acceptance remains blocked.",
+      "mandatory_evidence": true
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVIDENCE-1",
+      "claim_refs": [
+        "CLAIM-1"
+      ],
+      "source_ref": "docs/security/B2-VERIFICATION.md",
+      "status": "UNVERIFIED",
+      "observed_at": "2026-10-30T14:40:14.940915+00:00",
+      "content_hash": "sha256:aca09da1a8a341a5e03f0a622594acb6e15a549598fc931f0fe88a053e8e265d"
+    }
+  ],
+  "assumptions": [],
+  "constraints": [
+    {
+      "id": "INDEPENDENT-REVIEW",
+      "severity": "MANDATORY",
+      "satisfied": false,
+      "reason_code": "INDEPENDENT_REVIEW_REQUIRED"
+    }
+  ],
+  "policies": [
+    {
+      "id": "B2-RELEASE-GATE",
+      "version": "proposed-v1",
+      "requires_review": true
+    }
+  ],
+  "risks": [
+    {
+      "id": "PRODUCTION-VERIFIER",
+      "level": "HIGH",
+      "unresolved": true
+    }
+  ],
+  "conflicts": [],
+  "validation_results": [
+    {
+      "validator": {
+        "id": "decision-assurance-engine",
+        "role": "VALIDATOR",
+        "kind": "SERVICE"
+      },
+      "result": "BLOCK",
+      "reason_codes": [
+        "EVIDENCE_PROVENANCE_UNVERIFIED",
+        "EVIDENCE_UNVERIFIABLE",
+        "HARD_CONSTRAINT_VIOLATION",
+        "POLICY_REQUIRES_REVIEW",
+        "HIGH_IMPACT_UNCERTAINTY"
+      ],
+      "validated_at": "2026-10-30T14:40:14.942645+00:00"
+    }
+  ],
+  "review_requirements": [
+    {
+      "id": "APPROVAL-1",
+      "required_role": "APPROVER",
+      "mandatory": true,
+      "satisfied": false
+    }
+  ],
+  "approvals": [],
+  "decision_outcome": "BLOCK",
+  "outcome_reasons": [
+    "EVIDENCE_PROVENANCE_UNVERIFIED",
+    "EVIDENCE_UNVERIFIABLE",
+    "HARD_CONSTRAINT_VIOLATION",
+    "POLICY_REQUIRES_REVIEW",
+    "HIGH_IMPACT_UNCERTAINTY"
+  ],
+  "audit_events": [
+    {
+      "event_id": "B2-CORRECTION-RELEASE-REVIEW:evaluation:1",
+      "event_type": "decision.evaluated",
+      "occurred_at": "2026-10-30T14:40:14.942645+00:00",
+      "actor": {
+        "id": "decision-assurance-engine",
+        "role": "VALIDATOR",
+        "kind": "SERVICE"
+      },
+      "from_status": "BLOCKED",
+      "to_status": "BLOCKED",
+      "reason_codes": [
+        "EVIDENCE_PROVENANCE_UNVERIFIED",
+        "EVIDENCE_UNVERIFIABLE",
+        "HARD_CONSTRAINT_VIOLATION",
+        "POLICY_REQUIRES_REVIEW",
+        "HIGH_IMPACT_UNCERTAINTY"
+      ],
+      "payload_hash": "sha256:1d903cbc19b2639d8381c152d43e41746cbd8b73bed08d24ff8b55de6c0ab296",
+      "previous_event_hash": null
+    }
+  ]
+}

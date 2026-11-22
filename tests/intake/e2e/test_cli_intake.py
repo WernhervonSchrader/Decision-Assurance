@@ -53,7 +53,7 @@ def test_cli_raw_text_to_existing_engine(tmp_path: Path, capsys) -> None:  # typ
         == 0
     )
     assert main(["intake", "evaluate", str(decision)]) == 0
-    assert '"outcome": "PASS"' in capsys.readouterr().out
+    assert '"outcome": "REVIEW"' in capsys.readouterr().out
 
 
 def test_embedded_pass_never_sets_intake_outcome(tmp_path: Path) -> None:

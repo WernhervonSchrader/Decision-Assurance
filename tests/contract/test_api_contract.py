@@ -85,12 +85,12 @@ def test_validator_can_evaluate_and_auditor_can_read(client: TestClient, decisio
         f"/v1/decisions/{decision_id}/evaluate", headers=headers("a-validator", "eval-1")
     )
     assert evaluated.status_code == 200
-    assert evaluated.json()["outcome"] == "PASS"
+    assert evaluated.json()["outcome"] == "REVIEW"
     assert (
         client.get(f"/v1/decisions/{decision_id}/report", headers=headers("a-auditor")).json()[
             "outcome"
         ]
-        == "PASS"
+        == "REVIEW"
     )
     events = client.get(f"/v1/decisions/{decision_id}/audit", headers=headers("a-auditor")).json()[
         "items"
